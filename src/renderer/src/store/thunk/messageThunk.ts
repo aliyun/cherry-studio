@@ -622,6 +622,14 @@ const fetchAndProcessAssistantResponseImpl = async (
           const contextForUsage = userMsgIndex !== -1 ? orderedMsgs.slice(0, userMsgIndex + 1) : []
           const finalContextWithAssistant = [...contextForUsage, finalAssistantMsg]
 
+          if (lastBlockId) {
+            const changes: Partial<MessageBlock> = {
+              status: MessageBlockStatus.SUCCESS
+            }
+            dispatch(updateOneBlock({ id: lastBlockId, changes }))
+            saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          }
+
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
 
@@ -735,6 +743,10 @@ export const loadTopicMessagesThunk =
 
     try {
       const topic = await db.topics.get(topicId)
+      if (!topic) {
+        await db.topics.add({ id: topicId, messages: [] })
+      }
+
       const messagesFromDB = topic?.messages || []
 
       if (messagesFromDB.length > 0) {
@@ -794,21 +806,19 @@ export const deleteMessageGroupThunk =
     const currentState = getState()
     const topicMessageIds = currentState.messages.messageIdsByTopic[topicId] || []
     const messagesToDelete: Message[] = []
-    const idsToDelete: string[] = []
 
     topicMessageIds.forEach((id) => {
       const msg = currentState.messages.entities[id]
       if (msg && msg.askId === askId) {
         messagesToDelete.push(msg)
-        idsToDelete.push(id)
       }
     })
 
-    const userQuery = currentState.messages.entities[askId]
-    if (userQuery && userQuery.topicId === topicId && !idsToDelete.includes(askId)) {
-      messagesToDelete.push(userQuery)
-      idsToDelete.push(askId)
-    }
+    // const userQuery = currentState.messages.entities[askId]
+    // if (userQuery && userQuery.topicId === topicId && !idsToDelete.includes(askId)) {
+    //   messagesToDelete.push(userQuery)
+    //   idsToDelete.push(askId)
+    // }
 
     if (messagesToDelete.length === 0) {
       console.warn(`[deleteMessageGroup] No messages found with askId ${askId} in topic ${topicId}.`)
@@ -883,13 +893,29 @@ export const resendMessageThunk =
       const resetDataList: Message[] = []
 
       if (assistantMessagesToReset.length === 0) {
-        // 没有用户消息,就创建一个
-        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-          askId: userMessageToResend.id,
-          model: assistant.model
+        // 没有用户消息,就创建一个或多个
+
+        if (userMessageToResend?.mentions?.length) {
+          console.log('userMessageToResend.mentions', userMessageToResend.mentions)
+          for (const mention of userMessageToResend.mentions) {
+            const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+              askId: userMessageToResend.id,
+              model: mention,
+              modelId: mention.id
+            })
+            resetDataList.push(assistantMessage)
+          }
+        } else {
+          const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+            askId: userMessageToResend.id,
+            model: assistant.model
+          })
+          resetDataList.push(assistantMessage)
+        }
+
+        resetDataList.forEach((message) => {
+          dispatch(newMessagesActions.addMessage({ topicId, message }))
         })
-        resetDataList.push(assistantMessage)
-        dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
       }
 
       const allBlockIdsToDelete: string[] = []

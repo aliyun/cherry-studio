@@ -6,13 +6,6 @@ import storeSyncService from './services/StoreSyncService'
 import { webTraceService } from './services/WebTraceService'
 import store from './store'
 
-function initSpinner() {
-  const spinner = document.getElementById('spinner')
-  if (spinner) {
-    spinner.style.display = 'flex'
-  }
-}
-
 function initKeyv() {
   window.keyv = new KeyvStorage()
   window.keyv.init()
@@ -39,7 +32,6 @@ function initWebTrace() {
   webTraceService.init()
 }
 
-initSpinner()
 initKeyv()
 initAutoSync()
 initStoreSync()
