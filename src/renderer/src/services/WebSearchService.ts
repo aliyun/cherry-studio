@@ -1,3 +1,4 @@
+import { Traced, TracedAsync } from '@mcp-trace/trace-core'
 import Logger from '@renderer/config/logger'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
@@ -19,6 +20,9 @@ class WebSearchService {
 
   isPaused = false
 
+  @Traced({
+    traceName: 'CherryStudio'
+  })
   createAbortSignal(key: string) {
     const controller = new AbortController()
     this.signal = controller.signal
@@ -98,6 +102,9 @@ class WebSearchService {
    * @param query 搜索查询
    * @returns 搜索响应
    */
+  @TracedAsync({
+    traceName: 'CherryStudio'
+  })
   public async search(
     provider: WebSearchProvider,
     query: string,

@@ -10,6 +10,9 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 export default defineConfig({
   main: {
     plugins: [
+      react({
+        tsDecorators: true
+      }),
       externalizeDepsPlugin({
         exclude: [
           '@cherrystudio/embedjs',
@@ -42,7 +45,12 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [
+      react({
+        tsDecorators: true
+      }),
+      externalizeDepsPlugin()
+    ],
     resolve: {
       alias: {
         '@shared': resolve('packages/shared')
@@ -52,6 +60,7 @@ export default defineConfig({
   renderer: {
     plugins: [
       react({
+        tsDecorators: true,
         plugins: [
           [
             '@swc/plugin-styled-components',

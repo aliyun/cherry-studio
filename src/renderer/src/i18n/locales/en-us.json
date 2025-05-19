@@ -344,6 +344,7 @@
       "prompt": "Prompt",
       "provider": "Provider",
       "regenerate": "Regenerate",
+      "trace": "Trace",
       "rename": "Rename",
       "reset": "Reset",
       "save": "Save",

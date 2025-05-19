@@ -13,7 +13,10 @@
     ],
     "installConfig": {
       "hoistingLimits": [
-        "packages/database"
+        "packages/database",
+        "packages/mcp-trace/trace-core",
+        "packages/mcp-trace/trace-node",
+        "packages/mcp-trace/trace-web"
       ]
     }
   },
@@ -36,6 +39,7 @@
     "release": "node scripts/version.js",
     "publish": "yarn build:check && yarn release patch push",
     "pulish:artifacts": "cd packages/artifacts && npm publish && cd -",
+    "pulish:trace": "cd packages/mcp-trace && npm publish && cd -",
     "generate:agents": "yarn workspace @cherry-studio/database agents",
     "generate:icons": "electron-icon-builder --input=./build/logo.png --output=build",
     "analyze:renderer": "VISUALIZER_RENDERER=true yarn build",
@@ -50,7 +54,7 @@
     "test:renderer": "vitest run",
     "test:renderer:ui": "vitest --ui",
     "test:renderer:coverage": "vitest run --coverage",
-    "test:lint":"eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
+    "test:lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "format": "prettier --write .",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
     "postinstall": "electron-builder install-app-deps",

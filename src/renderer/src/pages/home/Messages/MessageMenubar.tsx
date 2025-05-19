@@ -1,4 +1,4 @@
-import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, QuestionCircleOutlined, ScheduleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
@@ -118,6 +118,12 @@ const MessageMenubar: FC<Props> = (props) => {
     },
     [assistant, loading, message, resendMessage]
   )
+
+  const handleTraceUserMessage = useCallback(async () => {
+    if (!loading) {
+      console.log('handleTraceUserMessage', message)
+    }
+  }, [loading, message])
 
   const onEdit = useCallback(async () => {
     // 禁用了助手消息的编辑，现在都是用户消息的编辑
@@ -531,6 +537,13 @@ const MessageMenubar: FC<Props> = (props) => {
           </Tooltip>
         </ActionButton>
       </Popconfirm>
+      {isAssistantMessage && (
+        <Tooltip title={t('common.trace')} mouseEnterDelay={0.8}>
+          <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
+            <ScheduleOutlined />
+          </ActionButton>
+        </Tooltip>
+      )}
       {!isUserMessage && (
         <Dropdown
           menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}

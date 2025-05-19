@@ -704,6 +704,7 @@ export const sendMessage =
           model: assistant.model
         })
         await saveMessageAndBlocksToDB(assistantMessage, [])
+        assistantMessage.traceId = userMessage.traceId
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
         queue.add(async () => {

@@ -344,6 +344,7 @@
       "prompt": "プロンプト",
       "provider": "プロバイダー",
       "regenerate": "再生成",
+      "trace": "トレース",
       "rename": "名前を変更",
       "reset": "リセット",
       "save": "保存",

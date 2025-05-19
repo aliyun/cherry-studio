@@ -3,6 +3,7 @@ import KeyvStorage from '@kangfenmao/keyv-storage'
 import { startAutoSync } from './services/BackupService'
 import { startNutstoreAutoSync } from './services/NutstoreService'
 import storeSyncService from './services/StoreSyncService'
+import { webTraceService } from './services/WebTraceService'
 import store from './store'
 
 function initSpinner() {
@@ -34,7 +35,12 @@ function initStoreSync() {
   storeSyncService.subscribe()
 }
 
+function initWebTrace() {
+  webTraceService.init()
+}
+
 initSpinner()
 initKeyv()
 initAutoSync()
 initStoreSync()
+initWebTrace()

@@ -336,6 +336,7 @@
       "prompt": "Prompt",
       "provider": "Fournisseur",
       "regenerate": "Regénérer",
+      "trace": "Tracer",
       "rename": "Renommer",
       "reset": "Réinitialiser",
       "save": "Enregistrer",

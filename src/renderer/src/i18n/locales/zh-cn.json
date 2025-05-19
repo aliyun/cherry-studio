@@ -344,6 +344,7 @@
       "prompt": "提示词",
       "provider": "提供商",
       "regenerate": "重新生成",
+      "trace": "跟踪",
       "rename": "重命名",
       "reset": "重置",
       "save": "保存",
