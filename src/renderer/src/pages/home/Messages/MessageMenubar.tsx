@@ -2,6 +2,7 @@ import { CheckOutlined, EditOutlined, QuestionCircleOutlined, ScheduleOutlined, 
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
+import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
@@ -111,6 +112,8 @@ const MessageMenubar: FC<Props> = (props) => {
     [assistant, loading, message, resendMessage]
   )
 
+  const { startEditing } = useMessageEditing()
+
   const onEdit = useCallback(async () => {
     startEditing(message.id)
   }, [message.id, startEditing])
@@ -136,6 +139,11 @@ const MessageMenubar: FC<Props> = (props) => {
     },
     [isTranslating, message, getTranslationUpdater, mainTextContent]
   )
+
+  const handleTraceUserMessage = useCallback(async () => {
+    console.log('handleTraceUserMessage traceId:', message.traceId)
+    return Promise.resolve()
+  }, [message])
 
   const isEditable = useMemo(() => {
     return findMainTextBlocks(message).length === 1
