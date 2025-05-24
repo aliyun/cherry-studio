@@ -5875,7 +5875,7 @@ __metadata:
     turndown-plugin-gfm: "npm:^1.0.2"
     typescript: "npm:^5.6.2"
     uuid: "npm:^10.0.0"
-    vite: "npm:6.2.6"
+    vite: "npm:6.2.7"
     vitest: "npm:^3.1.1"
     webdav: "npm:^5.8.0"
     ws: "npm:^8.18.1"
@@ -19377,9 +19377,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:6.2.6":
-  version: 6.2.6
-  resolution: "vite@npm:6.2.6"
+"vite@npm:6.2.7":
+  version: 6.2.7
+  resolution: "vite@npm:6.2.7"
   dependencies:
     esbuild: "npm:^0.25.0"
     fsevents: "npm:~2.3.3"
@@ -19425,7 +19425,7 @@ __metadata:
       optional: true
   bin:
     vite: bin/vite.js
-  checksum: 10c0/68a2ed3e61bdd654c59b817b4f3203065241c66d1739faa707499130f3007bc3a666c7a8320a4198e275e62b5e4d34d9b78a6533f69e321d366e76f5093b2071
+  checksum: 10c0/2da5df6bfdc386a3b24d7350c508e075a49a5b5c33eb4a327203eb175398a1da99d185c68bd2287be897032810700d95ea7ce72d1113d86f43de61f0ce4435da
   languageName: node
   linkType: hard
 
