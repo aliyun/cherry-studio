@@ -11,6 +11,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
@@ -1351,6 +1352,11 @@ const migrateConfig = {
   },
   '102': (state: RootState) => {
     try {
+      state.settings.openAI = {
+        summaryText: 'off',
+        serviceTier: 'auto'
+      }
+
       state.settings.codeExecution = settingsInitialState.codeExecution
       state.settings.codeEditor = settingsInitialState.codeEditor
       state.settings.codePreview = settingsInitialState.codePreview
@@ -1401,6 +1407,76 @@ const migrateConfig = {
           searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
         }
       }
+      // Quick assistant model
+      state.llm.quickAssistantModel = state.llm.defaultModel || SYSTEM_MODELS.silicon[1]
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '104': (state: RootState) => {
+    try {
+      addProvider(state, 'burncloud')
+      state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 10)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '105': (state: RootState) => {
+    try {
+      state.settings.notification = settingsInitialState.notification
+      addMiniApp(state, 'google')
+      if (!state.settings.openAI) {
+        state.settings.openAI = {
+          summaryText: 'off',
+          serviceTier: 'auto'
+        }
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '106': (state: RootState) => {
+    try {
+      addProvider(state, 'tokenflux')
+      state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '107': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.DMXAPIPaintings) {
+        state.paintings.DMXAPIPaintings = []
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '108': (state: RootState) => {
+    try {
+      state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
+      state.inputTools.isCollapsed = false
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '109': (state: RootState) => {
+    try {
+      state.settings.userTheme = settingsInitialState.userTheme
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '110': (state: RootState) => {
+    try {
+      state.settings.showTokens = true
       return state
     } catch (error) {
       return state

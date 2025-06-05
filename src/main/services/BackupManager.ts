@@ -7,7 +7,7 @@ import Logger from 'electron-log'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
-import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
+import { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -255,19 +255,26 @@ class BackupManager {
       const sourcePath = path.join(this.tempDir, 'Data')
       const destPath = path.join(app.getPath('userData'), 'Data')
 
-      // 获取源目录总大小
-      const totalSize = await this.getDirSize(sourcePath)
-      let copiedSize = 0
+      const dataExists = await fs.pathExists(sourcePath)
+      const dataFiles = dataExists ? await fs.readdir(sourcePath) : []
 
-      await this.setWritableRecursive(destPath)
-      await fs.remove(destPath)
+      if (dataExists && dataFiles.length > 0) {
+        // 获取源目录总大小
+        const totalSize = await this.getDirSize(sourcePath)
+        let copiedSize = 0
 
-      // 使用流式复制
-      await this.copyDirWithProgress(sourcePath, destPath, (size) => {
-        copiedSize += size
-        const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
-        onProgress({ stage: 'copying_files', progress, total: 100 })
-      })
+        await this.setWritableRecursive(destPath)
+        await fs.remove(destPath)
+
+        // 使用流式复制
+        await this.copyDirWithProgress(sourcePath, destPath, (size) => {
+          copiedSize += size
+          const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
+          onProgress({ stage: 'copying_files', progress, total: 100 })
+        })
+      } else {
+        Logger.log('[backup] skipBackupFile is true, skip restoring Data directory')
+      }
 
       Logger.log('[backup] step 4: clean up temp directory')
       // 清理临时目录
@@ -333,12 +340,8 @@ class BackupManager {
 
   listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
     try {
-      const client = createClient(config.webdavHost, {
-        username: config.webdavUser,
-        password: config.webdavPass
-      })
-
-      const response = await client.getDirectoryContents(config.webdavPath)
+      const client = new WebDav(config)
+      const response = await client.getDirectoryContents()
       const files = Array.isArray(response) ? response : response.data
 
       return files

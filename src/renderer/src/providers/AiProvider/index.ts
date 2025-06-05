@@ -1,3 +1,4 @@
+import { GenerateImagesParameters } from '@google/genai'
 import { TracedAsync } from '@mcp-trace/trace-core'
 import BaseProvider from '@renderer/providers/AiProvider/BaseProvider'
 import ProviderFactory from '@renderer/providers/AiProvider/ProviderFactory'
@@ -21,6 +22,10 @@ export default class AiProvider {
     this.sdk = ProviderFactory.create(provider)
   }
 
+  @TracedAsync({
+    traceName: 'generateImage',
+    tag: 'LLM'
+  })
   public async fakeCompletions(params: CompletionsParams): Promise<void> {
     return this.sdk.fakeCompletions(params)
   }
@@ -103,8 +108,8 @@ export default class AiProvider {
     traceName: 'generateImage',
     tag: 'LLM'
   })
-  public async generateImage(params: GenerateImageParams): Promise<string[]> {
-    return this.sdk.generateImage(params)
+  public async generateImage(params: GenerateImageParams | GenerateImagesParameters): Promise<string[]> {
+    return this.sdk.generateImage(params as GenerateImageParams)
   }
 
   @TracedAsync({

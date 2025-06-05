@@ -1,8 +1,10 @@
+// just import the themeService to ensure the theme is initialized
+import './ThemeService'
+
 import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { ThemeMode } from '@types'
 import { app, BrowserWindow, nativeTheme, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
@@ -45,13 +47,6 @@ export class WindowService {
       maximize: false
     })
 
-    const theme = configManager.getTheme()
-    if (theme === ThemeMode.auto) {
-      nativeTheme.themeSource = 'system'
-    } else {
-      nativeTheme.themeSource = theme
-    }
-
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
       y: mainWindowState.y,
@@ -76,6 +71,7 @@ export class WindowService {
         webSecurity: false,
         webviewTag: true,
         allowRunningInsecureContent: true,
+        zoomFactor: configManager.getZoomFactor(),
         backgroundThrottling: false
       }
     })
@@ -182,6 +178,12 @@ export class WindowService {
     // see: https://github.com/electron/electron/issues/10572
     //
     mainWindow.on('will-resize', () => {
+      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+    })
+
+    // set the zoom factor again when the window is going to restore
+    // minimize and restore will cause zoom reset
+    mainWindow.on('restore', () => {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
     })
 
@@ -323,11 +325,6 @@ export class WindowService {
        */
 
       event.preventDefault()
-
-      if (mainWindow.isFullScreen()) {
-        mainWindow.setFullScreen(false)
-        return
-      }
 
       mainWindow.hide()
 

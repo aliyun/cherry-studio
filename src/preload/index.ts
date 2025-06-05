@@ -13,26 +13,30 @@ function tracedInvoke(channel: string, ...args: any[]) {
   return ipcRenderer.invoke(channel, ...args, carray)
 }
 
+import type { ActionItem } from '../renderer/src/types/selectionTypes'
+
 // Custom APIs for renderer
 const api = {
-  getAppInfo: () => tracedInvoke(IpcChannel.App_Info),
-  reload: () => tracedInvoke(IpcChannel.App_Reload),
-  setProxy: (proxy: string | undefined) => tracedInvoke(IpcChannel.App_Proxy, proxy),
-  checkForUpdate: () => tracedInvoke(IpcChannel.App_CheckForUpdate),
-  showUpdateDialog: () => tracedInvoke(IpcChannel.App_ShowUpdateDialog),
-  setLanguage: (lang: string) => tracedInvoke(IpcChannel.App_SetLanguage, lang),
-  setLaunchOnBoot: (isActive: boolean) => tracedInvoke(IpcChannel.App_SetLaunchOnBoot, isActive),
-  setLaunchToTray: (isActive: boolean) => tracedInvoke(IpcChannel.App_SetLaunchToTray, isActive),
-  setTray: (isActive: boolean) => tracedInvoke(IpcChannel.App_SetTray, isActive),
-  setTrayOnClose: (isActive: boolean) => tracedInvoke(IpcChannel.App_SetTrayOnClose, isActive),
-  restartTray: () => tracedInvoke(IpcChannel.App_RestartTray),
-  setTheme: (theme: 'light' | 'dark' | 'auto') => tracedInvoke(IpcChannel.App_SetTheme, theme),
+  getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
+  reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
+  setProxy: (proxy: string | undefined) => ipcRenderer.invoke(IpcChannel.App_Proxy, proxy),
+  checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
+  showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
+  setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
+  setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
+  setLaunchToTray: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchToTray, isActive),
+  setTray: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTray, isActive),
+  setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTrayOnClose, isActive),
+  setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
   handleZoomFactor: (delta: number, reset: boolean = false) =>
-    tracedInvoke(IpcChannel.App_HandleZoomFactor, delta, reset),
-  setAutoUpdate: (isActive: boolean) => tracedInvoke(IpcChannel.App_SetAutoUpdate, isActive),
-  openWebsite: (url: string) => tracedInvoke(IpcChannel.Open_Website, url),
-  getCacheSize: () => tracedInvoke(IpcChannel.App_GetCacheSize),
-  clearCache: () => tracedInvoke(IpcChannel.App_ClearCache),
+    ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
+  setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
+  openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
+  getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
+  clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
+  notification: {
+    send: (notification: Notification) => ipcRenderer.invoke(IpcChannel.Notification_Send, notification)
+  },
   system: {
     getDeviceType: () => tracedInvoke(IpcChannel.System_GetDeviceType),
     getHostname: () => tracedInvoke(IpcChannel.System_GetHostname)
@@ -72,14 +76,16 @@ const api = {
     open: (options?: OpenDialogOptions) => tracedInvoke(IpcChannel.File_Open, options),
     openPath: (path: string) => tracedInvoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any) =>
-      tracedInvoke(IpcChannel.File_Save, path, content, options),
-    selectFolder: () => tracedInvoke(IpcChannel.File_SelectFolder),
-    saveImage: (name: string, data: string) => tracedInvoke(IpcChannel.File_SaveImage, name, data),
-    base64Image: (fileId: string) => tracedInvoke(IpcChannel.File_Base64Image, fileId),
-    download: (url: string) => tracedInvoke(IpcChannel.File_Download, url),
-    copy: (fileId: string, destPath: string) => tracedInvoke(IpcChannel.File_Copy, fileId, destPath),
-    binaryImage: (fileId: string) => tracedInvoke(IpcChannel.File_BinaryImage, fileId),
-    base64File: (fileId: string) => tracedInvoke(IpcChannel.File_Base64File, fileId),
+      ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
+    selectFolder: () => ipcRenderer.invoke(IpcChannel.File_SelectFolder),
+    saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
+    base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
+    saveBase64Image: (data: string) => ipcRenderer.invoke(IpcChannel.File_SaveBase64Image, data),
+    download: (url: string, isUseContentType?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
+    copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
+    binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
+    base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId),
     getPathForFile: (file: File) => webUtils.getPathForFile(file)
   },
   fs: {
@@ -117,15 +123,17 @@ const api = {
     resetMinimumSize: () => tracedInvoke(IpcChannel.Windows_ResetMinimumSize)
   },
   gemini: {
-    uploadFile: (file: FileType, apiKey: string) => tracedInvoke(IpcChannel.Gemini_UploadFile, file, apiKey),
-    base64File: (file: FileType) => tracedInvoke(IpcChannel.Gemini_Base64File, file),
-    retrieveFile: (file: FileType, apiKey: string) => tracedInvoke(IpcChannel.Gemini_RetrieveFile, file, apiKey),
-    listFiles: (apiKey: string) => tracedInvoke(IpcChannel.Gemini_ListFiles, apiKey),
-    deleteFile: (fileId: string, apiKey: string) => tracedInvoke(IpcChannel.Gemini_DeleteFile, fileId, apiKey)
+    uploadFile: (file: FileType, { apiKey, baseURL }: { apiKey: string; baseURL: string }) =>
+      ipcRenderer.invoke(IpcChannel.Gemini_UploadFile, file, { apiKey, baseURL }),
+    base64File: (file: FileType) => ipcRenderer.invoke(IpcChannel.Gemini_Base64File, file),
+    retrieveFile: (file: FileType, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_RetrieveFile, file, apiKey),
+    listFiles: (apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_ListFiles, apiKey),
+    deleteFile: (fileId: string, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_DeleteFile, fileId, apiKey)
   },
   config: {
-    set: (key: string, value: any) => tracedInvoke(IpcChannel.Config_Set, key, value),
-    get: (key: string) => tracedInvoke(IpcChannel.Config_Get, key)
+    set: (key: string, value: any, isNotify: boolean = false) =>
+      ipcRenderer.invoke(IpcChannel.Config_Set, key, value, isNotify),
+    get: (key: string) => ipcRenderer.invoke(IpcChannel.Config_Get, key)
   },
   miniWindow: {
     show: () => tracedInvoke(IpcChannel.MiniWindow_Show),
@@ -151,9 +159,9 @@ const api = {
       tracedInvoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
     listResources: (server: MCPServer) => tracedInvoke(IpcChannel.Mcp_ListResources, server),
     getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
-      tracedInvoke(IpcChannel.Mcp_GetResource, { server, uri }),
-    getInstallInfo: () => tracedInvoke(IpcChannel.Mcp_GetInstallInfo),
-    checkMcpConnectivity: (server: any) => tracedInvoke(IpcChannel.Mcp_CheckConnectivity, server)
+      ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
+    getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
+    checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server)
   },
   shell: {
     openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)
@@ -199,9 +207,27 @@ const api = {
       tracedInvoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal)
   },
   storeSync: {
-    subscribe: () => tracedInvoke(IpcChannel.StoreSync_Subscribe),
-    unsubscribe: () => tracedInvoke(IpcChannel.StoreSync_Unsubscribe),
-    onUpdate: (action: any) => tracedInvoke(IpcChannel.StoreSync_OnUpdate, action)
+    subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
+    unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
+    onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
+  },
+  selection: {
+    hideToolbar: () => ipcRenderer.invoke(IpcChannel.Selection_ToolbarHide),
+    writeToClipboard: (text: string) => ipcRenderer.invoke(IpcChannel.Selection_WriteToClipboard, text),
+    determineToolbarSize: (width: number, height: number) =>
+      ipcRenderer.invoke(IpcChannel.Selection_ToolbarDetermineSize, width, height),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke(IpcChannel.Selection_SetEnabled, enabled),
+    setTriggerMode: (triggerMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetTriggerMode, triggerMode),
+    setFollowToolbar: (isFollowToolbar: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Selection_SetFollowToolbar, isFollowToolbar),
+    setRemeberWinSize: (isRemeberWinSize: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Selection_SetRemeberWinSize, isRemeberWinSize),
+    setFilterMode: (filterMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterMode, filterMode),
+    setFilterList: (filterList: string[]) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterList, filterList),
+    processAction: (actionItem: ActionItem) => ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem),
+    closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
+    minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
+    pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
   }
 }
 

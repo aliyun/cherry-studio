@@ -1,13 +1,14 @@
-import { CheckOutlined, EditOutlined, QuestionCircleOutlined, ScheduleOutlined, SyncOutlined } from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, MenuOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import { RootState } from '@renderer/store'
+import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
@@ -15,10 +16,10 @@ import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
 import {
   exportMarkdownToJoplin,
-  exportMarkdownToNotion,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
+  exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
@@ -50,6 +51,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { message, index, isGrouped, isLastMessage, isAssistantMessage, assistant, topic, model, messageContainerRef } =
     props
   const { t } = useTranslation()
+  const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
@@ -88,13 +90,24 @@ const MessageMenubar: FC<Props> = (props) => {
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      navigator.clipboard.writeText(removeTrailingDoubleSpaces(mainTextContent.trimStart()))
+
+      const currentMessageId = message.id // from props
+      const latestMessageEntity = store.getState().messages.entities[currentMessageId]
+
+      let contentToCopy = ''
+      if (latestMessageEntity) {
+        contentToCopy = getMainTextContent(latestMessageEntity as Message)
+      } else {
+        contentToCopy = getMainTextContent(message)
+      }
+
+      navigator.clipboard.writeText(removeTrailingDoubleSpaces(contentToCopy.trimStart()))
 
       window.message.success({ content: t('message.copied'), key: 'copy-message' })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     },
-    [mainTextContent, t]
+    [message, t] // message is needed for message.id and as a fallback. t is for translation.
   )
 
   const onNewBranch = useCallback(async () => {
@@ -146,7 +159,7 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [message])
 
   const isEditable = useMemo(() => {
-    return findMainTextBlocks(message).length === 1
+    return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
   }, [message])
 
   const dropdownItems = useMemo(
@@ -175,6 +188,14 @@ const MessageMenubar: FC<Props> = (props) => {
         key: 'new-branch',
         icon: <Split size={16} />,
         onClick: onNewBranch
+      },
+      {
+        label: t('chat.multiple.select'),
+        key: 'multi-select',
+        icon: <MenuOutlined size={16} />,
+        onClick: () => {
+          toggleMultiSelectMode(true)
+        }
       },
       {
         label: t('chat.topics.export.title'),
@@ -228,7 +249,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMarkdownToNotion(title, markdown)
+              exportMessageToNotion(title, markdown, message)
             }
           },
           exportMenuOptions.yuque && {
@@ -244,9 +265,8 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.obsidian'),
             key: 'obsidian',
             onClick: async () => {
-              const markdown = messageToMarkdown(message)
               const title = topic.name?.replace(/\//g, '_') || 'Untitled'
-              await ObsidianExportPopup.show({ title, markdown, processingMethod: '1' })
+              await ObsidianExportPopup.show({ title, message, processingMethod: '1' })
             }
           },
           exportMenuOptions.joplin && {
@@ -254,8 +274,7 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'joplin',
             onClick: async () => {
               const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
-              exportMarkdownToJoplin(title, markdown)
+              exportMarkdownToJoplin(title, message)
             }
           },
           exportMenuOptions.siyuan && {
@@ -270,7 +289,18 @@ const MessageMenubar: FC<Props> = (props) => {
         ].filter(Boolean)
       }
     ],
-    [message, messageContainerRef, isEditable, onEdit, mainTextContent, onNewBranch, t, topic.name, exportMenuOptions]
+    [
+      t,
+      isEditable,
+      onEdit,
+      onNewBranch,
+      exportMenuOptions,
+      message,
+      mainTextContent,
+      toggleMultiSelectMode,
+      messageContainerRef,
+      topic.name
+    ]
   )
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
@@ -448,13 +478,6 @@ const MessageMenubar: FC<Props> = (props) => {
           </Tooltip>
         </ActionButton>
       </Popconfirm>
-      {isAssistantMessage && (
-        <Tooltip title={t('common.trace')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
-            <ScheduleOutlined />
-          </ActionButton>
-        </Tooltip>
-      )}
       {!isUserMessage && (
         <Dropdown
           menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}
