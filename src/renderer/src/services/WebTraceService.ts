@@ -1,14 +1,17 @@
 import {
   convertSpanToSpanEntity,
+  FunctionSpanExporter,
   ON_END,
   ON_START,
   SpanEntity,
   TRACE_DATA_EVENT,
   TraceCache
 } from '@mcp-trace/trace-core'
-import { WebTracer } from '@mcp-trace/trace-web'
-import { SpanStatusCode } from '@opentelemetry/api'
+import { instrumentPromises, WebTracer } from '@mcp-trace/trace-web'
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+
+const TRACER_NAME = 'CherryStudio'
 
 class WebTraceCache implements TraceCache {
   private cache: Map<string, SpanEntity> = new Map<string, SpanEntity>()
@@ -55,37 +58,26 @@ class WebTraceCache implements TraceCache {
 
 const ipcRenderer = window.electron.ipcRenderer
 
-// readonly method cannot be changed
-// const originalHandle = ipcRenderer.invoke
-// ipcRenderer.invoke = (channel: string, handler: (...args: any[]) => Promise<any>) => {
-//   return originalHandle.call(ipcRenderer, channel, async (event, ...args) => {
-//     console.log(`[渲染进程拦截] 通道: ${channel}`, args)
-//     const carray = { type: 'trace' }
-//     propagation.inject(context.active(), carray)
-//     return handler(event, ...args, carray)
-//   })
-// }
-
 class WebTraceService {
   init() {
-    //    instrumentPromises()
+    instrumentPromises()
     WebTracer.init(
       {
-        defaultTracerName: 'CherryStudio',
-        serviceName: 'CherryStudio'
+        defaultTracerName: TRACER_NAME,
+        serviceName: TRACER_NAME
       },
       spanCache,
       // Provide a SaveFunction that returns a Promise<void>
-      (spans: ReadableSpan[]): Promise<void> => {
+      new FunctionSpanExporter((spans: ReadableSpan[]): Promise<void> => {
         // Implement your save logic here if needed
         // For now, just resolve immediately
         console.log('Saving spans:', spans)
         return Promise.resolve()
-      }
+      })
     )
 
     ipcRenderer.on(TRACE_DATA_EVENT, (event: any, type: string, data: ReadableSpan) => {
-      console.log('TRACE_DATA_EVENT message', type, data)
+      console.log('TRACE_DATA_EVENT message', event, type, data)
       if (ON_START === type) {
         spanCache.createSpan(data)
       } else if (ON_END === type) {
@@ -97,3 +89,4 @@ class WebTraceService {
 
 export const spanCache = new WebTraceCache()
 export const webTraceService = new WebTraceService()
+export const webTracer = trace.getTracer(TRACER_NAME)

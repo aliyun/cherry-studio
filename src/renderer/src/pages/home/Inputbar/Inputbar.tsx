@@ -1,5 +1,5 @@
 import { HolderOutlined } from '@ant-design/icons'
-import { trace } from '@opentelemetry/api'
+import { context } from '@opentelemetry/api'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import Logger from '@renderer/config/logger'
@@ -27,6 +27,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
+import { webTracer } from '@renderer/services/WebTraceService'
 import { useAppDispatch } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
@@ -190,61 +191,63 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
 
-    trace.getTracer('Cherry-Stutio').startActiveSpan('user', async (span) => {
-      try {
-        // Dispatch the sendMessage action with all options
-        const uploadedFiles = await FileManager.uploadFiles(files)
+    context.with(context.active(), () =>
+      webTracer.startActiveSpan('user', { root: true }, async (span) => {
+        try {
+          // Dispatch the sendMessage action with all options
+          const uploadedFiles = await FileManager.uploadFiles(files)
 
-        const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
-        Logger.log('baseUserMessage', baseUserMessage)
+          const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
+          Logger.log('baseUserMessage', baseUserMessage)
 
-        // getUserMessage()
-        if (uploadedFiles) {
-          baseUserMessage.files = uploadedFiles
+          // getUserMessage()
+          if (uploadedFiles) {
+            baseUserMessage.files = uploadedFiles
+          }
+          const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
+
+          if (knowledgeBaseIds) {
+            baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
+          }
+
+          if (mentionModels) {
+            baseUserMessage.mentions = mentionModels
+          }
+
+          if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
+            baseUserMessage.enabledMCPs = activedMcpServers.filter((server) =>
+              assistant.mcpServers?.some((s) => s.id === server.id)
+            )
+          }
+
+          if (topic.prompt) {
+            baseUserMessage.assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${topic.prompt}` : topic.prompt
+          }
+
+          baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
+
+          const { message, blocks } = getUserMessage(baseUserMessage)
+
+          currentMessageId.current = message.id
+          Logger.log('[DEBUG] Created message and blocks:', message, blocks)
+          Logger.log('[DEBUG] Dispatching _sendMessage')
+          message.traceId = span.spanContext().traceId
+          dispatch(_sendMessage(message, blocks, assistant, topic.id))
+          Logger.log('[DEBUG] _sendMessage dispatched')
+
+          // Clear input
+          setText('')
+          setFiles([])
+          setTimeout(() => setText(''), 500)
+          setTimeout(() => resizeTextArea(), 0)
+          setExpend(false)
+        } catch (error) {
+          console.error('Failed to send message:', error)
+        } finally {
+          span.end()
         }
-        const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
-
-        if (knowledgeBaseIds) {
-          baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
-        }
-
-        if (mentionModels) {
-          baseUserMessage.mentions = mentionModels
-        }
-
-        if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
-          baseUserMessage.enabledMCPs = activedMcpServers.filter((server) =>
-            assistant.mcpServers?.some((s) => s.id === server.id)
-          )
-        }
-
-        if (topic.prompt) {
-          baseUserMessage.assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${topic.prompt}` : topic.prompt
-        }
-
-        baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
-
-        const { message, blocks } = getUserMessage(baseUserMessage)
-
-        currentMessageId.current = message.id
-        Logger.log('[DEBUG] Created message and blocks:', message, blocks)
-        Logger.log('[DEBUG] Dispatching _sendMessage')
-        message.traceId = span.spanContext().traceId
-        dispatch(_sendMessage(message, blocks, assistant, topic.id))
-        Logger.log('[DEBUG] _sendMessage dispatched')
-
-        // Clear input
-        setText('')
-        setFiles([])
-        setTimeout(() => setText(''), 500)
-        setTimeout(() => resizeTextArea(), 0)
-        setExpend(false)
-      } catch (error) {
-        console.error('Failed to send message:', error)
-      } finally {
-        span.end()
-      }
-    })
+      })
+    )
   }, [
     activedMcpServers,
     assistant,

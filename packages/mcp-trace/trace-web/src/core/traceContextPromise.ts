@@ -1,70 +1,59 @@
-import { context, trace } from "@opentelemetry/api";
+import { context } from '@opentelemetry/api'
 
-const originalPromise = globalThis.Promise;
+const originalPromise = globalThis.Promise
 
 class TracedPromise<T> extends Promise<T> {
-  constructor(
-    executor: (
-      resolve: (value: T | PromiseLike<T>) => void,
-      reject: (reason?: any) => void
-    ) => void
-  ) {
-    const activeContext = context.active();
-    const span = trace.getActiveSpan();
-
-    if (typeof executor === "function") {
+  constructor(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void) {
+    if (typeof executor === 'function') {
       super((resolve, reject) => {
         const wrappedResolve = (value: T | PromiseLike<T>) => {
-          context.with(activeContext, () => {
-            span?.addEvent("promise_resolved");
-            resolve(value);
-          });
-        };
+          context.with(context.active(), () => {
+            resolve(value)
+          })
+        }
 
         const wrappedReject = (reason?: any) => {
-          context.with(activeContext, () => {
-            span?.addEvent("promise_rejected", { error: reason });
-            reject(reason);
-          });
-        };
+          context.with(context.active(), () => {
+            reject(reason)
+          })
+        }
 
-        context.with(activeContext, () => {
-          span?.addEvent("promise_created");
-          executor(wrappedResolve, wrappedReject);
-        });
-      });
+        context.with(context.active(), () => {
+          console.log('excutor:', executor.name, executor.toLocaleString())
+          executor(wrappedResolve, wrappedReject)
+        })
+      })
     } else {
       // For Promise.resolve, Promise.reject, etc.
-      super(executor as any);
+      super((executor) => context.with(context.active(), () => executor as any))
     }
   }
 
   static withResolvers<T>(): {
-    promise: TracedPromise<T>;
-    resolve: (value: T | PromiseLike<T>) => void;
-    reject: (reason?: any) => void;
+    promise: TracedPromise<T>
+    resolve: (value: T | PromiseLike<T>) => void
+    reject: (reason?: any) => void
   } {
-    const activeContext = context.active();
-    let resolveFn!: (value: T | PromiseLike<T>) => void;
-    let rejectFn!: (reason?: any) => void;
+    let resolveFn!: (value: T | PromiseLike<T>) => void
+    let rejectFn!: (reason?: any) => void
 
     const promise = new TracedPromise<T>((resolve, reject) => {
-      resolveFn = resolve;
-      rejectFn = reject;
-    });
+      resolveFn = () => resolve
+      rejectFn = reject
+    })
 
     return {
       promise,
-      resolve: (value) => context.with(activeContext, () => resolveFn(value)),
-      reject: (reason) => context.with(activeContext, () => rejectFn(reason)),
-    };
+      resolve: resolveFn,
+      reject: rejectFn
+    }
   }
 }
 
 export function instrumentPromises() {
-  globalThis.Promise = TracedPromise as unknown as PromiseConstructor;
+  globalThis.Promise = TracedPromise as PromiseConstructor
 }
 
 export function uninstrumentPromises() {
-  globalThis.Promise = originalPromise;
+  globalThis.Promise = originalPromise
 }

@@ -17791,7 +17791,6 @@ __metadata:
   dependencies:
     "@types/react": "npm:^19.0.0"
     husky: "npm:^9.1.7"
-    pnpm: "npm:^10.10.0"
     react: "npm:^19.0.0"
     typescript: "npm:^5.7.2"
   languageName: unknown
@@ -20380,18 +20379,6 @@ __metadata:
   version: 6.0.0
   resolution: "pngjs@npm:6.0.0"
   checksum: 10c0/ac23ea329b1881d1a10575aff58116dc27b894ec3f5b84ba15c7f527d21e609fbce7ba16d48f8ccb86c7ce45ceed622472765476ab2875949d4bec55e153f87a
-  languageName: node
-  linkType: hard
-
-"pnpm@npm:^10.10.0":
-  version: 10.11.0
-  resolution: "pnpm@npm:10.11.0"
-  dependencies:
-    node-gyp: "npm:latest"
-  bin:
-    pnpm: bin/pnpm.cjs
-    pnpx: bin/pnpx.cjs
-  checksum: 10c0/9df1993cd743d77c77dfb0a93528c488777c286b5e30e04fc460c11066da4ba2bd9ae2be6b5c8790a0719e1d642260f4e630a1c1c66eca5603359ce735e65f50
   languageName: node
   linkType: hard
 

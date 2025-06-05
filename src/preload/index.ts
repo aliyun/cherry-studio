@@ -3,13 +3,13 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { context, propagation } from '@opentelemetry/api'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
-import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
+import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { CreateDirectoryOptions } from 'webdav'
 
 function tracedInvoke(channel: string, ...args: any[]) {
-  console.log(`[渲染进程拦截] 通道: ${channel}`, args)
   const carray = { type: 'trace' }
   propagation.inject(context.active(), carray)
+  console.log(`[渲染进程拦截] 通道: ${channel}`, carray['traceparent'] || 'no trace data')
   return ipcRenderer.invoke(channel, ...args, carray)
 }
 
@@ -45,8 +45,8 @@ const api = {
     decompress: (text: Buffer) => tracedInvoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    backup: (fileName: string, data: string, destinationPath?: string) =>
-      tracedInvoke(IpcChannel.Backup_Backup, fileName, data, destinationPath),
+    backup: (fileName: string, data: string, destinationPath?: string, skipBackupFile?: boolean) =>
+      tracedInvoke(IpcChannel.Backup_Backup, fileName, data, destinationPath, skipBackupFile),
     restore: (backupPath: string) => tracedInvoke(IpcChannel.Backup_Restore, backupPath),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       tracedInvoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
@@ -60,6 +60,7 @@ const api = {
   },
   file: {
     select: (options?: OpenDialogOptions) => tracedInvoke(IpcChannel.File_Select, options),
+    resolveFilePath: (name: string) => tracedInvoke(IpcChannel.File_ResolveFilePath, name),
     upload: (file: FileType) => tracedInvoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => tracedInvoke(IpcChannel.File_Delete, fileId),
     read: (fileId: string) => tracedInvoke(IpcChannel.File_Read, fileId),
@@ -78,7 +79,8 @@ const api = {
     download: (url: string) => tracedInvoke(IpcChannel.File_Download, url),
     copy: (fileId: string, destPath: string) => tracedInvoke(IpcChannel.File_Copy, fileId, destPath),
     binaryImage: (fileId: string) => tracedInvoke(IpcChannel.File_BinaryImage, fileId),
-    base64File: (fileId: string) => tracedInvoke(IpcChannel.File_Base64File, fileId)
+    base64File: (fileId: string) => tracedInvoke(IpcChannel.File_Base64File, fileId),
+    getPathForFile: (file: File) => webUtils.getPathForFile(file)
   },
   fs: {
     read: (path: string) => tracedInvoke(IpcChannel.Fs_Read, path)
@@ -150,7 +152,8 @@ const api = {
     listResources: (server: MCPServer) => tracedInvoke(IpcChannel.Mcp_ListResources, server),
     getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
       tracedInvoke(IpcChannel.Mcp_GetResource, { server, uri }),
-    getInstallInfo: () => tracedInvoke(IpcChannel.Mcp_GetInstallInfo)
+    getInstallInfo: () => tracedInvoke(IpcChannel.Mcp_GetInstallInfo),
+    checkMcpConnectivity: (server: any) => tracedInvoke(IpcChannel.Mcp_CheckConnectivity, server)
   },
   shell: {
     openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)

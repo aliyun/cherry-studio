@@ -1,3 +1,4 @@
+import { TracedAsync } from '@mcp-trace/trace-core'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { filterResultWithBlacklist } from '@renderer/utils/blacklistMatchPattern'
@@ -11,6 +12,11 @@ export default class WebSearchEngineProvider {
   constructor(provider: WebSearchProvider) {
     this.sdk = WebSearchProviderFactory.create(provider)
   }
+
+  @TracedAsync({
+    traceName: 'webSearch',
+    tag: 'LLM'
+  })
   public async search(
     query: string,
     websearch: WebSearchState,
