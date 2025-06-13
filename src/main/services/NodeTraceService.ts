@@ -1,12 +1,21 @@
-import { EmitterSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
+import { EmitterSpanProcessor, FunctionSpanExporter, TRACE_DATA_EVENT } from '@mcp-trace/trace-core'
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node'
 import { context, propagation } from '@opentelemetry/api'
-import { ipcMain, ipcRenderer } from 'electron'
+import { ipcMain } from 'electron'
+import { EventEmitter } from 'stream'
 
 export class NodeTraceService {
-  init() {
+  static emmitter = new EventEmitter()
+
+  init(mainWindow) {
     const exporter = new FunctionSpanExporter(async (spans) => {
       console.log(`Spans:`, spans)
+    })
+
+    NodeTraceService.emmitter.on(TRACE_DATA_EVENT, (ctx, obj) => {
+      if (obj) {
+        mainWindow.webContex.send(TRACE_DATA_EVENT, ctx, obj)
+      }
     })
 
     MCPNodeTracer.init(
@@ -14,7 +23,7 @@ export class NodeTraceService {
         defaultTracerName: 'CherryStudio',
         serviceName: 'CherryStudio'
       },
-      new EmitterSpanProcessor(exporter, ipcRenderer)
+      new EmitterSpanProcessor(exporter, NodeTraceService.emmitter)
     )
   }
 }
@@ -22,7 +31,6 @@ export class NodeTraceService {
 const originalHandle = ipcMain.handle
 ipcMain.handle = (channel: string, handler: (...args: any[]) => Promise<any>) => {
   return originalHandle.call(ipcMain, channel, async (event, ...args) => {
-    console.log(`[主进程拦截] 通道: ${channel}`, args)
     const carray = args && args.length > 0 ? args[args.length - 1] : {}
     let ctx = context.active()
     let newArgs = args

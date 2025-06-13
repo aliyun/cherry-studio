@@ -5,6 +5,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
+import { webTraceService } from '@renderer/services/WebTraceService'
 import store from '@renderer/store'
 import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
@@ -46,6 +47,7 @@ import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 const handleChangeLoadingOfTopic = async (topicId: string) => {
   await waitForTopicQueue(topicId)
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+  webTraceService.endTrace()
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
 export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
@@ -213,7 +215,8 @@ const dispatchMultiModelResponses = async (
     const assistantMessage = createAssistantMessage(assistant.id, topicId, {
       askId: triggeringMessage.id,
       model: mentionedModel,
-      modelId: mentionedModel.id
+      modelId: mentionedModel.id,
+      traceId: triggeringMessage.traceId
     })
     dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
     assistantMessageStubs.push(assistantMessage)
@@ -743,10 +746,10 @@ export const sendMessage =
       } else {
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessage.id,
-          model: assistant.model
+          model: assistant.model,
+          traceId: userMessage.traceId
         })
         await saveMessageAndBlocksToDB(assistantMessage, [])
-        assistantMessage.traceId = userMessage.traceId
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
         queue.add(async () => {
@@ -935,14 +938,16 @@ export const resendMessageThunk =
             const assistantMessage = createAssistantMessage(assistant.id, topicId, {
               askId: userMessageToResend.id,
               model: mention,
-              modelId: mention.id
+              modelId: mention.id,
+              traceId: userMessageToResend.traceId
             })
             resetDataList.push(assistantMessage)
           }
         } else {
           const assistantMessage = createAssistantMessage(assistant.id, topicId, {
             askId: userMessageToResend.id,
-            model: assistant.model
+            model: assistant.model,
+            traceId: userMessageToResend.traceId
           })
           resetDataList.push(assistantMessage)
         }
@@ -1204,7 +1209,8 @@ export const appendAssistantResponseThunk =
     topicId: Topic['id'],
     existingAssistantMessageId: string, // ID of the assistant message the user interacted with
     newModel: Model, // The new model selected by the user
-    assistant: Assistant // Base assistant configuration
+    assistant: Assistant, // Base assistant configuration
+    traceId?: string
   ) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
     try {
@@ -1244,7 +1250,8 @@ export const appendAssistantResponseThunk =
       const newAssistantStub = createAssistantMessage(assistant.id, topicId, {
         askId: askId, // Crucial: Use the original askId
         model: newModel,
-        modelId: newModel.id
+        modelId: newModel.id,
+        traceId: traceId
       })
 
       // 3. Update Redux Store

@@ -7,8 +7,8 @@ import {
   TRACE_DATA_EVENT,
   TraceCache
 } from '@mcp-trace/trace-core'
-import { instrumentPromises, WebTracer } from '@mcp-trace/trace-web'
-import { SpanStatusCode, trace } from '@opentelemetry/api'
+import { setParentContext, WebTracer } from '@mcp-trace/trace-web'
+import { context, Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 
 const TRACER_NAME = 'CherryStudio'
@@ -18,14 +18,6 @@ class WebTraceCache implements TraceCache {
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
     const spanEntity = convertSpanToSpanEntity(span)
     this.cache.set(span.spanContext().spanId, spanEntity)
-    if (spanEntity.parentId && this.cache.has(spanEntity.parentId)) {
-      const parentSpan = this.cache.get(spanEntity.parentId)
-      if (parentSpan && parentSpan.children) {
-        parentSpan.children.push(spanEntity)
-      } else if (parentSpan) {
-        parentSpan.children = [spanEntity]
-      }
-    }
   }
 
   endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
@@ -40,6 +32,8 @@ class WebTraceCache implements TraceCache {
         spanEntity.events = span.events
         spanEntity.links = span.links
       }
+
+      //TODO save span to store && remove from cache
     }
   }
 
@@ -47,20 +41,22 @@ class WebTraceCache implements TraceCache {
     this.cache.clear()
   }
 
-  getSpans: () => SpanEntity[] = () => {
-    const spans: SpanEntity[] = []
-    this.cache.forEach((span) => {
-      spans.push(span)
-    })
-    return spans
+  getSpans: (traceId: string) => SpanEntity[] = (traceId: string) => {
+    return this.cache
+      .values()
+      .filter((spanEntity) => {
+        return spanEntity.traceId === traceId
+      })
+      .toArray()
   }
 }
 
 const ipcRenderer = window.electron.ipcRenderer
 
 class WebTraceService {
+  static span: Span | null = null
   init() {
-    instrumentPromises()
+    // instrumentPromises()
     WebTracer.init(
       {
         defaultTracerName: TRACER_NAME,
@@ -84,6 +80,31 @@ class WebTraceService {
         spanCache.endSpan(data)
       }
     })
+  }
+
+  startTrace(name?: string, inputs?: any) {
+    const span = webTracer.startSpan(name || 'root', {
+      root: true,
+      attributes: {
+        inputs: JSON.stringify(inputs || {})
+      }
+    })
+    const ctx = trace.setSpan(context.active(), span)
+    setParentContext(ctx)
+    WebTraceService.span = span
+    return span
+  }
+
+  endTrace(outputs?: any) {
+    // const span = trace.getActiveSpan()
+    const span = WebTraceService.span
+    console.log('endTrace', JSON.stringify(span?.spanContext()))
+    if (span) {
+      span.setAttributes({ outputs: JSON.stringify(outputs || {}) })
+      span.end()
+    } else {
+      console.error('No active span found to end.')
+    }
   }
 }
 

@@ -6,6 +6,7 @@ import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
@@ -15,7 +16,7 @@ import {
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import { nanoid } from '@reduxjs/toolkit'
-import {
+import type {
   GetMCPPromptResponse,
   GetResourceResponse,
   MCPCallToolResponse,
@@ -384,6 +385,7 @@ class McpService {
     await this.initClient(server)
   }
 
+  @TraceMethod({ spanName: 'cleanup', tag: 'mcp' })
   async cleanup() {
     for (const [key] of this.clients) {
       try {
@@ -436,6 +438,7 @@ class McpService {
     }
   }
 
+  @TraceMethod({ spanName: 'listTools', tag: 'mcp' })
   async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     const cachedListTools = withCache<[MCPServer], MCPTool[]>(
       this.listToolsImpl.bind(this),
@@ -453,6 +456,7 @@ class McpService {
   /**
    * Call a tool on an MCP server
    */
+  @TraceMethod({ spanName: 'callTool', tag: 'mcp' })
   public async callTool(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args: any }
@@ -489,6 +493,7 @@ class McpService {
   /**
    * List prompts available on an MCP server
    */
+  @TraceMethod({ spanName: 'listPrompts', tag: 'mcp' })
   private async listPromptsImpl(server: MCPServer): Promise<MCPPrompt[]> {
     const client = await this.initClient(server)
     Logger.info(`[MCP] Listing prompts for server: ${server.name}`)
@@ -512,6 +517,7 @@ class McpService {
   /**
    * List prompts available on an MCP server with caching
    */
+  @TraceMethod({ spanName: 'listPrompts', tag: 'mcp' })
   public async listPrompts(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPPrompt[]> {
     const cachedListPrompts = withCache<[MCPServer], MCPPrompt[]>(
       this.listPromptsImpl.bind(this),
@@ -541,6 +547,7 @@ class McpService {
   /**
    * Get a specific prompt from an MCP server with caching
    */
+  @TraceMethod({ spanName: 'getPrompt', tag: 'mcp' })
   public async getPrompt(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }
@@ -584,6 +591,7 @@ class McpService {
   /**
    * List resources available on an MCP server with caching
    */
+  @TraceMethod({ spanName: 'listResources', tag: 'mcp' })
   public async listResources(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPResource[]> {
     const cachedListResources = withCache<[MCPServer], MCPResource[]>(
       this.listResourcesImpl.bind(this),
@@ -627,6 +635,7 @@ class McpService {
   /**
    * Get a specific resource from an MCP server with caching
    */
+  @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
   public async getResource(
     _: Electron.IpcMainInvokeEvent,
     { server, uri }: { server: MCPServer; uri: string }

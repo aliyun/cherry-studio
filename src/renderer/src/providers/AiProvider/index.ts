@@ -1,5 +1,5 @@
 import { GenerateImagesParameters } from '@google/genai'
-import { TracedAsync } from '@mcp-trace/trace-core'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import BaseProvider from '@renderer/providers/AiProvider/BaseProvider'
 import ProviderFactory from '@renderer/providers/AiProvider/ProviderFactory'
 import type { Assistant, GenerateImageParams, MCPTool, Model, Provider, Suggestion } from '@renderer/types'
@@ -22,18 +22,12 @@ export default class AiProvider {
     this.sdk = ProviderFactory.create(provider)
   }
 
-  @TracedAsync({
-    traceName: 'generateImage',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'fakeCompletions', tag: 'LLM' })
   public async fakeCompletions(params: CompletionsParams): Promise<void> {
     return this.sdk.fakeCompletions(params)
   }
 
-  @TracedAsync({
-    traceName: 'completions',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'completions', tag: 'LLM' })
   public async completions({
     messages,
     assistant,
@@ -44,10 +38,7 @@ export default class AiProvider {
     return this.sdk.completions({ messages, assistant, mcpTools, onChunk, onFilterMessages })
   }
 
-  @TracedAsync({
-    traceName: 'translate',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'translate', tag: 'LLM' })
   public async translate(
     content: string,
     assistant: Assistant,
@@ -56,42 +47,27 @@ export default class AiProvider {
     return this.sdk.translate(content, assistant, onResponse)
   }
 
-  @TracedAsync({
-    traceName: 'summaries',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'summaries', tag: 'LLM' })
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     return this.sdk.summaries(messages, assistant)
   }
 
-  @TracedAsync({
-    traceName: 'summaryForSearch',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'summaryForSearch', tag: 'LLM' })
   public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
     return this.sdk.summaryForSearch(messages, assistant)
   }
 
-  @TracedAsync({
-    traceName: 'suggestions',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'suggestions', tag: 'LLM' })
   public async suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]> {
     return this.sdk.suggestions(messages, assistant)
   }
 
-  @TracedAsync({
-    traceName: 'generateText',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'generateText', tag: 'LLM' })
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
     return this.sdk.generateText({ prompt, content })
   }
 
-  @TracedAsync({
-    traceName: 'check',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'check', tag: 'LLM' })
   public async check(model: Model, stream: boolean = false): Promise<{ valid: boolean; error: Error | null }> {
     return this.sdk.check(model, stream)
   }
@@ -104,18 +80,12 @@ export default class AiProvider {
     return this.sdk.getApiKey()
   }
 
-  @TracedAsync({
-    traceName: 'generateImage',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'generateImage', tag: 'LLM' })
   public async generateImage(params: GenerateImageParams | GenerateImagesParameters): Promise<string[]> {
     return this.sdk.generateImage(params as GenerateImageParams)
   }
 
-  @TracedAsync({
-    traceName: 'generateImageByChat',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'generateImageByChat', tag: 'LLM' })
   public async generateImageByChat({
     messages,
     assistant,
@@ -125,10 +95,7 @@ export default class AiProvider {
     return this.sdk.generateImageByChat({ messages, assistant, onChunk, onFilterMessages })
   }
 
-  @TracedAsync({
-    traceName: 'getEmbeddingDensions',
-    tag: 'LLM'
-  })
+  @TraceMethod({ spanName: 'getEmbeddingDimensions', tag: 'LLM' })
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     return this.sdk.getEmbeddingDimensions(model)
   }

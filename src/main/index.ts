@@ -61,8 +61,6 @@ if (!app.requestSingleInstanceLock()) {
   // Some APIs can only be used after this event occurs.
 
   app.whenReady().then(async () => {
-    nodeTraceService.init()
-
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
@@ -74,6 +72,8 @@ if (!app.requestSingleInstanceLock()) {
 
     const mainWindow = windowService.createMainWindow()
     new TrayService()
+
+    nodeTraceService.init(mainWindow)
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()

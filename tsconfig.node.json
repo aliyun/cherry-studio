@@ -18,6 +18,9 @@
       "@main/*": ["src/main/*"],
       "@types": ["src/renderer/src/types/index.ts"],
       "@shared/*": ["packages/shared/*"]
-    }
+    },
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": true
   }
 }

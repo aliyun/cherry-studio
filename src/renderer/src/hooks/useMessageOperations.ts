@@ -179,7 +179,15 @@ export function useMessageOperations(topic: Topic) {
         console.error('Cannot append response: The existing assistant message is missing its askId.')
         return
       }
-      await dispatch(appendAssistantResponseThunk(topic.id, existingAssistantMessage.id, newModel, assistant))
+      await dispatch(
+        appendAssistantResponseThunk(
+          topic.id,
+          existingAssistantMessage.id,
+          newModel,
+          assistant,
+          existingAssistantMessage.traceId
+        )
+      )
     },
     [dispatch, topic.id]
   )

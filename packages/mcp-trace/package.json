@@ -5,6 +5,10 @@
   "main": "index.js",
   "scripts": {
     "bootstrap": "yarn install",
+    "build:core": "tsc -p trace-core",
+    "build:web": "tsc -p trace-web",
+    "build:node": "tsc -p trace-node",
+    "build": "yarn run build:core && yarn run build:web && yarn run build:node",
     "prepare": "husky"
   },
   "keywords": [],

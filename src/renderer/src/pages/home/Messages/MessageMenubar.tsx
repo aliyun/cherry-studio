@@ -1,4 +1,11 @@
-import { CheckOutlined, EditOutlined, MenuOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import {
+  CheckOutlined,
+  EditOutlined,
+  MenuOutlined,
+  QuestionCircleOutlined,
+  ScheduleOutlined,
+  SyncOutlined
+} from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
@@ -153,9 +160,13 @@ const MessageMenubar: FC<Props> = (props) => {
     [isTranslating, message, getTranslationUpdater, mainTextContent]
   )
 
+  const [isDevelopModel] = useState(true)
+
   const handleTraceUserMessage = useCallback(async () => {
-    console.log('handleTraceUserMessage traceId:', message.traceId)
-    return Promise.resolve()
+    console.log('current traceId', message.traceId, 'start send')
+    if (message.traceId) {
+      window.dispatchEvent(new CustomEvent('show-trace', { detail: message.traceId }))
+    }
   }, [message])
 
   const isEditable = useMemo(() => {
@@ -478,6 +489,13 @@ const MessageMenubar: FC<Props> = (props) => {
           </Tooltip>
         </ActionButton>
       </Popconfirm>
+      {isAssistantMessage && isDevelopModel && (
+        <Tooltip title={t('common.trace')} mouseEnterDelay={0.8}>
+          <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
+            <ScheduleOutlined />
+          </ActionButton>
+        </Tooltip>
+      )}
       {!isUserMessage && (
         <Dropdown
           menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}

@@ -26,6 +26,7 @@ import { addFileLoader } from '@main/loader'
 import Reranker from '@main/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
 import { getAllFiles } from '@main/utils/file'
+import { TraceProperty } from '@mcp-trace/trace-core'
 import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -131,15 +132,18 @@ class KnowledgeService {
     return ragApplication
   }
 
+  @TraceProperty({ spanName: 'create', tag: 'knowledge' })
   public create = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
     this.getRagApplication(base)
   }
 
+  @TraceProperty({ spanName: 'reset', tag: 'knowledge' })
   public reset = async (_: Electron.IpcMainInvokeEvent, { base }: { base: KnowledgeBaseParams }): Promise<void> => {
     const ragApplication = await this.getRagApplication(base)
     await ragApplication.reset()
   }
 
+  @TraceProperty({ spanName: 'delete', tag: 'knowledge' })
   public delete = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
@@ -415,6 +419,7 @@ class KnowledgeService {
     })
   }
 
+  @TraceProperty({ spanName: 'add', tag: 'knowledge' })
   public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
     return new Promise((resolve) => {
       const { base, item, forceReload = false } = options
@@ -454,6 +459,7 @@ class KnowledgeService {
     })
   }
 
+  @TraceProperty({ spanName: 'remove', tag: 'knowledge' })
   public remove = async (
     _: Electron.IpcMainInvokeEvent,
     { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }
@@ -465,6 +471,7 @@ class KnowledgeService {
     }
   }
 
+  @TraceProperty({ spanName: 'search', tag: 'knowledge' })
   public search = async (
     _: Electron.IpcMainInvokeEvent,
     { search, base }: { search: string; base: KnowledgeBaseParams }
@@ -473,6 +480,7 @@ class KnowledgeService {
     return await ragApplication.search(search)
   }
 
+  @TraceProperty({ spanName: 'rerank', tag: 'knowledge' })
   public rerank = async (
     _: Electron.IpcMainInvokeEvent,
     { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }

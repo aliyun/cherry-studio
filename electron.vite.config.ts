@@ -15,7 +15,9 @@ export default defineConfig({
         '@main': resolve('src/main'),
         '@types': resolve('src/renderer/src/types'),
         '@shared': resolve('packages/shared'),
-        '@mcp-trace': resolve('packages/mcp-trace')
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core/src'),
+        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web/src'),
+        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node/src')
       }
     },
     build: {
@@ -37,7 +39,10 @@ export default defineConfig({
     ],
     resolve: {
       alias: {
-        '@shared': resolve('packages/shared')
+        '@shared': resolve('packages/shared'),
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core/src'),
+        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web/src'),
+        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node/src')
       }
     },
     build: {
@@ -47,6 +52,7 @@ export default defineConfig({
   renderer: {
     plugins: [
       react({
+        tsDecorators: true,
         plugins: [
           [
             '@swc/plugin-styled-components',
@@ -64,7 +70,10 @@ export default defineConfig({
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
-        '@shared': resolve('packages/shared')
+        '@shared': resolve('packages/shared'),
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core/src'),
+        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web/src'),
+        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node/src')
       }
     },
     optimizeDeps: {

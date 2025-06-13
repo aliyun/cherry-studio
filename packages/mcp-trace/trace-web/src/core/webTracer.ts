@@ -6,7 +6,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { BatchSpanProcessor, ConsoleSpanExporter, SpanExporter } from '@opentelemetry/sdk-trace-base'
 import { WebTracerProvider } from '@opentelemetry/sdk-trace-web'
 
-import { StackContextManager } from './stackContextManager'
+import { WebStackContextManager } from './WebStackContextManager'
 
 export class WebTracer {
   private static provider: WebTracerProvider
@@ -31,7 +31,7 @@ export class WebTracer {
     }
     this.provider.register({
       propagator: new W3CTraceContextPropagator(),
-      contextManager: new StackContextManager()
+      contextManager: new WebStackContextManager()
     })
   }
 

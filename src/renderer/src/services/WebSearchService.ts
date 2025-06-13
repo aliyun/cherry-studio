@@ -1,12 +1,12 @@
-import { Traced, TracedAsync } from '@mcp-trace/trace-core'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import Logger from '@renderer/config/logger'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
-import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchState } from '@renderer/store/websearch'
+import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
-import { ExtractResults } from '@renderer/utils/extract'
+import type { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
 import dayjs from 'dayjs'
 /**
@@ -20,9 +20,7 @@ class WebSearchService {
 
   isPaused = false
 
-  @Traced({
-    traceName: 'CherryStudio'
-  })
+  @TraceMethod({ spanName: 'createAbortSignal', tag: 'WebSearch' })
   createAbortSignal(key: string) {
     const controller = new AbortController()
     this.signal = controller.signal
@@ -102,9 +100,7 @@ class WebSearchService {
    * @param query 搜索查询
    * @returns 搜索响应
    */
-  @TracedAsync({
-    traceName: 'CherryStudio'
-  })
+  @TraceMethod({ spanName: 'search', tag: 'WebSearch' })
   public async search(
     provider: WebSearchProvider,
     query: string,
@@ -133,6 +129,7 @@ class WebSearchService {
    * @param provider 要检查的搜索提供商
    * @returns 如果提供商可用返回true，否则返回false
    */
+  @TraceMethod({ spanName: 'checkSearch', tag: 'WebSearch' })
   public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
@@ -144,6 +141,7 @@ class WebSearchService {
     }
   }
 
+  @TraceMethod({ spanName: 'processWebSearch', tag: 'WebSearch' })
   public async processWebsearch(
     webSearchProvider: WebSearchProvider,
     extractResults: ExtractResults

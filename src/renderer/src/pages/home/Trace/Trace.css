@@ -25,7 +25,7 @@
 .tab-content {
   position: relative;
   overflow: auto;
-  /*height: 90vh;*/
+  height: 90vh;
 }
 
 .tab-pane {
@@ -109,6 +109,6 @@
   color: white;
 }
 
-.settingsModal button[aria-label="Close"] {
-  -webkit-app-region: no-drag,
+.settingsModal button[aria-label='Close'] {
+  -webkit-app-region: no-drag;
 }

@@ -1,4 +1,5 @@
 import { getFilesDir, getFileType, getTempDir } from '@main/utils/file'
+import { TraceProperty } from '@mcp-trace/trace-core'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileType } from '@types'
 import * as crypto from 'crypto'
@@ -41,6 +42,7 @@ class FileStorage {
     }
   }
 
+  @TraceProperty({ spanName: 'getFileHash', tag: 'FileStorage' })
   private getFileHash = async (filePath: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const hash = crypto.createHash('md5')
@@ -51,6 +53,7 @@ class FileStorage {
     })
   }
 
+  @TraceProperty({ spanName: 'findDuplicateFile', tag: 'FileStorage' })
   findDuplicateFile = async (filePath: string): Promise<FileType | null> => {
     const stats = fs.statSync(filePath)
     const fileSize = stats.size
@@ -87,6 +90,7 @@ class FileStorage {
     return null
   }
 
+  @TraceProperty({ spanName: 'selectFile', tag: 'FileStorage' })
   public selectFile = async (
     _: Electron.IpcMainInvokeEvent,
     options?: OpenDialogOptions
@@ -124,6 +128,7 @@ class FileStorage {
     return Promise.all(fileMetadataPromises)
   }
 
+  @TraceProperty({ spanName: 'selectFolder', tag: 'FileStorage' })
   private async compressImage(sourcePath: string, destPath: string): Promise<void> {
     try {
       const stats = fs.statSync(sourcePath)
@@ -149,6 +154,7 @@ class FileStorage {
     }
   }
 
+  @TraceProperty({ spanName: 'uploadFile', tag: 'FileStorage' })
   public uploadFile = async (_: Electron.IpcMainInvokeEvent, file: FileType): Promise<FileType> => {
     const duplicateFile = await this.findDuplicateFile(file.path)
 
@@ -188,6 +194,7 @@ class FileStorage {
     return fileMetadata
   }
 
+  @TraceProperty({ spanName: 'getFile', tag: 'FileStorage' })
   public getFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<FileType | null> => {
     if (!fs.existsSync(filePath)) {
       return null
@@ -212,10 +219,12 @@ class FileStorage {
     return fileInfo
   }
 
+  @TraceProperty({ spanName: 'deleteFile', tag: 'FileStorage' })
   public deleteFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
     await fs.promises.unlink(path.join(this.storageDir, id))
   }
 
+  @TraceProperty({ spanName: 'readFile', tag: 'FileStorage' })
   public readFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<string> => {
     const filePath = path.join(this.storageDir, id)
 
@@ -236,6 +245,7 @@ class FileStorage {
     return fs.readFileSync(filePath, 'utf8')
   }
 
+  @TraceProperty({ spanName: 'createTempFile', tag: 'FileStorage' })
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true })
@@ -244,6 +254,7 @@ class FileStorage {
     return tempFilePath
   }
 
+  @TraceProperty({ spanName: 'writeFile', tag: 'FileStorage' })
   public writeFile = async (
     _: Electron.IpcMainInvokeEvent,
     filePath: string,
@@ -252,6 +263,7 @@ class FileStorage {
     await fs.promises.writeFile(filePath, data)
   }
 
+  @TraceProperty({ spanName: 'base64Image', tag: 'FileStorage' })
   public base64Image = async (
     _: Electron.IpcMainInvokeEvent,
     id: string
@@ -268,6 +280,7 @@ class FileStorage {
     }
   }
 
+  @TraceProperty({ spanName: 'saveBase64Image', tag: 'FileStorage' })
   public saveBase64Image = async (_: Electron.IpcMainInvokeEvent, base64Data: string): Promise<FileType> => {
     try {
       if (!base64Data) {
@@ -313,6 +326,7 @@ class FileStorage {
     }
   }
 
+  @TraceProperty({ spanName: 'base64File', tag: 'FileStorage' })
   public base64File = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: string; mime: string }> => {
     const filePath = path.join(this.storageDir, id)
     const buffer = await fs.promises.readFile(filePath)
@@ -321,6 +335,7 @@ class FileStorage {
     return { data: base64, mime }
   }
 
+  @TraceProperty({ spanName: 'binaryImage', tag: 'FileStorage' })
   public binaryImage = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: Buffer; mime: string }> => {
     const filePath = path.join(this.storageDir, id)
     const data = await fs.promises.readFile(filePath)
@@ -328,16 +343,19 @@ class FileStorage {
     return { data, mime }
   }
 
+  @TraceProperty({ spanName: 'clear', tag: 'FileStorage' })
   public clear = async (): Promise<void> => {
     await fs.promises.rm(this.storageDir, { recursive: true })
     await this.initStorageDir()
   }
 
+  @TraceProperty({ spanName: 'clearTemp', tag: 'FileStorage' })
   public clearTemp = async (): Promise<void> => {
     await fs.promises.rm(this.tempDir, { recursive: true })
     await fs.promises.mkdir(this.tempDir, { recursive: true })
   }
 
+  @TraceProperty({ spanName: 'open', tag: 'FileStorage' })
   public open = async (
     _: Electron.IpcMainInvokeEvent,
     options: OpenDialogOptions
@@ -364,10 +382,12 @@ class FileStorage {
     }
   }
 
+  @TraceProperty({ spanName: 'openPath', tag: 'FileStorage' })
   public openPath = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
     shell.openPath(path).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
   }
 
+  @TraceProperty({ spanName: 'save', tag: 'FileStorage' })
   public save = async (
     _: Electron.IpcMainInvokeEvent,
     fileName: string,
@@ -396,6 +416,7 @@ class FileStorage {
     }
   }
 
+  @TraceProperty({ spanName: 'saveImage', tag: 'FileStorage' })
   public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<void> => {
     try {
       const filePath = dialog.showSaveDialogSync({
@@ -412,6 +433,7 @@ class FileStorage {
     }
   }
 
+  @TraceProperty({ spanName: 'selectFolder', tag: 'FileStorage' })
   public selectFolder = async (_: Electron.IpcMainInvokeEvent, options: OpenDialogOptions): Promise<string | null> => {
     try {
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
@@ -431,6 +453,7 @@ class FileStorage {
     }
   }
 
+  @TraceProperty({ spanName: 'downloadFile', tag: 'FileStorage' })
   public downloadFile = async (
     _: Electron.IpcMainInvokeEvent,
     url: string,
@@ -515,6 +538,7 @@ class FileStorage {
     return mimeToExtension[mimeType] || '.bin'
   }
 
+  @TraceProperty({ spanName: 'copyFile', tag: 'FileStorage' })
   public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
     try {
       const sourcePath = path.join(this.storageDir, id)
@@ -534,6 +558,7 @@ class FileStorage {
     }
   }
 
+  @TraceProperty({ spanName: 'writeFileWithId', tag: 'FileStorage' })
   public writeFileWithId = async (_: Electron.IpcMainInvokeEvent, id: string, content: string): Promise<void> => {
     try {
       const filePath = path.join(this.storageDir, id)
