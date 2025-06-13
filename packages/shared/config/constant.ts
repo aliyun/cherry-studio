@@ -403,3 +403,9 @@ export const KB = 1024
 export const MB = 1024 * KB
 export const GB = 1024 * MB
 export const defaultLanguage = 'en-US'
+
+export enum FeedUrl {
+  PRODUCTION = 'https://releases.cherry-ai.com',
+  EARLY_ACCESS = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
+}
+export const defaultTimeout = 5 * 1000 * 60

@@ -1,10 +1,11 @@
-import fs from 'node:fs'
-
 import { TraceMethod } from '@mcp-trace/trace-core'
+import fs from 'fs/promises'
 
 export default class FileService {
   @TraceMethod({ spanName: 'readFile', tag: 'FileService' })
-  public static async readFile(_: Electron.IpcMainInvokeEvent, path: string) {
-    return fs.readFileSync(path, 'utf8')
+  public static async readFile(_: Electron.IpcMainInvokeEvent, pathOrUrl: string, encoding?: BufferEncoding) {
+    const path = pathOrUrl.startsWith('file://') ? new URL(pathOrUrl) : pathOrUrl
+    if (encoding) return fs.readFile(path, { encoding })
+    return fs.readFile(path)
   }
 }
