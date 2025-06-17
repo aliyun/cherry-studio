@@ -7,7 +7,7 @@ import {
   TRACE_DATA_EVENT,
   TraceCache
 } from '@mcp-trace/trace-core'
-import { setParentContext, WebTracer } from '@mcp-trace/trace-web'
+import { instrumentPromises, setParentContext, WebTracer } from '@mcp-trace/trace-web'
 import { context, Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 
@@ -49,6 +49,14 @@ class WebTraceCache implements TraceCache {
       })
       .toArray()
   }
+
+  addEntity(entity: SpanEntity): void {
+    this.cache.set(entity.id, entity)
+  }
+
+  updateEntity(entity: SpanEntity): void {
+    this.cache.set(entity.id, entity)
+  }
 }
 
 const ipcRenderer = window.electron.ipcRenderer
@@ -56,7 +64,7 @@ const ipcRenderer = window.electron.ipcRenderer
 class WebTraceService {
   static span: Span | null = null
   init() {
-    // instrumentPromises()
+    instrumentPromises()
     WebTracer.init(
       {
         defaultTracerName: TRACER_NAME,
@@ -72,12 +80,12 @@ class WebTraceService {
       })
     )
 
-    ipcRenderer.on(TRACE_DATA_EVENT, (event: any, type: string, data: ReadableSpan) => {
+    ipcRenderer.on(TRACE_DATA_EVENT, (event: any, type: string, data: SpanEntity) => {
       console.log('TRACE_DATA_EVENT message', event, type, data)
       if (ON_START === type) {
-        spanCache.createSpan(data)
+        spanCache.addEntity(data)
       } else if (ON_END === type) {
-        spanCache.endSpan(data)
+        spanCache.updateEntity(data)
       }
     })
   }

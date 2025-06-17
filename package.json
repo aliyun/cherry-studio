@@ -68,9 +68,9 @@
     "@strongtz/win32-arm64-msvc": "^0.4.7",
     "jsdom": "26.1.0",
     "os-proxy-config": "^1.1.2",
+    "react-json-view": "^1.21.3",
     "selection-hook": "^0.9.23",
-    "turndown": "7.2.0",
-    "react-json-view": "^1.21.3"
+    "turndown": "7.2.0"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",

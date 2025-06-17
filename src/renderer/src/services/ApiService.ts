@@ -1,3 +1,4 @@
+import { context, trace } from '@opentelemetry/api'
 import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
 import Logger from '@renderer/config/logger'
 import {
@@ -221,11 +222,12 @@ async function fetchExternalTool(
     let webSearchResponseFromSearch: WebSearchResponse | undefined
     let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
 
+    const ctx = context.active()
     // 并行执行搜索
     if (shouldWebSearch || shouldKnowledgeSearch) {
       ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([
-        searchTheWeb(extractResults),
-        searchKnowledgeBase(extractResults)
+        context.with(ctx, () => searchTheWeb(extractResults)),
+        context.with(ctx, () => searchKnowledgeBase(extractResults))
       ])
     }
 
@@ -298,6 +300,7 @@ export async function fetchChatCompletion({
   // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
   console.log('fetchChatCompletion', messages, assistant)
+  console.log('active context', trace.getActiveSpan()?.spanContext())
 
   const provider = getAssistantProvider(assistant)
   const AI = new AiProvider(provider)

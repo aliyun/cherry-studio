@@ -7,14 +7,15 @@ import { EventEmitter } from 'stream'
 export class NodeTraceService {
   static emmitter = new EventEmitter()
 
-  init(mainWindow) {
+  init(mainWindow: Electron.CrossProcessExports.BrowserWindow) {
     const exporter = new FunctionSpanExporter(async (spans) => {
-      console.log(`Spans:`, spans)
+      console.log(`Spans length:`, spans.length)
     })
 
     NodeTraceService.emmitter.on(TRACE_DATA_EVENT, (ctx, obj) => {
+      console.log(` node TRACE_DATA_EVENT`, ctx, obj)
       if (obj) {
-        mainWindow.webContex.send(TRACE_DATA_EVENT, ctx, obj)
+        mainWindow.webContents.send(TRACE_DATA_EVENT, ctx, obj)
       }
     })
 

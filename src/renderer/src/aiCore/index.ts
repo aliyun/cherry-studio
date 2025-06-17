@@ -1,8 +1,9 @@
+import { TraceMethod } from '@mcp-trace/trace-core'
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { isDedicatedImageGenerationModel, isFunctionCallingModel } from '@renderer/config/models'
 import type { GenerateImageParams, Model, Provider } from '@renderer/types'
-import { RequestOptions, SdkModel } from '@renderer/types/sdk'
+import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 
 import { OpenAIAPIClient } from './clients'
@@ -21,7 +22,7 @@ import { MIDDLEWARE_NAME as ImageGenerationMiddlewareName } from './middleware/f
 import { MIDDLEWARE_NAME as ThinkingTagExtractionMiddlewareName } from './middleware/feat/ThinkingTagExtractionMiddleware'
 import { MIDDLEWARE_NAME as ToolUseExtractionMiddlewareName } from './middleware/feat/ToolUseExtractionMiddleware'
 import { MiddlewareRegistry } from './middleware/register'
-import { CompletionsParams, CompletionsResult } from './middleware/schemas'
+import type { CompletionsParams, CompletionsResult } from './middleware/schemas'
 
 export default class AiProvider {
   private apiClient: BaseApiClient
@@ -31,6 +32,7 @@ export default class AiProvider {
     this.apiClient = ApiClientFactory.create(provider)
   }
 
+  @TraceMethod({ spanName: 'completions', tag: 'LLM' })
   public async completions(params: CompletionsParams, options?: RequestOptions): Promise<CompletionsResult> {
     // 1. 根据模型识别正确的客户端
     const model = params.assistant.model
@@ -105,6 +107,7 @@ export default class AiProvider {
     return this.apiClient.listModels()
   }
 
+  @TraceMethod({ spanName: 'getEmbeddingDismensions', tag: 'LLM' })
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     try {
       // Use the SDK instance to test embedding capabilities
@@ -116,6 +119,7 @@ export default class AiProvider {
     }
   }
 
+  @TraceMethod({ spanName: 'generateImage', tag: 'LLM' })
   public async generateImage(params: GenerateImageParams): Promise<string[]> {
     return this.apiClient.generateImage(params)
   }
