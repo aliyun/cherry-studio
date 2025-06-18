@@ -20,7 +20,7 @@ export default class Embeddings {
     return this.sdk.init()
   }
 
-  @TraceMethod({ spanName: 'getDimensions', tag: 'Embeddings' })
+  @TraceMethod({ spanName: 'dimensions', tag: 'Embeddings' })
   public async getDimensions(): Promise<number> {
     return this.sdk.getDimensions()
   }

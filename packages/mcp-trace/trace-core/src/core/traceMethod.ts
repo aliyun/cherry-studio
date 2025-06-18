@@ -184,6 +184,39 @@ export function TraceProperty(traced: SpanDecoratorOptions) {
   }
 }
 
+export function withSpanFunc<F extends (...args: any[]) => any>(fn: F): F {
+  const traceName = defaultConfig.defaultTracerName || 'default'
+  const tracer = trace.getTracer(traceName)
+  const name = fn.name || 'anonymousFunction'
+  return function (...args: Parameters<F>) {
+    return traceContext.with(traceContext.active(), () =>
+      tracer.startActiveSpan(name, {}, (span) => {
+        // 在这里调用原始函数
+        const result = fn(...args)
+        if (result instanceof Promise) {
+          return result
+            .then((res) => {
+              span.setStatus({ code: SpanStatusCode.OK })
+              span.setAttribute('outputs', convertToString(res))
+              return res
+            })
+            .catch((err) => {
+              span.setStatus({ code: SpanStatusCode.ERROR, message: err.message })
+              span.recordException(err)
+              throw err
+            })
+            .finally(() => span.end())
+        } else {
+          span.setStatus({ code: SpanStatusCode.OK })
+          span.setAttribute('outputs', convertToString(result))
+          span.end()
+        }
+        return result
+      })
+    )
+  } as F
+}
+
 function convertToString(args: any | any[]): string | boolean | number {
   if (typeof args === 'string' || typeof args === 'boolean' || typeof args === 'number') {
     return args

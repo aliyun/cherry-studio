@@ -14,13 +14,13 @@ export interface TraceModal extends SpanEntity {
   start: number
 }
 
-export const TraceModal: React.FC = () => {
+export const TracePage: React.FC = () => {
   const [visible, setVisible] = useState(false)
   const [traceId, setTraceId] = useState<string | null>(null)
   const [spans, setSpans] = useState<TraceModal[]>([])
   const [position, setPosition] = useState({ x: window.innerWidth - 600, y: 0 })
   const dragging = useRef(false)
-  const offset = useRef({ x: 0, y: 0 })
+  const offset = useRef({ x: 30, y: 20 })
   const [selectNode, setSelectNode] = useState<TraceModal | null>(null)
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export const TraceModal: React.FC = () => {
     dragging.current = true
     offset.current = {
       x: e.clientX - position.x,
-      y: e.clientY - position.y
+      y: Math.max(e.clientY - position.y, 20)
     }
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
@@ -81,8 +81,8 @@ export const TraceModal: React.FC = () => {
     let newX = e.clientX - offset.current.x
     let newY = e.clientY - offset.current.y
     // 限制窗口不超出视口
-    newX = Math.max(0, Math.min(window.innerWidth - 600, newX))
-    newY = Math.max(0, Math.min(window.innerHeight - 100, newY))
+    newX = Math.max(10, Math.min(window.innerWidth - 600, newX))
+    newY = Math.max(40, Math.min(window.innerHeight - 100, newY))
     setPosition({ x: newX, y: newY })
   }
 
@@ -106,6 +106,8 @@ export const TraceModal: React.FC = () => {
         position: 'fixed',
         left: position.x,
         top: position.y,
+        // left: position.x,
+        // top: position.y,
         width: 700,
         backgroundColor: 'white',
         opacity: 1,

@@ -1,3 +1,4 @@
+import { webTraceService } from '@renderer/services/WebTraceService'
 import PQueue from 'p-queue'
 
 // Queue configuration - managed by topic
@@ -10,7 +11,12 @@ const requestQueues: { [topicId: string]: PQueue } = {}
  * @returns A PQueue instance for the topic
  */
 export const getTopicQueue = (topicId: string, options = {}): PQueue => {
-  if (!requestQueues[topicId]) requestQueues[topicId] = new PQueue(options)
+  if (!requestQueues[topicId]) {
+    requestQueues[topicId] = new PQueue(options)
+    requestQueues[topicId].on('idle', () => {
+      webTraceService.endTrace()
+    })
+  }
   return requestQueues[topicId]
 }
 

@@ -1,5 +1,3 @@
-export * from './async/asyncTraceHooks'
-export * from './async/fetch'
 export * from './core/spanConvert'
 export * from './core/traceCache'
 export * from './core/traceMethod'

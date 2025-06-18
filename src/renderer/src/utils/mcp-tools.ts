@@ -1,5 +1,6 @@
 import { ContentBlockParam, MessageParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
+import { trace } from '@opentelemetry/api'
 import Logger from '@renderer/config/logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import store from '@renderer/store'
@@ -274,11 +275,14 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
       throw new Error(`Server not found: ${toolResponse.tool.serverName}`)
     }
 
-    const resp = await window.api.mcp.callTool({
-      server,
-      name: toolResponse.tool.name,
-      args: toolResponse.arguments
-    })
+    const resp = await window.api.mcp.callTool(
+      {
+        server,
+        name: toolResponse.tool.name,
+        args: toolResponse.arguments
+      },
+      trace.getActiveSpan()?.spanContext()
+    )
     if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
       if (resp.data) {
         const mcpServer: MCPServer = {

@@ -256,8 +256,9 @@ async function fetchExternalTool(
     const enabledMCPs = assistant.mcpServers
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
+        console.log('trace context', trace.getActiveSpan()?.spanContext())
         const toolPromises = enabledMCPs.map(async (mcpServer) => {
-          const tools = await window.api.mcp.listTools(mcpServer)
+          const tools = await window.api.mcp.listTools(mcpServer, trace.getActiveSpan()?.spanContext())
           return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
         })
         const results = await Promise.all(toolPromises)

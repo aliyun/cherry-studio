@@ -6,7 +6,6 @@ import FileManager from '@renderer/services/FileManager'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
-import { webTraceService } from '@renderer/services/WebTraceService'
 import store from '@renderer/store'
 import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
 import type {
@@ -886,8 +885,6 @@ export const sendMessage =
       }
     } catch (error) {
       console.error('Error in sendMessage thunk:', error)
-    } finally {
-      webTraceService.endTrace()
     }
     // finally {
     //   handleChangeLoadingOfTopic(topicId)
@@ -1127,8 +1124,6 @@ export const resendMessageThunk =
       }
     } catch (error) {
       console.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error)
-    } finally {
-      webTraceService.endTrace()
     }
     // finally {
     //   handleChangeLoadingOfTopic(topicId)
@@ -1241,8 +1236,6 @@ export const regenerateAssistantResponseThunk =
         error
       )
       // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
-    } finally {
-      webTraceService.endTrace()
     }
     //  finally {
     //   handleChangeLoadingOfTopic(topicId)
@@ -1414,8 +1407,6 @@ export const appendAssistantResponseThunk =
       console.error(`[appendAssistantResponseThunk] Error appending assistant response:`, error)
       // Optionally dispatch an error action or notification
       // Resetting loading state should be handled by the underlying fetchAndProcessAssistantResponseImpl
-    } finally {
-      webTraceService.endTrace()
     }
     // finally {
     //   handleChangeLoadingOfTopic(topicId)

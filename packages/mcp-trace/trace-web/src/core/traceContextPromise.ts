@@ -39,41 +39,20 @@ class TraceContextPromise<T> extends Promise<T> {
   static all<T>(values: (T | PromiseLike<T>)[]): Promise<T[]> {
     // 尝试从缓存获取 context
     let capturedContext = context.active()
+    const newValues = values.map((v) => {
+      if (v instanceof Promise && !(v instanceof TraceContextPromise)) {
+        return new TraceContextPromise((resolve, reject) => v.then(resolve, reject), capturedContext)
+      } else if (typeof v === 'function') {
+        // 如果 v 是一个 Function，使用 context 传递 trace 上下文
+        return (...args: any[]) => context.with(capturedContext, () => v(...args))
+      } else {
+        return v
+      }
+    })
     if (Array.isArray(values) && values.length > 0 && values[0] instanceof TraceContextPromise) {
       capturedContext = (values[0] as TraceContextPromise<any>)._context
     }
-
-    // 包装所有原生 Promise
-    const wrappedValues = values.map((v) =>
-      v instanceof TraceContextPromise
-        ? v
-        : v instanceof Promise
-          ? new TraceContextPromise((resolve, reject) => v.then(resolve, reject), capturedContext)
-          : v
-    )
-
-    return new TraceContextPromise<T[]>((resolve, reject) => {
-      let remaining = wrappedValues.length
-      const results: T[] = new Array(remaining)
-      if (remaining === 0) {
-        context.with(capturedContext, () => resolve(results))
-        return
-      }
-      values.forEach((value, i) => {
-        TraceContextPromise.resolve(value, capturedContext).then(
-          (val) => {
-            results[i] = val
-            remaining--
-            if (remaining === 0) {
-              context.with(capturedContext, () => resolve(results))
-            }
-          },
-          (err) => {
-            context.with(capturedContext, () => reject(err))
-          }
-        )
-      })
-    }, capturedContext)
+    return originalPromise.all(newValues) as Promise<T[]>
   }
 
   static race<T>(values: (T | PromiseLike<T>)[]): Promise<T> {

@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api'
 import { nanoid } from '@reduxjs/toolkit'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
@@ -37,7 +38,9 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       const cleanedQuery = query.split('\r\n')[1] ?? query
       const url = this.provider.url.replace('%s', encodeURIComponent(cleanedQuery))
       let content: string = ''
-      const promisesToRace: [Promise<string>] = [window.api.searchService.openUrlInSearchWindow(uid, url)]
+      const promisesToRace: [Promise<string>] = [
+        window.api.searchService.openUrlInSearchWindow(uid, url, trace.getActiveSpan()?.spanContext())
+      ]
       if (httpOptions?.signal) {
         const abortPromise = createAbortPromise(httpOptions.signal, promisesToRace[0])
         promisesToRace.push(abortPromise)

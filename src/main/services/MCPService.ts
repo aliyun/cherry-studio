@@ -385,7 +385,6 @@ class McpService {
     await this.initClient(server)
   }
 
-  @TraceMethod({ spanName: 'cleanup', tag: 'mcp' })
   async cleanup() {
     for (const [key] of this.clients) {
       try {
@@ -493,7 +492,6 @@ class McpService {
   /**
    * List prompts available on an MCP server
    */
-  @TraceMethod({ spanName: 'listPrompts', tag: 'mcp' })
   private async listPromptsImpl(server: MCPServer): Promise<MCPPrompt[]> {
     const client = await this.initClient(server)
     Logger.info(`[MCP] Listing prompts for server: ${server.name}`)
@@ -517,7 +515,6 @@ class McpService {
   /**
    * List prompts available on an MCP server with caching
    */
-  @TraceMethod({ spanName: 'listPrompts', tag: 'mcp' })
   public async listPrompts(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPPrompt[]> {
     const cachedListPrompts = withCache<[MCPServer], MCPPrompt[]>(
       this.listPromptsImpl.bind(this),
@@ -591,7 +588,6 @@ class McpService {
   /**
    * List resources available on an MCP server with caching
    */
-  @TraceMethod({ spanName: 'listResources', tag: 'mcp' })
   public async listResources(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPResource[]> {
     const cachedListResources = withCache<[MCPServer], MCPResource[]>(
       this.listResourcesImpl.bind(this),

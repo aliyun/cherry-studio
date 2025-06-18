@@ -1,6 +1,6 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
-import { context, propagation } from '@opentelemetry/api'
+import { SpanContext } from '@opentelemetry/api'
 import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, ThemeMode, WebDavConfig } from '@types'
@@ -8,14 +8,15 @@ import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from '
 import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
 
-function tracedInvoke(channel: string, ...args: any[]) {
-  const carray = { type: 'trace' }
-  propagation.inject(context.active(), carray)
-  console.log(`[渲染进程拦截] 通道: ${channel}`, carray['traceparent'] || 'no trace data')
-  return ipcRenderer.invoke(channel, ...args, carray)
-}
-
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
+export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
+  if (spanContext) {
+    const data = { type: 'trace', context: spanContext }
+    console.log(`tracedInvoke data`, data)
+    return ipcRenderer.invoke(channel, ...args, data)
+  }
+  return ipcRenderer.invoke(channel, ...args)
+}
 
 // Custom APIs for renderer
 const api = {
@@ -69,28 +70,28 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig)
   },
   file: {
-    select: (options?: OpenDialogOptions) => tracedInvoke(IpcChannel.File_Select, options),
-    upload: (file: FileType) => tracedInvoke(IpcChannel.File_Upload, file),
-    delete: (fileId: string) => tracedInvoke(IpcChannel.File_Delete, fileId),
-    read: (fileId: string) => tracedInvoke(IpcChannel.File_Read, fileId),
-    clear: () => tracedInvoke(IpcChannel.File_Clear),
-    get: (filePath: string) => tracedInvoke(IpcChannel.File_Get, filePath),
-    create: (fileName: string) => tracedInvoke(IpcChannel.File_Create, fileName),
-    write: (filePath: string, data: Uint8Array | string) => tracedInvoke(IpcChannel.File_Write, filePath, data),
-    writeWithId: (id: string, content: string) => tracedInvoke(IpcChannel.File_WriteWithId, id, content),
-    open: (options?: OpenDialogOptions) => tracedInvoke(IpcChannel.File_Open, options),
-    openPath: (path: string) => tracedInvoke(IpcChannel.File_OpenPath, path),
+    select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),
+    upload: (file: FileType) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
+    delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
+    read: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Read, fileId),
+    clear: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_Clear, spanContext),
+    get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
+    create: (fileName: string) => ipcRenderer.invoke(IpcChannel.File_Create, fileName),
+    write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
+    writeWithId: (id: string, content: string) => ipcRenderer.invoke(IpcChannel.File_WriteWithId, id, content),
+    open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
+    openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any) =>
-      tracedInvoke(IpcChannel.File_Save, path, content, options),
-    selectFolder: () => tracedInvoke(IpcChannel.File_SelectFolder),
-    saveImage: (name: string, data: string) => tracedInvoke(IpcChannel.File_SaveImage, name, data),
-    base64Image: (fileId: string) => tracedInvoke(IpcChannel.File_Base64Image, fileId),
-    saveBase64Image: (data: string) => tracedInvoke(IpcChannel.File_SaveBase64Image, data),
+      ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
+    selectFolder: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_SelectFolder, spanContext),
+    saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
+    base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
+    saveBase64Image: (data: string) => ipcRenderer.invoke(IpcChannel.File_SaveBase64Image, data),
     download: (url: string, isUseContentType?: boolean) =>
-      tracedInvoke(IpcChannel.File_Download, url, isUseContentType),
-    copy: (fileId: string, destPath: string) => tracedInvoke(IpcChannel.File_Copy, fileId, destPath),
-    binaryImage: (fileId: string) => tracedInvoke(IpcChannel.File_BinaryImage, fileId),
-    base64File: (fileId: string) => tracedInvoke(IpcChannel.File_Base64File, fileId),
+      ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
+    copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
+    binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
+    base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId),
     pdfInfo: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_GetPdfInfo, fileId),
     getPathForFile: (file: File) => webUtils.getPathForFile(file)
   },
@@ -105,24 +106,32 @@ const api = {
     update: (shortcuts: Shortcut[]) => ipcRenderer.invoke(IpcChannel.Shortcuts_Update, shortcuts)
   },
   knowledgeBase: {
-    create: (base: KnowledgeBaseParams) => tracedInvoke(IpcChannel.KnowledgeBase_Create, base),
-    reset: (base: KnowledgeBaseParams) => tracedInvoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (id: string) => tracedInvoke(IpcChannel.KnowledgeBase_Delete, id),
-    add: ({
-      base,
-      item,
-      forceReload = false
-    }: {
-      base: KnowledgeBaseParams
-      item: KnowledgeItem
-      forceReload?: boolean
-    }) => tracedInvoke(IpcChannel.KnowledgeBase_Add, { base, item, forceReload }),
-    remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Remove, { uniqueId, uniqueIds, base }),
-    search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Search, { search, base }),
-    rerank: ({ search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Rerank, { search, base, results })
+    create: (base: KnowledgeBaseParams, context?: SpanContext) =>
+      tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
+    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
+    delete: (id: string, context?: SpanContext) => tracedInvoke(IpcChannel.KnowledgeBase_Delete, context, id),
+    add: (
+      {
+        base,
+        item,
+        forceReload = false
+      }: {
+        base: KnowledgeBaseParams
+        item: KnowledgeItem
+        forceReload?: boolean
+      },
+      context?: SpanContext
+    ) => tracedInvoke(IpcChannel.KnowledgeBase_Add, context, { base, item, forceReload }),
+    remove: (
+      { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams },
+      context?: SpanContext
+    ) => tracedInvoke(IpcChannel.KnowledgeBase_Remove, context, { uniqueId, uniqueIds, base }),
+    search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
+      tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
+    rerank: (
+      { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] },
+      context?: SpanContext
+    ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results })
   },
   window: {
     setMinimumSize: (width: number, height: number) =>
@@ -163,18 +172,18 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Aes_Decrypt, encryptedData, iv, secretKey)
   },
   mcp: {
-    removeServer: (server: MCPServer) => tracedInvoke(IpcChannel.Mcp_RemoveServer, server),
-    restartServer: (server: MCPServer) => tracedInvoke(IpcChannel.Mcp_RestartServer, server),
-    stopServer: (server: MCPServer) => tracedInvoke(IpcChannel.Mcp_StopServer, server),
-    listTools: (server: MCPServer) => tracedInvoke(IpcChannel.Mcp_ListTools, server),
-    callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }) =>
-      tracedInvoke(IpcChannel.Mcp_CallTool, { server, name, args }),
-    listPrompts: (server: MCPServer) => tracedInvoke(IpcChannel.Mcp_ListPrompts, server),
+    removeServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RemoveServer, server),
+    restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
+    stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
+    listTools: (server: MCPServer, context?: SpanContext) => tracedInvoke(IpcChannel.Mcp_ListTools, context, server),
+    callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }, context?: SpanContext) =>
+      tracedInvoke(IpcChannel.Mcp_CallTool, context, { server, name, args }),
+    listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
     getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
-      tracedInvoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
-    listResources: (server: MCPServer) => tracedInvoke(IpcChannel.Mcp_ListResources, server),
+      ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
+    listResources: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, server),
     getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
-      tracedInvoke(IpcChannel.Mcp_GetResource, { server, uri }),
+      ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
     checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server)
   },
@@ -216,7 +225,8 @@ const api = {
   searchService: {
     openSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Open, uid),
     closeSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Close, uid),
-    openUrlInSearchWindow: (uid: string, url: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_OpenUrl, uid, url)
+    openUrlInSearchWindow: (uid: string, url: string, context?: SpanContext) =>
+      tracedInvoke(IpcChannel.SearchWindow_OpenUrl, context, uid, url)
   },
   webview: {
     setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>

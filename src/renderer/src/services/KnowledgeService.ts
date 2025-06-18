@@ -1,4 +1,5 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import { trace } from '@opentelemetry/api'
 import AiProvider from '@renderer/aiCore'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
@@ -100,10 +101,13 @@ export const searchKnowledgeBase = async (
     const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
 
     // 执行搜索
-    const searchResults = await window.api.knowledgeBase.search({
-      search: query,
-      base: baseParams
-    })
+    const searchResults = await window.api.knowledgeBase.search(
+      {
+        search: query,
+        base: baseParams
+      },
+      trace.getActiveSpan()?.spanContext()
+    )
 
     // 过滤阈值不达标的结果
     const filteredResults = searchResults.filter((item) => item.score >= threshold)
@@ -111,11 +115,14 @@ export const searchKnowledgeBase = async (
     // 如果有rerank模型，执行重排
     let rerankResults = filteredResults
     if (base.rerankModel && filteredResults.length > 0) {
-      rerankResults = await window.api.knowledgeBase.rerank({
-        search: rewrite || query,
-        base: baseParams,
-        results: filteredResults
-      })
+      rerankResults = await window.api.knowledgeBase.rerank(
+        {
+          search: rewrite || query,
+          base: baseParams,
+          results: filteredResults
+        },
+        trace.getActiveSpan()?.spanContext()
+      )
     }
 
     // 限制文档数量

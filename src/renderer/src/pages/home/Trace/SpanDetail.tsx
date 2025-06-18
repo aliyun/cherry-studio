@@ -3,8 +3,8 @@ import './Trace.css'
 import { FC, useCallback, useEffect, useState } from 'react'
 import ReactJson from 'react-json-view'
 
-import { TraceModal } from '.'
 import { Box, Button, Text } from './Component'
+import { TraceModal } from './index'
 import { convertTime } from './TraceTree'
 
 interface SpanDetailProps {

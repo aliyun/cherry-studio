@@ -16,7 +16,6 @@ import styled from 'styled-components'
 import Inputbar from './Inputbar/Inputbar'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
-import { TraceModal } from './Trace/index'
 
 interface Props {
   assistant: Assistant
@@ -128,7 +127,6 @@ const Chat: FC<Props> = (props) => {
           <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
           {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
         </QuickPanelProvider>
-        <TraceModal />
       </Main>
       {topicPosition === 'right' && showTopics && (
         <Tabs

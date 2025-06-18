@@ -1,6 +1,6 @@
 import { EmitterSpanProcessor, FunctionSpanExporter, TRACE_DATA_EVENT } from '@mcp-trace/trace-core'
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node'
-import { context, propagation } from '@opentelemetry/api'
+import { context, SpanContext, trace } from '@opentelemetry/api'
 import { ipcMain } from 'electron'
 import { EventEmitter } from 'stream'
 
@@ -35,8 +35,11 @@ ipcMain.handle = (channel: string, handler: (...args: any[]) => Promise<any>) =>
     const carray = args && args.length > 0 ? args[args.length - 1] : {}
     let ctx = context.active()
     let newArgs = args
+    console.log(`Extracted context from args:`, args)
     if (carray && typeof carray === 'object' && 'type' in carray && carray.type === 'trace') {
-      ctx = propagation.extract(context.active(), carray)
+      const span = trace.wrapSpanContext(carray.context as SpanContext)
+      ctx = trace.setSpan(context.active(), span)
+      console.log(`Current span:`, trace.getActiveSpan()?.spanContext())
       newArgs = args.slice(0, args.length - 1)
     }
     return context.with(ctx, () => handler(event, ...newArgs))

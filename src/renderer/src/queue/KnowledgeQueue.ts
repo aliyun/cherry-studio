@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api'
 import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
@@ -123,16 +124,21 @@ class KnowledgeQueue {
 
       Logger.log(`[KnowledgeQueue] Processing item: ${sourceItem.content}`)
 
+      const spanContext = trace.getActiveSpan()?.spanContext()
+
       switch (item.type) {
         case 'note':
           note = await db.knowledge_notes.get(item.id)
           if (note) {
             content = note.content as string
-            result = await window.api.knowledgeBase.add({ base: baseParams, item: { ...sourceItem, content } })
+            result = await window.api.knowledgeBase.add(
+              { base: baseParams, item: { ...sourceItem, content } },
+              spanContext
+            )
           }
           break
         default:
-          result = await window.api.knowledgeBase.add({ base: baseParams, item: sourceItem })
+          result = await window.api.knowledgeBase.add({ base: baseParams, item: sourceItem }, spanContext)
           break
       }
 
