@@ -34,7 +34,7 @@ import { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
-import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -51,7 +51,6 @@ import { processKnowledgeSearch } from './KnowledgeService'
 import {
   filterContextMessages,
   filterEmptyMessages,
-  filterMessages,
   filterUsefulMessages,
   filterUserRoleStartMessages
 } from './MessagesService'
@@ -419,7 +418,9 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
   const prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
-  const userMessages = takeRight(messages, 5)
+
+  // 总结上下文总是取最后5条消息
+  const contextMessages = takeRight(messages, 5)
 
   const provider = getProviderByModel(model)
 
@@ -429,9 +430,30 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   const AI = new AiProvider(provider)
 
+  // LLM对多条消息的总结有问题，用单条结构化的消息表示会话内容会更好
+  const structredMessages = contextMessages.map((message) => {
+    const structredMessage = {
+      role: message.role,
+      mainText: getMainTextContent(message)
+    }
+
+    // 让LLM知道消息中包含的文件，但只提供文件名
+    // 对助手消息而言，没有提供工具调用结果等更多信息，仅提供文本上下文。
+    const fileBlocks = findFileBlocks(message)
+    let fileList: Array<string> = []
+    if (fileBlocks.length && fileBlocks.length > 0) {
+      fileList = fileBlocks.map((fileBlock) => fileBlock.file.origin_name)
+    }
+    return {
+      ...structredMessage,
+      files: fileList.length > 0 ? fileList : undefined
+    }
+  })
+  const conversation = JSON.stringify(structredMessages)
+
   const params: CompletionsParams = {
     callType: 'summary',
-    messages: filterMessages(userMessages),
+    messages: conversation,
     assistant: { ...assistant, prompt, model },
     maxTokens: 1000,
     streamOutput: false
@@ -497,7 +519,7 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
 
 function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio') return true
+  if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
   return !isEmpty(provider.apiKey)
 }
 
@@ -519,14 +541,19 @@ export function checkApiProvider(provider: Provider): void {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
-  if (provider.id !== 'ollama' && provider.id !== 'lmstudio') {
+  if (
+    provider.id !== 'ollama' &&
+    provider.id !== 'lmstudio' &&
+    provider.type !== 'vertexai' &&
+    provider.id !== 'copilot'
+  ) {
     if (!provider.apiKey) {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
       throw new Error(i18n.t('message.error.enter.api.key'))
     }
   }
 
-  if (!provider.apiHost) {
+  if (!provider.apiHost && provider.type !== 'vertexai') {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
     throw new Error(i18n.t('message.error.enter.api.host'))
   }

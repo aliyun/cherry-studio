@@ -176,10 +176,21 @@ export class GeminiAPIClient extends BaseApiClient<
     this.sdkInstance = new GoogleGenAI({
       vertexai: false,
       apiKey: this.apiKey,
-      httpOptions: { baseUrl: this.getBaseURL() }
+      apiVersion: this.getApiVersion(),
+      httpOptions: {
+        baseUrl: this.getBaseURL(),
+        apiVersion: this.getApiVersion()
+      }
     })
 
     return this.sdkInstance
+  }
+
+  protected getApiVersion(): string {
+    if (this.provider.isVertex) {
+      return 'v1'
+    }
+    return 'v1beta'
   }
 
   /**
@@ -452,7 +463,7 @@ export class GeminiAPIClient extends BaseApiClient<
         })
 
         if (this.useSystemPromptForTools) {
-          systemInstruction = await buildSystemPrompt(assistant.prompt || '', mcpTools)
+          systemInstruction = await buildSystemPrompt(assistant.prompt || '', mcpTools, assistant)
         }
 
         let messageContents: Content

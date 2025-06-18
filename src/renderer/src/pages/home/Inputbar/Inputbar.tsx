@@ -193,9 +193,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         )
       }
 
-      if (topic.prompt) {
-        baseUserMessage.assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${topic.prompt}` : topic.prompt
-      }
+      const assistantWithTopicPrompt = topic.prompt
+        ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
+        : assistant
 
       console.log('SendMessage', parent.spanContext().traceId)
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
@@ -204,10 +204,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       message.traceId = parent.spanContext().traceId
 
       currentMessageId.current = message.id
-      Logger.log('[DEBUG] Created message and blocks:', message, blocks)
-      Logger.log('[DEBUG] Dispatching _sendMessage')
-      dispatch(_sendMessage(message, blocks, assistant, topic.id))
-      Logger.log('[DEBUG] _sendMessage dispatched')
+      dispatch(_sendMessage(message, blocks, assistantWithTopicPrompt, topic.id))
 
       // Clear input
       setText('')
@@ -317,7 +314,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [knowledgeBases, openKnowledgeFileList, quickPanel, t, inputbarToolsRef])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = event.keyCode == 13
+    const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
 
     // 按下Tab键，自动选中${xxx}
     if (event.key === 'Tab' && inputFocus) {

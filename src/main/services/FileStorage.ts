@@ -16,6 +16,7 @@ import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import officeParser from 'officeparser'
+import { getDocument } from 'officeparser/pdfjs-dist-build/pdf.js'
 import * as path from 'path'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
@@ -333,6 +334,16 @@ class FileStorage {
     const base64 = buffer.toString('base64')
     const mime = `application/${path.extname(filePath).slice(1)}`
     return { data: base64, mime }
+  }
+
+  public pdfPageCount = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<number> => {
+    const filePath = path.join(this.storageDir, id)
+    const buffer = await fs.promises.readFile(filePath)
+
+    const doc = await getDocument({ data: buffer }).promise
+    const pages = doc.numPages
+    await doc.destroy()
+    return pages
   }
 
   @TraceProperty({ spanName: 'binaryImage', tag: 'FileStorage' })
