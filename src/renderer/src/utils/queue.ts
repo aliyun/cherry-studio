@@ -14,7 +14,7 @@ export const getTopicQueue = (topicId: string, options = {}): PQueue => {
   if (!requestQueues[topicId]) {
     requestQueues[topicId] = new PQueue(options)
     requestQueues[topicId].on('idle', () => {
-      webTraceService.endTrace()
+      webTraceService.endTrace(topicId)
     })
   }
   return requestQueues[topicId]

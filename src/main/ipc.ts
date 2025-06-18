@@ -4,6 +4,7 @@ import { arch } from 'node:os'
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
+import { SpanEntity } from '@mcp-trace/trace-core'
 import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
@@ -20,6 +21,7 @@ import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
+import { traceDataService } from './services/NodeTraceService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
@@ -365,4 +367,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   SelectionService.registerIpcHandler()
 
   ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => windowService.quoteToMainWindow(text))
+  ipcMain.handle('saveTraceData', (_, spans: SpanEntity[]) => traceDataService.savedata(spans))
+  ipcMain.handle('getTraceData', (_, topicId: string, traceId: string) => traceDataService.getData(topicId, traceId))
 }

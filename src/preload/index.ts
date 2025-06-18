@@ -1,5 +1,6 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
+import { SpanEntity } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
 import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -255,7 +256,11 @@ const api = {
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
   },
-  quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text)
+  quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
+  trace: {
+    saveData: (spans: SpanEntity[]) => ipcRenderer.invoke('saveTraceData', spans),
+    getData: (topicId: string, traceId: string) => ipcRenderer.invoke('getTraceData', topicId, traceId)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

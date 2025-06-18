@@ -14,9 +14,12 @@ import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 const TRACER_NAME = 'CherryStudio'
 
 class WebTraceCache implements TraceCache {
+  private topicMap: Map<string, string> = new Map<string, string>()
+
   private cache: Map<string, SpanEntity> = new Map<string, SpanEntity>()
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
     const spanEntity = convertSpanToSpanEntity(span)
+    spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
     this.cache.set(span.spanContext().spanId, spanEntity)
   }
 
@@ -25,10 +28,10 @@ class WebTraceCache implements TraceCache {
     if (this.cache.has(spanId)) {
       const spanEntity = this.cache.get(spanId)
       if (spanEntity) {
+        spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
         spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
         spanEntity.status = SpanStatusCode[span.status.code]
         spanEntity.attributes = span.attributes
-        spanEntity.duration = span.duration ? span.duration[0] * 1e3 + Math.floor(span.duration[1] / 1e6) : 0
         spanEntity.events = span.events
         spanEntity.links = span.links
       }
@@ -41,28 +44,45 @@ class WebTraceCache implements TraceCache {
     this.cache.clear()
   }
 
-  getSpans: (traceId: string) => SpanEntity[] = (traceId: string) => {
-    return this.cache
-      .values()
-      .filter((spanEntity) => {
+  cleanTopic: (topicId: string) => void = (topicId: string) => {
+    const spans = Array.from(this.cache.values().filter((e) => e.topicId === topicId))
+    spans.map((e) => e.id).forEach((id) => this.cache.delete(id))
+  }
+
+  saveSpans: (traceId: string) => void = (traceId: string) => {
+    const spans = Array.from(this.cache.values().filter((e) => e.traceId === traceId))
+    window.api.trace.saveData(spans || ([] as SpanEntity[]))
+  }
+
+  getSpans: (topicId: string, traceId: string) => Promise<SpanEntity[]> = async (topicId: string, traceId: string) => {
+    if (this.topicMap.has(traceId)) {
+      return Array.from(this.cache.values()).filter((spanEntity) => {
         return spanEntity.traceId === traceId
       })
-      .toArray()
+    } else {
+      return (await window.api.trace.getData(topicId, traceId)) as SpanEntity[]
+    }
   }
 
   addEntity(entity: SpanEntity): void {
+    entity.topicId = this.topicMap.get(entity.traceId)
     this.cache.set(entity.id, entity)
   }
 
   updateEntity(entity: SpanEntity): void {
+    entity.topicId = this.topicMap.get(entity.traceId)
     this.cache.set(entity.id, entity)
+  }
+
+  setTopicId(traceId: string, topicId: string): void {
+    this.topicMap.set(traceId, topicId)
   }
 }
 
 const ipcRenderer = window.electron.ipcRenderer
 
 class WebTraceService {
-  static span: Span | null = null
+  static parentSpans: Map<string, Span> = new Map<string, Span>()
   init() {
     instrumentPromises()
     WebTracer.init(
@@ -90,7 +110,7 @@ class WebTraceService {
     })
   }
 
-  startTrace(name?: string, inputs?: any) {
+  startTrace(topicId: string, name?: string, inputs?: any) {
     const span = webTracer.startSpan(name || 'root', {
       root: true,
       attributes: {
@@ -98,18 +118,21 @@ class WebTraceService {
       }
     })
     const ctx = trace.setSpan(context.active(), span)
+    spanCache.cleanTopic(topicId)
     setParentContext(ctx)
-    WebTraceService.span = span
+    WebTraceService.parentSpans.set(topicId, span)
+    spanCache.setTopicId(span.spanContext().traceId, topicId)
     return span
   }
 
-  endTrace(outputs?: any) {
+  endTrace(topicId: string, outputs?: any) {
     // const span = trace.getActiveSpan()
-    const span = WebTraceService.span
+    const span = WebTraceService.parentSpans.get(topicId)
     console.log('endTrace', JSON.stringify(span?.spanContext()))
     if (span) {
       span.setAttributes({ outputs: JSON.stringify(outputs || {}) })
       span.end()
+      spanCache.saveSpans(span.spanContext().traceId)
     } else {
       console.error('No active span found to end.')
     }

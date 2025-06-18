@@ -1,4 +1,5 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { trace } from '@opentelemetry/api'
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import Logger from '@renderer/config/logger'
@@ -165,7 +166,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
 
-    const parent = webTraceService.startTrace('sendMessage', text)
+    const parent = webTraceService.startTrace(topic.id, 'sendMessage', text)
     try {
       // Dispatch the sendMessage action with all options
       const uploadedFiles = await FileManager.uploadFiles(files)
@@ -197,7 +198,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
         : assistant
 
-      console.log('SendMessage', parent.spanContext().traceId)
+      Logger.log('current tracer', trace.getActiveSpan()?.spanContext())
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)

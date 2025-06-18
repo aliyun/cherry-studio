@@ -1,3 +1,52 @@
+:root {
+  --trace-bg: #fff;
+  --trace-header-bg: #f5f5f5;
+  --trace-border: #eee;
+  --trace-text: #222;
+  --trace-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --trace-bg: #181c20;
+    --trace-header-bg: #23272b;
+    --trace-border: #333;
+    --trace-text: #f1f1f1;
+    --trace-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+  }
+}
+
+.tab-container_trace {
+  background: var(--trace-bg);
+  color: var(--trace-text);
+}
+
+.tab-pane,
+.scroll-container,
+.Box {
+  background: var(--trace-bg);
+  color: var(--trace-text);
+}
+
+.tab-header {
+  background: var(--trace-header-bg);
+  border-bottom: 1px solid var(--trace-border);
+}
+
+.tab-pane {
+  box-shadow: var(--trace-shadow);
+}
+
+.tab-header,
+.tab-pane,
+.scroll-container,
+.Box {
+  transition:
+    background 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
+}
+
 .tab-container_trace {
   width: 100%;
   height: 95vh;

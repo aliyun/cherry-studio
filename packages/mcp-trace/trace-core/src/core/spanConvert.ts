@@ -19,8 +19,6 @@ export function convertSpanToSpanEntity(span: ReadableSpan): SpanEntity {
     attributes: { ...span.attributes },
     status: SpanStatusCode[span.status.code],
     events: span.events,
-    resourceAttribute: span.resource?.attributes,
-    instrumentationScope: span.instrumentationScope,
     kind: SpanKind[span.kind],
     links: span.links
   } as SpanEntity

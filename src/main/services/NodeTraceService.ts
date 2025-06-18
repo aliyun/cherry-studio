@@ -1,7 +1,11 @@
 import { EmitterSpanProcessor, FunctionSpanExporter, TRACE_DATA_EVENT } from '@mcp-trace/trace-core'
+import { SpanEntity } from '@mcp-trace/trace-core'
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node'
 import { context, SpanContext, trace } from '@opentelemetry/api'
 import { ipcMain } from 'electron'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
 import { EventEmitter } from 'stream'
 
 export class NodeTraceService {
@@ -13,7 +17,6 @@ export class NodeTraceService {
     })
 
     NodeTraceService.emmitter.on(TRACE_DATA_EVENT, (ctx, obj) => {
-      console.log(` node TRACE_DATA_EVENT`, ctx, obj)
       if (obj) {
         mainWindow.webContents.send(TRACE_DATA_EVENT, ctx, obj)
       }
@@ -28,6 +31,44 @@ export class NodeTraceService {
     )
   }
 }
+
+export class TraceDataService {
+  private fileDir: string
+
+  constructor() {
+    this.fileDir = path.join(os.homedir(), '.cherrystudio')
+  }
+
+  async savedata(spans: SpanEntity[]) {
+    console.log(`Saving spans:`, spans.length)
+    spans.map((span) => {
+      let filePath = path.join(this.fileDir, span.topicId || 'unkown')
+      this.checkFolder(filePath)
+      filePath = path.join(filePath, `${span.traceId}.json`)
+      fs.appendFileSync(filePath, JSON.stringify(span) + '\n')
+    })
+  }
+
+  async getData(topicId: string, traceId: string) {
+    const filePath = path.join(this.fileDir, topicId, `${traceId}.json`)
+    if (!fs.existsSync(filePath)) {
+      return []
+    }
+    const buffer = fs.readFileSync(filePath)
+    const lines = buffer
+      .toString()
+      .split('\n')
+      .filter((line) => line.trim() !== '')
+    return lines.map((line) => JSON.parse(line) as SpanEntity)
+  }
+
+  checkFolder(filePath: string) {
+    if (!fs.existsSync(filePath)) {
+      fs.mkdirSync(filePath)
+    }
+  }
+}
+export const traceDataService = new TraceDataService()
 
 const originalHandle = ipcMain.handle
 ipcMain.handle = (channel: string, handler: (...args: any[]) => Promise<any>) => {

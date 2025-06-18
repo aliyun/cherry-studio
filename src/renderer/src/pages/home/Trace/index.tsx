@@ -18,17 +18,18 @@ export const TracePage: React.FC = () => {
   const [visible, setVisible] = useState(false)
   const [traceId, setTraceId] = useState<string | null>(null)
   const [spans, setSpans] = useState<TraceModal[]>([])
-  const [position, setPosition] = useState({ x: window.innerWidth - 600, y: 0 })
+  const [position, setPosition] = useState({ x: window.innerWidth - 650, y: 40 })
   const dragging = useRef(false)
-  const offset = useRef({ x: 30, y: 20 })
+  const offset = useRef({ x: 10, y: 40 })
   const [selectNode, setSelectNode] = useState<TraceModal | null>(null)
 
   useEffect(() => {
-    const handleShowTrace = (event: Event) => {
+    const handleShowTrace = async (event: Event) => {
       const customEvent = event as CustomEvent
-      const id = customEvent.detail
+      const id = customEvent.detail.traceId
+      const topicId = customEvent.detail.topicId
       setTraceId(id)
-      const datas = spanCache.getSpans(id)
+      const datas = await spanCache.getSpans(topicId, id)
       const matchedSpans = getRootSpan(datas)
       setSpans(matchedSpans)
       setVisible(true)
@@ -69,8 +70,8 @@ export const TracePage: React.FC = () => {
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     dragging.current = true
     offset.current = {
-      x: e.clientX - position.x,
-      y: Math.max(e.clientY - position.y, 20)
+      x: Math.max(e.clientX - position.x, 10),
+      y: Math.max(e.clientY - position.y, 40)
     }
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
@@ -78,11 +79,11 @@ export const TracePage: React.FC = () => {
 
   const handleMouseMove = (e: MouseEvent) => {
     if (!dragging.current) return
-    let newX = e.clientX - offset.current.x
-    let newY = e.clientY - offset.current.y
+    let newX = Math.max(10, e.clientX - offset.current.x)
+    let newY = Math.max(40, e.clientY - offset.current.y)
     // 限制窗口不超出视口
-    newX = Math.max(10, Math.min(window.innerWidth - 600, newX))
-    newY = Math.max(40, Math.min(window.innerHeight - 100, newY))
+    newX = Math.min(window.innerWidth - 650, newX)
+    newY = Math.min(window.innerHeight - 100, newY)
     setPosition({ x: newX, y: newY })
   }
 
@@ -106,14 +107,13 @@ export const TracePage: React.FC = () => {
         position: 'fixed',
         left: position.x,
         top: position.y,
-        // left: position.x,
-        // top: position.y,
-        width: 700,
-        backgroundColor: 'white',
+        width: 650,
+        backgroundColor: 'var(--trace-bg)',
+        color: 'var(--trace-text)',
         opacity: 1,
         zIndex: 1000,
         height: '90vh',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+        boxShadow: 'var(--trace-shadow)',
         borderRadius: 8,
         userSelect: dragging.current ? 'none' : 'auto',
         transition: dragging.current ? 'none' : 'box-shadow 0.2s'
@@ -122,7 +122,7 @@ export const TracePage: React.FC = () => {
         style={{
           cursor: 'move',
           height: 36,
-          background: '#f5f5f5',
+          background: 'var(--trace-header-bg)',
           borderBottom: '1px solid #eee',
           display: 'flex',
           alignItems: 'center',
@@ -143,7 +143,7 @@ export const TracePage: React.FC = () => {
         <div className=".tab-container_trace">
           <div className={`right`}>
             <div key="TraceTab" className={`tab-pane active`}>
-              <SimpleGrid columns={2} templateColumns="2fr 1fr">
+              <SimpleGrid columns={2} templateColumns="6fr 4fr">
                 <Box padding={5} className="scroll-container">
                   <VStack grap={1} align="start">
                     {spans.length === 0 ? (

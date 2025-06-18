@@ -1,5 +1,4 @@
-import { Attributes, Link, TraceState } from '@opentelemetry/api'
-import { InstrumentationScope } from '@opentelemetry/core'
+import { Attributes, Link } from '@opentelemetry/api'
 import { TimedEvent } from '@opentelemetry/sdk-trace-base'
 
 export interface TelemetryConfig {
@@ -26,15 +25,12 @@ export interface SpanEntity {
   status: string
   kind: string
   attributes: Attributes | undefined
-  traceState: TraceState | undefined
   isEnd: boolean
-  resourceAttribute: Attributes | undefined
-  instrumentationScope: InstrumentationScope
   events: TimedEvent[] | undefined
   startTime: number
   endTime: number | null
-  duration: number | null
   links: Link[] | undefined
+  topicId?: string
 }
 
 export const defaultConfig: TelemetryConfig = {

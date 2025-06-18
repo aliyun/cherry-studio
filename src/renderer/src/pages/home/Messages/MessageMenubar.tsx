@@ -173,7 +173,11 @@ const MessageMenubar: FC<Props> = (props) => {
   const handleTraceUserMessage = useCallback(async () => {
     console.log('current traceId', message.traceId, 'start send')
     if (message.traceId) {
-      window.dispatchEvent(new CustomEvent('show-trace', { detail: message.traceId }))
+      window.dispatchEvent(
+        new CustomEvent('show-trace', {
+          detail: { traceId: message.traceId, topicId: message.topicId }
+        })
+      )
     }
   }, [message])
 

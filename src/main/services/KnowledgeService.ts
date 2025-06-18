@@ -482,6 +482,7 @@ class KnowledgeService {
     _: Electron.IpcMainInvokeEvent,
     { search, base }: { search: string; base: KnowledgeBaseParams }
   ): Promise<ExtractChunkData[]> {
+    console.log(`[ KnowledgeService Search: ${JSON.stringify(base)} ]`)
     const ragApplication = await this.getRagApplication(base)
     return await ragApplication.search(search)
   }
