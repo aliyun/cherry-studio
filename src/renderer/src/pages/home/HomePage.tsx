@@ -11,7 +11,6 @@ import styled from 'styled-components'
 import Chat from './Chat'
 import Navbar from './Navbar'
 import HomeTabs from './Tabs'
-import { TracePage } from './Trace'
 
 let _activeAssistant: Assistant
 
@@ -85,7 +84,6 @@ const HomePage: FC = () => {
           setActiveTopic={setActiveTopic}
           setActiveAssistant={setActiveAssistant}
         />
-        <TracePage />
       </ContentContainer>
     </Container>
   )

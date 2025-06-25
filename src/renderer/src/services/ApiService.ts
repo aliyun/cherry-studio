@@ -1,4 +1,3 @@
-import { context, trace } from '@opentelemetry/api'
 import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
 import Logger from '@renderer/config/logger'
 import {
@@ -18,6 +17,7 @@ import {
 } from '@renderer/config/prompts'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { currentSpan, withSpanResult } from '@renderer/services/SpanManagerService'
 import {
   Assistant,
   ExternalToolResult,
@@ -103,10 +103,20 @@ async function fetchExternalTool(
     summaryAssistant.prompt = prompt
 
     try {
-      const result = await fetchSearchSummary({
-        messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
-        assistant: summaryAssistant
-      })
+      const result = await withSpanResult(
+        async (params) => {
+          return await fetchSearchSummary(params)
+        },
+        {
+          name: `${summaryAssistant.model.name}.Summary`,
+          tag: 'LLM',
+          topicId: lastUserMessage.topicId
+        },
+        {
+          messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
+          assistant: summaryAssistant
+        }
+      )
 
       if (!result) return getFallbackResult()
 
@@ -137,7 +147,10 @@ async function fetchExternalTool(
   }
 
   // --- Web Search Function ---
-  const searchTheWeb = async (extractResults: ExtractResults | undefined): Promise<WebSearchResponse | undefined> => {
+  const searchTheWeb = async (
+    extractResults: ExtractResults | undefined,
+    parentSpanId?: string
+  ): Promise<WebSearchResponse | undefined> => {
     if (!shouldWebSearch) return
 
     // Add check for extractResults existence early
@@ -157,8 +170,12 @@ async function fetchExternalTool(
     try {
       // Use the consolidated processWebsearch function
       WebSearchService.createAbortSignal(lastUserMessage.id)
+      let safeWebSearchProvider = webSearchProvider
+      if (webSearchProvider) {
+        safeWebSearchProvider = { ...webSearchProvider, topicId: lastUserMessage.topicId, parentSpanId }
+      }
       return {
-        results: await WebSearchService.processWebsearch(webSearchProvider!, extractResults),
+        results: await WebSearchService.processWebsearch(safeWebSearchProvider!, extractResults),
         source: WebSearchSource.WEBSEARCH
       }
     } catch (error) {
@@ -170,7 +187,8 @@ async function fetchExternalTool(
 
   // --- Knowledge Base Search Function ---
   const searchKnowledgeBase = async (
-    extractResults: ExtractResults | undefined
+    extractResults: ExtractResults | undefined,
+    parentSpanId?: string
   ): Promise<KnowledgeReference[] | undefined> => {
     if (!hasKnowledgeBase) return
 
@@ -201,7 +219,7 @@ async function fetchExternalTool(
       // const mainTextBlock = mainTextBlocks
       //   ?.map((blockId) => store.getState().messageBlocks.entities[blockId])
       //   .find((block) => block?.type === MessageBlockType.MAIN_TEXT) as MainTextMessageBlock | undefined
-      return await processKnowledgeSearch(tempExtractResults, knowledgeBaseIds)
+      return await processKnowledgeSearch(tempExtractResults, knowledgeBaseIds, lastUserMessage.topicId, parentSpanId)
     } catch (error) {
       console.error('Knowledge base search failed:', error)
       return
@@ -221,12 +239,12 @@ async function fetchExternalTool(
     let webSearchResponseFromSearch: WebSearchResponse | undefined
     let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
 
-    const ctx = context.active()
+    const parentSpanId = currentSpan(lastUserMessage.topicId)?.spanContext().spanId
     // 并行执行搜索
     if (shouldWebSearch || shouldKnowledgeSearch) {
       ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([
-        context.with(ctx, () => searchTheWeb(extractResults)),
-        context.with(ctx, () => searchKnowledgeBase(extractResults))
+        searchTheWeb(extractResults, parentSpanId),
+        searchKnowledgeBase(extractResults, parentSpanId)
       ])
     }
 
@@ -256,9 +274,10 @@ async function fetchExternalTool(
     const enabledMCPs = assistant.mcpServers
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
-        console.log('trace context', trace.getActiveSpan()?.spanContext())
+        const spanContext = currentSpan(lastUserMessage.topicId)?.spanContext()
+        console.log('trace context', spanContext)
         const toolPromises = enabledMCPs.map(async (mcpServer) => {
-          const tools = await window.api.mcp.listTools(mcpServer, trace.getActiveSpan()?.spanContext())
+          const tools = await window.api.mcp.listTools(mcpServer, spanContext)
           return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
         })
         const results = await Promise.all(toolPromises)
@@ -300,7 +319,6 @@ export async function fetchChatCompletion({
   // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
   console.log('fetchChatCompletion', messages, assistant)
-  console.log('active context', trace.getActiveSpan()?.spanContext())
 
   const provider = getAssistantProvider(assistant)
   const AI = new AiProvider(provider)
@@ -347,7 +365,13 @@ export async function fetchChatCompletion({
   if (enableWebSearch) {
     onChunkReceived({ type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS })
   }
-  await AI.completions(
+  await withSpanResult(
+    async (params, options) => await AI.completions(params, options),
+    {
+      name: `${model.name}.Chat`,
+      tag: 'LLM',
+      topicId: lastUserMessage.topicId
+    },
     {
       callType: 'chat',
       messages: _messages,
@@ -358,7 +382,8 @@ export async function fetchChatCompletion({
       streamOutput: assistant.settings?.streamOutput || false,
       enableReasoning,
       enableWebSearch,
-      enableGenerateImage
+      enableGenerateImage,
+      topicId: lastUserMessage.topicId
     },
     {
       streamOutput: assistant.settings?.streamOutput || false
@@ -431,6 +456,8 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   const AI = new AiProvider(provider)
 
+  const topicId = messages?.find((message) => message.topicId)?.topicId || undefined
+
   // LLM对多条消息的总结有问题，用单条结构化的消息表示会话内容会更好
   const structredMessages = contextMessages.map((message) => {
     const structredMessage = {
@@ -457,11 +484,20 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     messages: conversation,
     assistant: { ...assistant, prompt, model },
     maxTokens: 1000,
-    streamOutput: false
+    streamOutput: false,
+    topicId
   }
 
   try {
-    const { getText } = await AI.completions(params)
+    const { getText } = await withSpanResult(
+      async (parameters) => await AI.completions(parameters),
+      {
+        name: `${model.name}.Summary`,
+        tag: 'LLM',
+        topicId: topicId
+      },
+      params
+    )
     const text = getText()
     return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
@@ -477,16 +513,29 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
     return null
   }
 
+  const topicId = messages?.find((message) => message.topicId)?.topicId || undefined
+
   const AI = new AiProvider(provider)
 
   const params: CompletionsParams = {
     callType: 'search',
     messages: messages,
     assistant,
-    streamOutput: false
+    streamOutput: false,
+    topicId
   }
 
-  return await AI.completions(params)
+  return await withSpanResult(
+    async (parameters) => {
+      return await AI.completions(parameters)
+    },
+    {
+      name: `${model.name}.SearchSummary`,
+      tag: 'LLM',
+      topicId
+    },
+    params
+  )
 }
 
 export async function fetchGenerate({ prompt, content }: { prompt: string; content: string }): Promise<string> {

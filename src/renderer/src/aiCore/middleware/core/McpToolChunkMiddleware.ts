@@ -137,7 +137,8 @@ function createToolHandlingTransform(
               mcpTools,
               allToolResponses,
               currentParams.onChunk,
-              currentParams.assistant.model!
+              currentParams.assistant.model!,
+              currentParams.topicId
             )
           } else if (shouldExecuteToolUseResponses) {
             toolResult = await executeToolUseResponses(
@@ -146,7 +147,8 @@ function createToolHandlingTransform(
               mcpTools,
               allToolResponses,
               currentParams.onChunk,
-              currentParams.assistant.model!
+              currentParams.assistant.model!,
+              currentParams.topicId
             )
           }
 
@@ -177,7 +179,8 @@ async function executeToolCalls(
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
-  model: Model
+  model: Model,
+  topicId?: string
 ): Promise<SdkMessageParam[]> {
   // 转换为MCPToolResponse格式
   const mcpToolResponses: ToolCallResponse[] = toolCalls
@@ -204,7 +207,8 @@ async function executeToolCalls(
       return ctx.apiClientInstance.convertMcpToolResponseToSdkMessageParam(mcpToolResponse, resp, model)
     },
     model,
-    mcpTools
+    mcpTools,
+    topicId
   )
 
   return toolResults
@@ -220,7 +224,8 @@ async function executeToolUseResponses(
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
-  model: Model
+  model: Model,
+  topicId?: CompletionsParams['topicId']
 ): Promise<SdkMessageParam[]> {
   // 直接使用parseAndCallTools函数处理已经解析好的ToolUseResponse
   const toolResults = await parseAndCallTools(
@@ -231,7 +236,8 @@ async function executeToolUseResponses(
       return ctx.apiClientInstance.convertMcpToolResponseToSdkMessageParam(mcpToolResponse, resp, model)
     },
     model,
-    mcpTools
+    mcpTools,
+    topicId
   )
 
   return toolResults

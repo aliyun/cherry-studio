@@ -4,6 +4,7 @@ import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { NotificationService } from '@renderer/services/NotificationService'
+import { endTrace } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
@@ -43,7 +44,6 @@ import { LRUCache } from 'lru-cache'
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
-
 // const handleChangeLoadingOfTopic = async (topicId: string) => {
 //   await waitForTopicQueue(topicId)
 //   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
@@ -830,13 +830,21 @@ const fetchAndProcessAssistantResponseImpl = async (
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
     const startTime = Date.now()
-    await fetchChatCompletion({
+    const result = await fetchChatCompletion({
       messages: messagesForContext,
       assistant: assistant,
       onChunkReceived: streamProcessorCallbacks
     })
+    endTrace({
+      topicId,
+      outputs: result
+    })
   } catch (error: any) {
     console.error('Error fetching chat completion:', error)
+    endTrace({
+      topicId,
+      error: error
+    })
     if (assistantMessage) {
       callbacks.onError?.(error)
       throw error

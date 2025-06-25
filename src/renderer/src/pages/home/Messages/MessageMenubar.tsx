@@ -173,11 +173,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const handleTraceUserMessage = useCallback(async () => {
     console.log('current traceId', message.traceId, 'start send')
     if (message.traceId) {
-      window.dispatchEvent(
-        new CustomEvent('show-trace', {
-          detail: { traceId: message.traceId, topicId: message.topicId }
-        })
-      )
+      window.api.trace.openWindow(message.topicId, message.traceId)
     }
   }, [message])
 
@@ -523,7 +519,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </Tooltip>
         </ActionButton>
       </Popconfirm>
-      {isAssistantMessage && isDevelopModel && (
+      {isDevelopModel && (
         <Tooltip title={t('common.trace')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
             <ScheduleOutlined />

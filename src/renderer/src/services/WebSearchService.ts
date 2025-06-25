@@ -1,6 +1,6 @@
-import { TraceMethod } from '@mcp-trace/trace-core'
 import Logger from '@renderer/config/logger'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
+import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
@@ -20,7 +20,6 @@ class WebSearchService {
 
   isPaused = false
 
-  @TraceMethod({ spanName: 'createAbortSignal', tag: 'WebSearch' })
   createAbortSignal(key: string) {
     const controller = new AbortController()
     this.signal = controller.signal
@@ -100,21 +99,20 @@ class WebSearchService {
    * @param query 搜索查询
    * @returns 搜索响应
    */
-  @TraceMethod({ spanName: 'search', tag: 'WebSearch' })
   public async search(
     provider: WebSearchProvider,
     query: string,
-    httpOptions?: RequestInit
+    httpOptions?: RequestInit,
+    spanId?: string
   ): Promise<WebSearchProviderResponse> {
     const websearch = this.getWebSearchState()
-    const webSearchEngine = new WebSearchEngineProvider(provider)
+    const webSearchEngine = new WebSearchEngineProvider(provider, spanId)
 
     let formattedQuery = query
     // FIXME: 有待商榷，效果一般
     if (websearch.searchWithTime) {
       formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
-
     // try {
     return await webSearchEngine.search(formattedQuery, websearch, httpOptions)
     // } catch (error) {
@@ -129,7 +127,6 @@ class WebSearchService {
    * @param provider 要检查的搜索提供商
    * @returns 如果提供商可用返回true，否则返回false
    */
-  @TraceMethod({ spanName: 'checkSearch', tag: 'WebSearch' })
   public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
@@ -141,7 +138,6 @@ class WebSearchService {
     }
   }
 
-  @TraceMethod({ spanName: 'processWebSearch', tag: 'WebSearch' })
   public async processWebsearch(
     webSearchProvider: WebSearchProvider,
     extractResults: ExtractResults
@@ -152,6 +148,16 @@ class WebSearchService {
       return { results: [] }
     }
 
+    const span = addSpan({
+      topicId: webSearchProvider.topicId,
+      name: `WebSearch`,
+      inputs: {
+        question: extractResults.websearch.question,
+        provider: webSearchProvider.id
+      },
+      tag: `Web`,
+      parentSpanId: webSearchProvider.parentSpanId
+    })
     const questions = extractResults.websearch.question
     const links = extractResults.websearch.links
     const firstQuestion = questions[0]
@@ -159,12 +165,19 @@ class WebSearchService {
       const contents = await fetchWebContents(links, undefined, undefined, {
         signal: this.signal
       })
+      endSpan({
+        topicId: webSearchProvider.topicId,
+        outputs: contents,
+        span
+      })
       return {
         query: 'summaries',
         results: contents
       }
     }
-    const searchPromises = questions.map((q) => this.search(webSearchProvider, q, { signal: this.signal }))
+    const searchPromises = questions.map((q) =>
+      this.search(webSearchProvider, q, { signal: this.signal }, span?.spanContext().spanId)
+    )
     const searchResults = await Promise.allSettled(searchPromises)
     const aggregatedResults: any[] = []
 
@@ -178,6 +191,14 @@ class WebSearchService {
         throw result.reason
       }
     })
+
+    if (webSearchProvider.topicId) {
+      endSpan({
+        topicId: webSearchProvider.topicId,
+        outputs: aggregatedResults,
+        span
+      })
+    }
     return {
       query: questions.join(' | '),
       results: aggregatedResults

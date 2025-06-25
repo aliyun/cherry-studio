@@ -17,6 +17,15 @@ export interface TraceEntity {
   name: string
 }
 
+export interface TokenUsage {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  prompt_tokens_details?: {
+    [key: string]: number
+  }
+}
+
 export interface SpanEntity {
   id: string
   name: string
@@ -31,6 +40,7 @@ export interface SpanEntity {
   endTime: number | null
   links: Link[] | undefined
   topicId?: string
+  usage?: TokenUsage
 }
 
 export const defaultConfig: TelemetryConfig = {

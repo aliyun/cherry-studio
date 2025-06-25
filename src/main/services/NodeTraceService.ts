@@ -1,74 +1,29 @@
-import { EmitterSpanProcessor, FunctionSpanExporter, TRACE_DATA_EVENT } from '@mcp-trace/trace-core'
-import { SpanEntity } from '@mcp-trace/trace-core'
+import { isDev } from '@main/constant'
+import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node'
 import { context, SpanContext, trace } from '@opentelemetry/api'
-import { ipcMain } from 'electron'
-import * as fs from 'fs'
-import * as os from 'os'
+import { BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
-import { EventEmitter } from 'stream'
+
+import { spanCacheService } from './SpanCacheService'
+
+export const TRACER_NAME = 'CherryStudio'
 
 export class NodeTraceService {
-  static emmitter = new EventEmitter()
-
-  init(mainWindow: Electron.CrossProcessExports.BrowserWindow) {
+  init() {
     const exporter = new FunctionSpanExporter(async (spans) => {
       console.log(`Spans length:`, spans.length)
     })
 
-    NodeTraceService.emmitter.on(TRACE_DATA_EVENT, (ctx, obj) => {
-      if (obj) {
-        mainWindow.webContents.send(TRACE_DATA_EVENT, ctx, obj)
-      }
-    })
-
     MCPNodeTracer.init(
       {
-        defaultTracerName: 'CherryStudio',
-        serviceName: 'CherryStudio'
+        defaultTracerName: TRACER_NAME,
+        serviceName: TRACER_NAME
       },
-      new EmitterSpanProcessor(exporter, NodeTraceService.emmitter)
+      new CacheBatchSpanProcessor(exporter, spanCacheService)
     )
   }
 }
-
-export class TraceDataService {
-  private fileDir: string
-
-  constructor() {
-    this.fileDir = path.join(os.homedir(), '.cherrystudio')
-  }
-
-  async savedata(spans: SpanEntity[]) {
-    console.log(`Saving spans:`, spans.length)
-    spans.map((span) => {
-      let filePath = path.join(this.fileDir, span.topicId || 'unkown')
-      this.checkFolder(filePath)
-      filePath = path.join(filePath, `${span.traceId}.json`)
-      fs.appendFileSync(filePath, JSON.stringify(span) + '\n')
-    })
-  }
-
-  async getData(topicId: string, traceId: string) {
-    const filePath = path.join(this.fileDir, topicId, `${traceId}.json`)
-    if (!fs.existsSync(filePath)) {
-      return []
-    }
-    const buffer = fs.readFileSync(filePath)
-    const lines = buffer
-      .toString()
-      .split('\n')
-      .filter((line) => line.trim() !== '')
-    return lines.map((line) => JSON.parse(line) as SpanEntity)
-  }
-
-  checkFolder(filePath: string) {
-    if (!fs.existsSync(filePath)) {
-      fs.mkdirSync(filePath)
-    }
-  }
-}
-export const traceDataService = new TraceDataService()
 
 const originalHandle = ipcMain.handle
 ipcMain.handle = (channel: string, handler: (...args: any[]) => Promise<any>) => {
@@ -88,3 +43,52 @@ ipcMain.handle = (channel: string, handler: (...args: any[]) => Promise<any>) =>
 }
 
 export const nodeTraceService = new NodeTraceService()
+
+let traceWin: BrowserWindow | null = null
+
+export function openTraceWindow(topicId: string, traceId: string, autoOpen = true) {
+  if (traceWin && !traceWin.isDestroyed()) {
+    traceWin.focus()
+    traceWin.webContents.send('set-trace', { traceId, topicId })
+    return
+  }
+
+  if (!autoOpen) {
+    return
+  }
+
+  traceWin = new BrowserWindow({
+    width: 600,
+    minWidth: 500,
+    minHeight: 600,
+    height: 800,
+    autoHideMenuBar: false,
+    closable: true,
+    focusable: true,
+    transparent: true,
+    resizable: true,
+    movable: true,
+    hasShadow: true,
+    roundedCorners: true,
+    webPreferences: {
+      preload: path.join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      devTools: isDev ? true : false
+    }
+  })
+  traceWin.setMenuBarVisibility(false)
+  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
+    traceWin.loadURL(process.env['ELECTRON_RENDERER_URL'] + `/traceWindow.html`)
+  } else {
+    traceWin.loadFile(path.join(__dirname, '../renderer/traceWindow.html'))
+  }
+  traceWin.on('closed', () => {
+    traceWin = null
+  })
+
+  traceWin.webContents.on('did-finish-load', () => {
+    traceWin!.webContents.send('set-trace', { traceId, topicId })
+  })
+}

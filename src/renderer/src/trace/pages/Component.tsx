@@ -1,3 +1,4 @@
+import { CaretDownOutlined, CaretRightOutlined } from '@ant-design/icons'
 import React from 'react'
 
 // Box 组件
@@ -117,7 +118,8 @@ export const IconButton: React.FC<
       ...style
     }}
     {...props}>
-    {props.children || (props['aria-label'] === 'Toggle' ? (props['aria-expanded'] ? '▼' : '▶') : '🔘')}
+    {props.children ||
+      (props['aria-label'] === 'Toggle' ? props['aria-expanded'] ? <CaretDownOutlined /> : <CaretRightOutlined /> : '')}
   </button>
 )
 

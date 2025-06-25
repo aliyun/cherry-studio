@@ -1,5 +1,4 @@
 import { Readability } from '@mozilla/readability'
-import { trace } from '@opentelemetry/api'
 import { nanoid } from '@reduxjs/toolkit'
 import { WebSearchProviderResult } from '@renderer/types'
 import { createAbortPromise } from '@renderer/utils/abortController'
@@ -58,11 +57,7 @@ export async function fetchWebContent(
 
     let html: string
     if (usingBrowser) {
-      const windowApiPromise = window.api.searchService.openUrlInSearchWindow(
-        `search-window-${nanoid()}`,
-        url,
-        trace.getActiveSpan()?.spanContext()
-      )
+      const windowApiPromise = window.api.searchService.openUrlInSearchWindow(`search-window-${nanoid()}`, url)
 
       const promisesToRace: [Promise<string>] = [windowApiPromise]
 

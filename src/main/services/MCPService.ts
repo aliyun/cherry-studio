@@ -15,6 +15,7 @@ import {
   type StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import { context, trace } from '@opentelemetry/api'
 import { nanoid } from '@reduxjs/toolkit'
 import type {
   GetMCPPromptResponse,
@@ -437,47 +438,78 @@ class McpService {
     }
   }
 
-  @TraceMethod({ spanName: 'listTools', tag: 'mcp' })
   async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
-    const cachedListTools = withCache<[MCPServer], MCPTool[]>(
-      this.listToolsImpl.bind(this),
-      (server) => {
-        const serverKey = this.getServerKey(server)
-        return `mcp:list_tool:${serverKey}`
-      },
-      5 * 60 * 1000, // 5 minutes TTL
-      `[MCP] Tools from ${server.name}`
-    )
+    return context.with(context.active(), () =>
+      trace.getTracer('CherryStudio').startActiveSpan(
+        `${server.name}.ListTools`,
+        {
+          attributes: {
+            inputs: JSON.stringify(server),
+            tags: 'MCP'
+          }
+        },
+        async (span) => {
+          const cachedListTools = withCache<[MCPServer], MCPTool[]>(
+            this.listToolsImpl.bind(this),
+            (server) => {
+              const serverKey = this.getServerKey(server)
+              return `mcp:list_tool:${serverKey}`
+            },
+            5 * 60 * 1000, // 5 minutes TTL
+            `[MCP] Tools from ${server.name}`
+          )
 
-    return cachedListTools(server)
+          const result = cachedListTools(server)
+          span.setAttribute('outputs', JSON.stringify(result))
+          span.end()
+          return result
+        }
+      )
+    )
   }
 
   /**
    * Call a tool on an MCP server
    */
-  @TraceMethod({ spanName: 'callTool', tag: 'mcp' })
   public async callTool(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args: any }
   ): Promise<MCPCallToolResponse> {
-    try {
-      Logger.info('[MCP] Calling:', server.name, name, args)
-      if (typeof args === 'string') {
-        try {
-          args = JSON.parse(args)
-        } catch (e) {
-          Logger.error('[MCP] args parse error', args)
+    return context.with(context.active(), () =>
+      trace.getTracer('CherryStudio').startActiveSpan(
+        `${server.name}.CallTool`,
+        {
+          attributes: {
+            inputs: JSON.stringify(server),
+            tags: `MCP[${name}]`
+          }
+        },
+        async (span) => {
+          try {
+            Logger.info('[MCP] Calling:', server.name, name, args)
+            if (typeof args === 'string') {
+              try {
+                args = JSON.parse(args)
+              } catch (e) {
+                Logger.error('[MCP] args parse error', args)
+              }
+            }
+            const client = await this.initClient(server)
+            const result = await client.callTool({ name, arguments: args }, undefined, {
+              timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
+            })
+            span.setAttribute('outputs', JSON.stringify(result))
+            span.end()
+            return result as MCPCallToolResponse
+          } catch (error) {
+            Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
+            span.recordException(error instanceof Error ? error : new Error(String(error)))
+            span.end()
+            throw error
+          }
         }
-      }
-      const client = await this.initClient(server)
-      const result = await client.callTool({ name, arguments: args }, undefined, {
-        timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
-      })
-      return result as MCPCallToolResponse
-    } catch (error) {
-      Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
-      throw error
-    }
+      )
+    )
   }
 
   public async getInstallInfo() {

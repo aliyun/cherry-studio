@@ -1,10 +1,12 @@
 import './Trace.css'
 
+import { DoubleLeftOutlined } from '@ant-design/icons'
+// import TraceModal from '@renderer/trace/TraceModal'
+import { TraceModal } from '@renderer/trace/pages/TraceModel'
 import { FC, useCallback, useEffect, useState } from 'react'
 import ReactJson from 'react-json-view'
 
 import { Box, Button, Text } from './Component'
-import { TraceModal } from './index'
 import { convertTime } from './TraceTree'
 
 interface SpanDetailProps {
@@ -12,7 +14,7 @@ interface SpanDetailProps {
   clickShowModal: (input: boolean) => void
 }
 
-const SpanDetail: FC<SpanDetailProps> = ({ node }) => {
+const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
   const [showInput, setShowInput] = useState(true)
   const [jsonData, setJsonData] = useState<object>({})
   const [isJson, setIsJson] = useState(false)
@@ -51,27 +53,46 @@ const SpanDetail: FC<SpanDetailProps> = ({ node }) => {
 
   return (
     <Box padding={5}>
+      <Box padding={0} style={{ marginBottom: 10 }}>
+        <a
+          onClick={(e) => {
+            e.preventDefault()
+            clickShowModal(true)
+          }}
+          href={'#'}
+          style={{ marginRight: 8, fontSize: '14px' }}>
+          <DoubleLeftOutlined style={{ fontSize: '12px' }} />
+          &nbsp;返回列表
+        </a>
+      </Box>
       <Text style={{ fontWeight: 'bold', fontSize: 14 }}>Span详情</Text>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>Span ID</Text>: <Text>{node?.id}</Text>
+        <Text style={{ fontWeight: 'bold' }}>Span ID: </Text>
+        <Text>{node?.id}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>名称</Text>: <Text>{node?.name}</Text>
+        <Text style={{ fontWeight: 'bold' }}>名称: </Text>
+        <Text>{node?.name}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>标签</Text>: <Text>{node?.attributes?.tags}</Text>
+        <Text style={{ fontWeight: 'bold' }}>标签: </Text>
+        <Text>{node?.attributes?.tags}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>开始时间</Text>: <Text>{formatDate(node?.startTime)}</Text>
+        <Text style={{ fontWeight: 'bold' }}>开始时间: </Text>
+        <Text>{formatDate(node?.startTime)}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>结束时间</Text>: <Text>{formatDate(node?.endTime)}</Text>
+        <Text style={{ fontWeight: 'bold' }}>结束时间: </Text>
+        <Text>{formatDate(node?.endTime)}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>耗时</Text>: <Text>{usedTime}</Text>
+        <Text style={{ fontWeight: 'bold' }}>耗时: </Text>
+        <Text>{usedTime}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>父ID</Text>: <Text>{node?.parentId}</Text>
+        <Text style={{ fontWeight: 'bold' }}>父ID: </Text>
+        <Text>{node?.parentId}</Text>
       </Box>
       <Box style={{ position: 'relative', margin: '5px 0 0' }}>
         <Button className={`content-button ${showInput ? 'active' : ''}`} onClick={() => setShowInput(true)}>

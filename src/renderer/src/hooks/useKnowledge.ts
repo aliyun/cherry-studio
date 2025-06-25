@@ -1,5 +1,4 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import { trace } from '@opentelemetry/api'
 import { db } from '@renderer/databases'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import FileManager from '@renderer/services/FileManager'
@@ -140,14 +139,11 @@ export const useKnowledge = (baseId: string) => {
     dispatch(removeItemAction({ baseId, item }))
     if (base) {
       if (item?.uniqueId && item?.uniqueIds) {
-        await window.api.knowledgeBase.remove(
-          {
-            uniqueId: item.uniqueId,
-            uniqueIds: item.uniqueIds,
-            base: getKnowledgeBaseParams(base)
-          },
-          trace.getActiveSpan()?.spanContext()
-        )
+        await window.api.knowledgeBase.remove({
+          uniqueId: item.uniqueId,
+          uniqueIds: item.uniqueIds,
+          base: getKnowledgeBaseParams(base)
+        })
       }
     }
     if (item.type === 'file' && typeof item.content === 'object') {
@@ -163,14 +159,11 @@ export const useKnowledge = (baseId: string) => {
     }
 
     if (base && item.uniqueId && item.uniqueIds) {
-      await window.api.knowledgeBase.remove(
-        {
-          uniqueId: item.uniqueId,
-          uniqueIds: item.uniqueIds,
-          base: getKnowledgeBaseParams(base)
-        },
-        trace.getActiveSpan()?.spanContext()
-      )
+      await window.api.knowledgeBase.remove({
+        uniqueId: item.uniqueId,
+        uniqueIds: item.uniqueIds,
+        base: getKnowledgeBaseParams(base)
+      })
       updateItem({
         ...item,
         processingStatus: 'pending',

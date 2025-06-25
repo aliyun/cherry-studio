@@ -1,6 +1,6 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
-import { SpanEntity } from '@mcp-trace/trace-core'
+import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
 import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -110,23 +110,18 @@ const api = {
     create: (base: KnowledgeBaseParams, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
     reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (id: string, context?: SpanContext) => tracedInvoke(IpcChannel.KnowledgeBase_Delete, context, id),
-    add: (
-      {
-        base,
-        item,
-        forceReload = false
-      }: {
-        base: KnowledgeBaseParams
-        item: KnowledgeItem
-        forceReload?: boolean
-      },
-      context?: SpanContext
-    ) => tracedInvoke(IpcChannel.KnowledgeBase_Add, context, { base, item, forceReload }),
-    remove: (
-      { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams },
-      context?: SpanContext
-    ) => tracedInvoke(IpcChannel.KnowledgeBase_Remove, context, { uniqueId, uniqueIds, base }),
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
+    add: ({
+      base,
+      item,
+      forceReload = false
+    }: {
+      base: KnowledgeBaseParams
+      item: KnowledgeItem
+      forceReload?: boolean
+    }) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Add, { base, item, forceReload }),
+    remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Remove, { uniqueId, uniqueIds, base }),
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
     rerank: (
@@ -226,8 +221,7 @@ const api = {
   searchService: {
     openSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Open, uid),
     closeSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Close, uid),
-    openUrlInSearchWindow: (uid: string, url: string, context?: SpanContext) =>
-      tracedInvoke(IpcChannel.SearchWindow_OpenUrl, context, uid, url)
+    openUrlInSearchWindow: (uid: string, url: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_OpenUrl, uid, url)
   },
   webview: {
     setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>
@@ -258,8 +252,15 @@ const api = {
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   trace: {
-    saveData: (spans: SpanEntity[]) => ipcRenderer.invoke('saveTraceData', spans),
-    getData: (topicId: string, traceId: string) => ipcRenderer.invoke('getTraceData', topicId, traceId)
+    saveData: (traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, traceId),
+    getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
+    saveEntity: (entity: SpanEntity) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_ENTITY, entity),
+    bindTopic: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_BIND_TOPIC, topicId, traceId),
+    tokenUsage: (spanId: string, usage: TokenUsage) => ipcRenderer.invoke(IpcChannel.TRACE_TOKEN_USAGE, spanId, usage),
+    cleanTopic: (topicId: string, traceId?: string) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_TOPIC, topicId, traceId),
+    openWindow: (topicId: string, traceId: string, autoOpen?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_OPEN_WINDOW, topicId, traceId, autoOpen)
   }
 }
 

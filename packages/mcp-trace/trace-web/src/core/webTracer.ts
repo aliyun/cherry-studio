@@ -1,37 +1,32 @@
-import { defaultConfig, TraceCache } from '@mcp-trace/trace-core'
-import { CacheBatchSpanProcessor } from '@mcp-trace/trace-core'
+import { defaultConfig } from '@mcp-trace/trace-core'
 import { TraceConfig } from '@mcp-trace/trace-core'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
-import { BatchSpanProcessor, ConsoleSpanExporter, SpanExporter } from '@opentelemetry/sdk-trace-base'
+import { BatchSpanProcessor, ConsoleSpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { WebTracerProvider } from '@opentelemetry/sdk-trace-web'
 
-import { WebStackContextManager } from './WebStackContextManager'
+import { TopicContextManager } from './TopicContextManager'
+
+export const contextManager = new TopicContextManager()
 
 export class WebTracer {
   private static provider: WebTracerProvider
-  private static exporter: SpanExporter
+  private static processor: SpanProcessor
 
-  static init(config?: TraceConfig, traceCache?: TraceCache, exporter?: SpanExporter) {
+  static init(config?: TraceConfig, spanProcessor?: SpanProcessor) {
     if (config) {
       defaultConfig.serviceName = config.serviceName || defaultConfig.serviceName
       defaultConfig.endpoint = config.endpoint || defaultConfig.endpoint
       defaultConfig.headers = config.headers || defaultConfig.headers
       defaultConfig.defaultTracerName = config.defaultTracerName || defaultConfig.defaultTracerName
     }
-    this.exporter = exporter || this.getExporter()
-    if (traceCache) {
-      this.provider = new WebTracerProvider({
-        spanProcessors: [new CacheBatchSpanProcessor(this.exporter, traceCache)]
-      })
-    } else {
-      this.provider = new WebTracerProvider({
-        spanProcessors: [new BatchSpanProcessor(this.exporter)]
-      })
-    }
+    this.processor = spanProcessor || new BatchSpanProcessor(this.getExporter())
+    this.provider = new WebTracerProvider({
+      spanProcessors: [this.processor]
+    })
     this.provider.register({
       propagator: new W3CTraceContextPropagator(),
-      contextManager: new WebStackContextManager()
+      contextManager: contextManager
     })
   }
 
@@ -45,3 +40,8 @@ export class WebTracer {
     return new ConsoleSpanExporter()
   }
 }
+
+export const startContext = contextManager.startContextForTopic.bind(contextManager)
+export const getContext = contextManager.getContextForTopic.bind(contextManager)
+export const endContext = contextManager.endContextForTopic.bind(contextManager)
+export const cleanContext = contextManager.cleanContextForTopic.bind(contextManager)

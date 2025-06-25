@@ -1,9 +1,10 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
-import { trace } from '@opentelemetry/api'
+import { Span } from '@opentelemetry/api'
 import AiProvider from '@renderer/aiCore'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import Logger from '@renderer/config/logger'
+import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
@@ -93,12 +94,29 @@ export const getKnowledgeSourceUrl = async (item: ExtractChunkData & { file: Fil
 export const searchKnowledgeBase = async (
   query: string,
   base: KnowledgeBase,
-  rewrite?: string
+  rewrite?: string,
+  topicId?: string,
+  parentSpanId?: string
 ): Promise<Array<ExtractChunkData & { file: FileType | null }>> => {
+  let currentSpan: Span | undefined = undefined
   try {
     const baseParams = getKnowledgeBaseParams(base)
     const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
     const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
+
+    if (topicId) {
+      currentSpan = addSpan({
+        topicId,
+        name: `${base.name}-search`,
+        inputs: {
+          query,
+          rewrite,
+          base: baseParams
+        },
+        tag: 'Knowledge',
+        parentSpanId
+      })
+    }
 
     // 执行搜索
     const searchResults = await window.api.knowledgeBase.search(
@@ -106,7 +124,7 @@ export const searchKnowledgeBase = async (
         search: query,
         base: baseParams
       },
-      trace.getActiveSpan()?.spanContext()
+      currentSpan?.spanContext()
     )
 
     // 过滤阈值不达标的结果
@@ -121,7 +139,7 @@ export const searchKnowledgeBase = async (
           base: baseParams,
           results: filteredResults
         },
-        trace.getActiveSpan()?.spanContext()
+        currentSpan?.spanContext()
       )
     }
 
@@ -129,21 +147,38 @@ export const searchKnowledgeBase = async (
     const limitedResults = rerankResults.slice(0, documentCount)
 
     // 处理文件信息
-    return await Promise.all(
+    const result = await Promise.all(
       limitedResults.map(async (item) => {
         const file = await getFileFromUrl(item.metadata.source)
         return { ...item, file }
       })
     )
+    if (topicId) {
+      endSpan({
+        topicId,
+        outputs: [],
+        span: currentSpan
+      })
+    }
+    return result
   } catch (error) {
     Logger.error(`Error searching knowledge base ${base.name}:`, error)
+    if (topicId) {
+      endSpan({
+        topicId,
+        error: error instanceof Error ? error : new Error(String(error)),
+        span: currentSpan
+      })
+    }
     return []
   }
 }
 
 export const processKnowledgeSearch = async (
   extractResults: ExtractResults,
-  knowledgeBaseIds: string[] | undefined
+  knowledgeBaseIds: string[] | undefined,
+  topicId: string,
+  parentSpanId?: string
 ): Promise<KnowledgeReference[]> => {
   if (
     !extractResults.knowledge?.question ||
@@ -163,10 +198,24 @@ export const processKnowledgeSearch = async (
     return []
   }
 
+  const span = addSpan({
+    topicId,
+    name: 'knowledgeSearch',
+    inputs: {
+      questions,
+      rewrite,
+      knowledgeBaseIds: knowledgeBaseIds
+    },
+    tag: 'Knowledge',
+    parentSpanId
+  })
+
   // 为每个知识库执行多问题搜索
   const baseSearchPromises = bases.map(async (base) => {
     // 为每个问题搜索并合并结果
-    const allResults = await Promise.all(questions.map((question) => searchKnowledgeBase(question, base, rewrite)))
+    const allResults = await Promise.all(
+      questions.map((question) => searchKnowledgeBase(question, base, rewrite, topicId, span?.spanContext().spanId))
+    )
 
     // 合并结果并去重
     const flatResults = allResults.flat()
@@ -175,7 +224,7 @@ export const processKnowledgeSearch = async (
     ).sort((a, b) => b.score - a.score)
 
     // 转换为引用格式
-    return await Promise.all(
+    const result = await Promise.all(
       uniqueResults.map(
         async (item, index) =>
           ({
@@ -186,11 +235,18 @@ export const processKnowledgeSearch = async (
           }) as KnowledgeReference
       )
     )
+    return result
   })
 
   // 汇总所有知识库的结果
   const resultsPerBase = await Promise.all(baseSearchPromises)
   const allReferencesRaw = resultsPerBase.flat().filter((ref): ref is KnowledgeReference => !!ref)
+
+  endSpan({
+    topicId,
+    outputs: resultsPerBase,
+    span
+  })
 
   // 重新为引用分配ID
   return allReferencesRaw.map((ref, index) => ({

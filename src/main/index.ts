@@ -93,7 +93,7 @@ if (!app.requestSingleInstanceLock()) {
     const mainWindow = windowService.createMainWindow()
     new TrayService()
 
-    nodeTraceService.init(mainWindow)
+    nodeTraceService.init()
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()

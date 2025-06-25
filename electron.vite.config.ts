@@ -16,7 +16,6 @@ export default defineConfig({
         '@types': resolve('src/renderer/src/types'),
         '@shared': resolve('packages/shared'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core/src'),
-        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web/src'),
         '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node/src')
       }
     },
@@ -46,9 +45,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@shared': resolve('packages/shared'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core/src'),
-        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web/src'),
-        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node/src')
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core/src')
       }
     },
     build: {
@@ -78,12 +75,11 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src'),
         '@shared': resolve('packages/shared'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core/src'),
-        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web/src'),
-        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node/src')
+        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web/src')
       }
     },
     optimizeDeps: {
-      exclude: ['pyodide']
+      exclude: ['pyodide', 'punycode']
     },
     worker: {
       format: 'es'
@@ -94,7 +90,8 @@ export default defineConfig({
           index: resolve(__dirname, 'src/renderer/index.html'),
           miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
-          selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html')
+          selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
+          traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html')
         }
       }
     }

@@ -149,7 +149,7 @@ class KnowledgeService {
     await ragApplication.reset()
   }
 
-  @TraceMethod({ spanName: 'delete', tag: 'knowledge' })
+  @TraceMethod({ spanName: 'delete', tag: 'Knowledge' })
   public async delete(_: Electron.IpcMainInvokeEvent, id: string): Promise<void> {
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
@@ -425,7 +425,7 @@ class KnowledgeService {
     })
   }
 
-  @TraceMethod({ spanName: 'add', tag: 'knowledge' })
+  @TraceMethod({ spanName: 'add', tag: 'Knowledge' })
   public async add(_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> {
     return new Promise((resolve) => {
       const { base, item, forceReload = false } = options
@@ -465,7 +465,7 @@ class KnowledgeService {
     })
   }
 
-  @TraceMethod({ spanName: 'remove', tag: 'knowledge' })
+  @TraceMethod({ spanName: 'remove', tag: 'Knowledge' })
   public async remove(
     _: Electron.IpcMainInvokeEvent,
     { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }
@@ -477,7 +477,7 @@ class KnowledgeService {
     }
   }
 
-  @TraceMethod({ spanName: 'search', tag: 'knowledge' })
+  @TraceMethod({ spanName: 'RagSearch', tag: 'Knowledge' })
   public async search(
     _: Electron.IpcMainInvokeEvent,
     { search, base }: { search: string; base: KnowledgeBaseParams }
@@ -487,7 +487,7 @@ class KnowledgeService {
     return await ragApplication.search(search)
   }
 
-  @TraceMethod({ spanName: 'rerank', tag: 'knowledge' })
+  @TraceMethod({ spanName: 'rerank', tag: 'Knowledge' })
   public async rerank(
     _: Electron.IpcMainInvokeEvent,
     { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }

@@ -493,6 +493,8 @@ export type WebSearchProvider = {
   basicAuthPassword?: string
   contentLimit?: number
   usingBrowser?: boolean
+  topicId?: string
+  parentSpanId?: string
 }
 
 export type WebSearchProviderResult = {

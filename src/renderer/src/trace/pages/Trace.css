@@ -3,7 +3,6 @@
   --trace-header-bg: #f5f5f5;
   --trace-border: #eee;
   --trace-text: #222;
-  --trace-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -12,7 +11,6 @@
     --trace-header-bg: #23272b;
     --trace-border: #333;
     --trace-text: #f1f1f1;
-    --trace-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
   }
 }
 
@@ -21,7 +19,6 @@
   color: var(--trace-text);
 }
 
-.tab-pane,
 .scroll-container,
 .Box {
   background: var(--trace-bg);
@@ -33,12 +30,7 @@
   border-bottom: 1px solid var(--trace-border);
 }
 
-.tab-pane {
-  box-shadow: var(--trace-shadow);
-}
-
 .tab-header,
-.tab-pane,
 .scroll-container,
 .Box {
   transition:
@@ -49,7 +41,6 @@
 
 .tab-container_trace {
   width: 100%;
-  height: 95vh;
   margin: 0 auto;
 }
 
@@ -74,15 +65,6 @@
 .tab-content {
   position: relative;
   overflow: auto;
-  height: 90vh;
-}
-
-.tab-pane {
-  position: absolute;
-  width: 100%;
-  height: 100vh;
-  padding: 0;
-  transition: transform 0.3s ease-in-out;
 }
 
 .closeButton {
@@ -93,40 +75,10 @@
   top: 15px;
 }
 
-.tab-pane:not(.active) {
-  display: none;
-}
-
-.tab-content.right .tab-pane.active {
-  animation: slideInRight 0.3s forwards;
-}
-
-.tab-content.left .tab-pane.active {
-  animation: slideInLeft 0.3s forwards;
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-@keyframes slideInLeft {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
 .scroll-container {
-  height: 93vh;
   overflow-y: auto;
-  scrollbar-width: none;
+  overflow-x: hidden;
+  height: calc(100vh - 37px);
 }
 
 .scroll-container::-webkit-scrollbar {
@@ -136,7 +88,6 @@
 .code-container {
   display: block;
   padding: 10px;
-  height: 46vh;
   overflow-y: auto;
   margin-top: 10px;
   scrollbar-width: none;
@@ -160,4 +111,15 @@
 
 .settingsModal button[aria-label='Close'] {
   -webkit-app-region: no-drag;
+}
+
+.trace-window {
+  width: 100%;
+  height: calc(100vh - 37px);
+  background-color: var(--trace-bg);
+  color: var(--trace-text);
+  opacity: 1;
+  box-shadow: var(--trace-shadow);
+  border-radius: 8px;
+  /* 移除 height: 100vh; */
 }
