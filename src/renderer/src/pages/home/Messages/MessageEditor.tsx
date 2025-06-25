@@ -8,7 +8,7 @@ import PasteService from '@renderer/services/PasteService'
 import { FileType, FileTypes } from '@renderer/types'
 import { Message, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames, getFileExtension } from '@renderer/utils'
-import { getFilesFromDropEvent } from '@renderer/utils/input'
+import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -40,7 +40,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   const model = assistant.model || assistant.defaultModel
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut } = useSettings()
+  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
@@ -169,31 +169,39 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
     onResend(updatedBlocks)
   }
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>, blockId: string) => {
     if (message.role !== 'user') {
       return
     }
 
+    // keep the same enter behavior as inputbar
     const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
+    if (isEnterPressed) {
+      if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
+        handleResend()
+        return event.preventDefault()
+      } else {
+        if (!event.shiftKey) {
+          event.preventDefault()
 
-    if (isEnterPressed && !event.shiftKey && sendMessageShortcut === 'Enter') {
-      handleResend()
-      return event.preventDefault()
-    }
+          const textArea = textareaRef.current?.resizableTextArea?.textArea
+          if (textArea) {
+            const start = textArea.selectionStart
+            const end = textArea.selectionEnd
+            const text = textArea.value
+            const newText = text.substring(0, start) + '\n' + text.substring(end)
 
-    if (sendMessageShortcut === 'Shift+Enter' && isEnterPressed && event.shiftKey) {
-      handleResend()
-      return event.preventDefault()
-    }
+            //same with onChange()
+            handleTextChange(blockId, newText)
 
-    if (sendMessageShortcut === 'Ctrl+Enter' && isEnterPressed && event.ctrlKey) {
-      handleResend()
-      return event.preventDefault()
-    }
-
-    if (sendMessageShortcut === 'Command+Enter' && isEnterPressed && event.metaKey) {
-      handleResend()
-      return event.preventDefault()
+            // set cursor position in the next render cycle
+            setTimeout(() => {
+              textArea.selectionStart = textArea.selectionEnd = start + 1
+              resizeTextArea() // trigger resizeTextArea
+            }, 0)
+          }
+        }
+      }
     }
   }
 
@@ -212,14 +220,17 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
               handleTextChange(block.id, e.target.value)
               resizeTextArea()
             }}
-            onKeyDown={handleKeyDown}
+            onKeyDown={(e) => handleKeyDown(e, block.id)}
             autoFocus
-            contextMenu="true"
-            spellCheck={false}
+            spellCheck={enableSpellCheck}
             onPaste={(e) => onPaste(e.nativeEvent)}
             onFocus={() => {
               // 记录当前聚焦的组件
               PasteService.setLastFocusedComponent('messageEditor')
+            }}
+            onContextMenu={(e) => {
+              // 阻止事件冒泡，避免触发全局的 Electron contextMenu
+              e.stopPropagation()
             }}
             style={{
               fontSize,
@@ -297,10 +308,11 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
 
 const EditorContainer = styled.div`
   padding: 8px 0;
-  border: 1px solid var(--color-border);
+  border: 0.5px solid var(--color-border);
   transition: all 0.2s ease;
   border-radius: 15px;
   margin-top: 5px;
+  margin-bottom: 10px;
   background-color: var(--color-background-opacity);
   width: 100%;
 

@@ -221,7 +221,7 @@ const MessageMenubar: FC<Props> = (props) => {
         key: 'export',
         icon: <Share size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
         children: [
-          {
+          exportMenuOptions.plain_text && {
             label: t('chat.topics.copy.plain_text'),
             key: 'copy_message_plain_text',
             onClick: () => copyMessageAsPlainText(message)
@@ -530,8 +530,7 @@ const MessageMenubar: FC<Props> = (props) => {
         <Dropdown
           menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}
           trigger={['click']}
-          placement="topRight"
-          arrow>
+          placement="topRight">
           <ActionButton
             className="message-action-button"
             onClick={(e) => e.stopPropagation()}
