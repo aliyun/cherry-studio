@@ -365,7 +365,7 @@ export async function fetchChatCompletion({
   if (enableWebSearch) {
     onChunkReceived({ type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS })
   }
-  await withSpanResult(
+  return await withSpanResult(
     async (params, options) => await AI.completions(params, options),
     {
       name: `${model.name}.Chat`,

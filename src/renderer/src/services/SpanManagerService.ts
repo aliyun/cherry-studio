@@ -36,7 +36,6 @@ class SpanManagerService {
     this.spanMap.set(topicId, [span])
     const traceId = span.spanContext().traceId
     window.api.trace.bindTopic(topicId, traceId)
-    window.api.trace.openWindow(topicId, traceId, false)
     return span
   }
 
@@ -260,7 +259,7 @@ export const endSpan = spanManagerService.endSpan.bind(spanManagerService)
 export const currentSpan = spanManagerService.getCurrentSpan.bind(spanManagerService)
 export const addTokenUsage = spanManagerService.addTokenUsage.bind(spanManagerService)
 
-EventEmitter.on(EVENT_NAMES.MESSAGE_COMPLETE, ({ topicId, traceId }) => {
+EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId, traceId }) => {
   openTraceWindow(topicId, traceId, false)
 })
 
