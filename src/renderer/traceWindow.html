@@ -2,7 +2,6 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title>Trace 窗口</title>
     <style>
       html, body {
         height: 100%;
@@ -16,15 +15,21 @@
       }
       #root {
         flex: 1 1 auto;
+        background: var(--trace-bg);
       }
       footer {
         height: 36px;
         text-align: center;
         font-size: 12px;
         color: grey;
-        background: #fafbfc;
+        background: var(--trace-header-bg);
         flex-shrink: 0;
         line-height: 36px;
+        position: relative;
+        z-index: 1
+      }
+      footer p {
+        margin: 0;
       }
     </style>
   </head>

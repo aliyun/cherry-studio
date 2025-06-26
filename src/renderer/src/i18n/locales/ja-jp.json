@@ -406,7 +406,6 @@
       "prompt": "プロンプト",
       "provider": "プロバイダー",
       "regenerate": "再生成",
-      "trace": "トレース",
       "rename": "名前を変更",
       "reset": "リセット",
       "save": "保存",
@@ -2116,6 +2115,22 @@
           "user_tips": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
         }
       }
+    },
+    "trace": {
+      "label": "トレース",
+      "traceWindow": "トレースウィンドウ",
+      "backList": "リストに戻る",
+      "spanDetail": "スパンの詳細",
+      "name": "名前",
+      "tag": "Tagラベル",
+      "startTime": "開始時間",
+      "endTime": "終了時間",
+      "tokenUsage": "トークンの使用",
+      "spendTime": "時間を過ごす",
+      "parentId": "親ID",
+      "inputs": "入力",
+      "outputs": "出力",
+      "noTraceList": "トレース情報が見つかりません"
     }
   }
 }

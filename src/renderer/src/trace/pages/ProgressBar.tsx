@@ -1,13 +1,12 @@
 import React from 'react'
 
 export interface ProgressBarProps {
-  start: number // 起始进度值（0-100）
-  progress: number // 当前进度值（0-100）
-  height?: number // 可选：进度条高度
+  start: number
+  progress: number
+  height?: number
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({ start = 0, progress, height = 6 }) => {
-  // 计算实际显示进度（从start开始）
   const displayProgress = Math.max(0, progress)
 
   return (

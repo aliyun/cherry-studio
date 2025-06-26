@@ -406,7 +406,6 @@
       "prompt": "提示词",
       "provider": "提供商",
       "regenerate": "重新生成",
-      "trace": "跟踪",
       "rename": "重命名",
       "reset": "重置",
       "save": "保存",
@@ -2116,6 +2115,22 @@
           "user_tips": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
         }
       }
+    },
+    "trace": {
+      "label": "跟踪",
+      "traceWindow": "跟踪窗口",
+      "backList": "返回列表",
+      "spanDetail": "Span详情",
+      "name": "名字",
+      "tag": "标签",
+      "startTime": "开始时间",
+      "endTime": "结束时间",
+      "tokenUsage": "Token使用量",
+      "spendTime": "消耗时间",
+      "parentId": "上级Id",
+      "inputs": "输入",
+      "outputs": "输出",
+      "noTraceList": "没有找到Trace信息"
     }
   }
 }

@@ -406,7 +406,6 @@
       "prompt": "Prompt",
       "provider": "Provider",
       "regenerate": "Regenerate",
-      "trace": "Trace",
       "rename": "Rename",
       "reset": "Reset",
       "save": "Save",
@@ -2116,6 +2115,22 @@
           "user_tips": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       }
+    },
+    "trace": {
+      "label": "Trace",
+      "traceWindow": "Trace Window",
+      "backList": "Back To List",
+      "spanDetail": "Span Details",
+      "name": "Name",
+      "tag": "Tag",
+      "startTime": "Start Time",
+      "endTime": "End Time",
+      "tokenUsage": "Token Usage",
+      "spendTime": "Spend Time",
+      "parentId": "Parent Id",
+      "inputs": "Inputs",
+      "outputs": "Outputs",
+      "noTraceList": "No trace information found"
     }
   }
 }

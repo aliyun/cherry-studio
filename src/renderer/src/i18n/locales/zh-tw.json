@@ -406,7 +406,6 @@
       "prompt": "提示詞",
       "provider": "供應商",
       "regenerate": "重新生成",
-      "trace": "跟蹤",
       "rename": "重新命名",
       "reset": "重設",
       "save": "儲存",
@@ -2116,6 +2115,22 @@
           "user_tips": "請輸入應用的執行檔名稱，每行一個，不區分大小寫，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
         }
       }
+    },
+    "trace": {
+      "label": "跟蹤",
+      "traceWindow": "追蹤視窗",
+      "backList": "返回清單",
+      "spanDetail": "Span詳情",
+      "name": "名字",
+      "tag": "標籤",
+      "startTime": "開始時間",
+      "endTime": "結束時間",
+      "tokenUsage": "Token使用量",
+      "spendTime": "消耗時間",
+      "parentId": "上級Id",
+      "inputs": "輸入",
+      "outputs": "輸出",
+      "noTraceList": "沒有找到Trace資訊"
     }
   }
 }

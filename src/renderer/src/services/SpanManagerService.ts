@@ -2,8 +2,7 @@ import { TokenUsage } from '@mcp-trace/trace-core'
 import { cleanContext, endContext, getContext, startContext } from '@mcp-trace/trace-web'
 import { context, Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-
-import { openTraceWindow } from './WebTraceService'
+import { Topic } from '@renderer/types'
 
 export interface StartSpanParams {
   topicId?: string
@@ -260,7 +259,10 @@ export const currentSpan = spanManagerService.getCurrentSpan.bind(spanManagerSer
 export const addTokenUsage = spanManagerService.addTokenUsage.bind(spanManagerService)
 
 EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId, traceId }) => {
-  openTraceWindow(topicId, traceId, false)
+  window.api.trace.openWindow(topicId, traceId, false)
+})
+EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, (topic: Topic) => {
+  window.api.trace.cleanTopic(topic.id)
 })
 
 // finished before LLM.Chat

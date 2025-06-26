@@ -1,3 +1,4 @@
+import i18n from '@renderer/i18n'
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
@@ -23,11 +24,14 @@ const App = () => {
       setTopicId(topicId)
     }
     window.electron.ipcRenderer.on('set-trace', (_event, data) => {
-      // data 就是 { traceId, topicId }
-      if (data && data.traceId && data.topicId) {
+      if (data?.traceId && data?.topicId) {
         setTraceId(data.traceId)
         setTopicId(data.topicId)
       }
+    })
+
+    window.electron.ipcRenderer.on('set-language', (_event, data) => {
+      i18n.changeLanguage(data.lang)
     })
   }, [])
 
@@ -39,7 +43,11 @@ const App = () => {
     <>
       <TracePage traceId={traceId} topicId={topicId} />
       <footer>
-        <span onClick={handleFooterClick}>该功能由Alibaba Edas团队提供支持。&emsp;&copy; 2009-2025 aliyun.com</span>
+        <p
+          onClick={handleFooterClick}
+          style={{ color: '#1677ff', cursor: 'pointer', textDecoration: 'underline', display: 'contents' }}>
+          该功能由Alibaba EDAS团队提供支持
+        </p>
       </footer>
     </>
   )

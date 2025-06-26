@@ -4,6 +4,7 @@ import { DoubleLeftOutlined } from '@ant-design/icons'
 // import TraceModal from '@renderer/trace/TraceModal'
 import { TraceModal } from '@renderer/trace/pages/TraceModel'
 import { FC, useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import ReactJson from 'react-json-view'
 
 import { Box, Button, Text } from './Component'
@@ -19,6 +20,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
   const [jsonData, setJsonData] = useState<object>({})
   const [isJson, setIsJson] = useState(false)
   const [usedTime, setUsedTime] = useState<string>('')
+  const { t } = useTranslation()
 
   const changeJsonData = useCallback(() => {
     const data = showInput ? node.attributes?.inputs : node.attributes?.outputs
@@ -62,49 +64,54 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
           href={'#'}
           style={{ marginRight: 8, fontSize: '14px' }}>
           <DoubleLeftOutlined style={{ fontSize: '12px' }} />
-          &nbsp;返回列表
+          &nbsp;{t('trace.backList')}
         </a>
       </Box>
-      <Text style={{ fontWeight: 'bold', fontSize: 14 }}>Span详情</Text>
+      <Text style={{ fontWeight: 'bold', fontSize: 14 }}>{t('trace.spanDetail')}</Text>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>Span ID: </Text>
+        <Text style={{ fontWeight: 'bold' }}>ID: </Text>
         <Text>{node?.id}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>名称: </Text>
+        <Text style={{ fontWeight: 'bold' }}>{t('trace.name')}: </Text>
         <Text>{node?.name}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>标签: </Text>
+        <Text style={{ fontWeight: 'bold' }}>{t('trace.tag')}: </Text>
         <Text>{node?.attributes?.tags}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>开始时间: </Text>
+        <Text style={{ fontWeight: 'bold' }}>{t('trace.startTime')}: </Text>
         <Text>{formatDate(node?.startTime)}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>结束时间: </Text>
+        <Text style={{ fontWeight: 'bold' }}>{t('trace.endTime')}: </Text>
         <Text>{formatDate(node?.endTime)}</Text>
       </Box>
+      {node.usage && (
+        <Box padding={0}>
+          <Text style={{ fontWeight: 'bold' }}>{t('trace.tokenUsage')}: </Text>
+          <Text style={{ color: 'red' }}>{`↑${node.usage.prompt_tokens}`}</Text>&nbsp;
+          <Text style={{ color: 'green' }}>{`↓${node.usage.completion_tokens}`}</Text>
+        </Box>
+      )}
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>耗时: </Text>
+        <Text style={{ fontWeight: 'bold' }}>{t('trace.spendTime')}: </Text>
         <Text>{usedTime}</Text>
       </Box>
       <Box padding={0}>
-        <Text style={{ fontWeight: 'bold' }}>父ID: </Text>
+        <Text style={{ fontWeight: 'bold' }}>{t('trace.parentId')}: </Text>
         <Text>{node?.parentId}</Text>
       </Box>
       <Box style={{ position: 'relative', margin: '5px 0 0' }}>
         <Button className={`content-button ${showInput ? 'active' : ''}`} onClick={() => setShowInput(true)}>
-          输入
+          {t('trace.inputs')}
         </Button>
         <Button className={`content-button ${showInput ? '' : 'active'}`} onClick={() => setShowInput(false)}>
-          输出
+          {t('trace.outputs')}
         </Button>
       </Box>
-      <Box
-        className="code-container"
-        style={{ height: '50vh', borderTop: '1px solid #eee', width: '100%', marginTop: 0 }}>
+      <Box className="code-container">
         {isJson ? (
           <ReactJson
             src={jsonData}
@@ -113,10 +120,20 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
             indentWidth={2}
             collapseStringsAfterLength={100}
             name={false}
+            theme={'colors'}
             style={{ fontSize: '12px' }}
           />
         ) : (
-          <pre style={{ background: '#f6f8fa', padding: '12px', borderRadius: 4, fontSize: 12, overflowX: 'auto' }}>
+          <pre
+            style={{
+              color: 'white',
+              background: '#181c20',
+              padding: '12px',
+              borderRadius: 0,
+              fontSize: 12,
+              overflowX: 'auto',
+              marginTop: '2px'
+            }}>
             <code>{`${typeof jsonData === 'object' ? JSON.stringify(jsonData, null, 2) : String(jsonData)}`}</code>
           </pre>
         )}

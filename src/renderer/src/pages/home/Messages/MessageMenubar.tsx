@@ -1,11 +1,4 @@
-import {
-  CheckOutlined,
-  EditOutlined,
-  MenuOutlined,
-  QuestionCircleOutlined,
-  ScheduleOutlined,
-  SyncOutlined
-} from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, MenuOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
@@ -18,6 +11,7 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -520,9 +514,9 @@ const MessageMenubar: FC<Props> = (props) => {
         </ActionButton>
       </Popconfirm>
       {isDevelopModel && (
-        <Tooltip title={t('common.trace')} mouseEnterDelay={0.8}>
+        <Tooltip title={t('trace.label')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
-            <ScheduleOutlined />
+            <TraceIcon size={16} className={'lucide lucide-trash'} />
           </ActionButton>
         </Tooltip>
       )}

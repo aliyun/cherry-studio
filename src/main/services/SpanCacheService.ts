@@ -42,12 +42,14 @@ class SpanCacheService implements TraceCache {
   cleanTopic(topicId: string, traceId?: string) {
     const spans = Array.from(this.cache.values().filter((e) => e.topicId === topicId))
     spans.map((e) => e.id).forEach((id) => this.cache.delete(id))
-    if (traceId) {
-      fs.rmSync(path.join(this.fileDir, topicId, traceId))
-    } else {
-      fs.readdirSync(path.join(this.fileDir, topicId)).forEach((file) => {
-        fs.rmSync(file)
-      })
+    if (fs.existsSync(path.join(this.fileDir, topicId))) {
+      if (traceId) {
+        fs.rmSync(path.join(this.fileDir, topicId, traceId))
+      } else {
+        fs.readdirSync(path.join(this.fileDir, topicId)).forEach((file) => {
+          fs.rmSync(path.join(this.fileDir, topicId, file))
+        })
+      }
     }
   }
 
