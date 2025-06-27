@@ -125,3 +125,8 @@
   opacity: 1;
   box-shadow: var(--trace-shadow);
 }
+
+.table-header {
+  font-weight: bold;
+  text-align: 'center';
+}

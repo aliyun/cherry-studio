@@ -2,9 +2,11 @@ import './Trace.css'
 
 import { SpanEntity } from '@mcp-trace/trace-core'
 import { TraceModal } from '@renderer/trace/pages/TraceModel'
+import { Divider } from 'antd/lib'
 import React, { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { Box, SimpleGrid, Text, VStack } from './Component'
+import { Box, GridItem, SimpleGrid, Text, VStack } from './Component'
 import SpanDetail from './SpanDetail'
 import TraceTree from './TraceTree'
 
@@ -18,6 +20,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
   const [selectNode, setSelectNode] = useState<TraceModal | null>(null)
   const [showList, setShowList] = useState(true)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const { t } = useTranslation()
 
   const mergeTraceModals = React.useCallback((oldNodes: TraceModal[], newNodes: TraceModal[]): TraceModal[] => {
     const oldMap = new Map(oldNodes.map((n) => [n.id, n]))
@@ -148,9 +151,36 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
                 {spans.length === 0 ? (
                   <Text>没有找到Trace信息</Text>
                 ) : (
-                  spans.map((node: TraceModal) => (
-                    <TraceTree key={node.id} treeData={node.children} node={node} handleClick={handleNodeClick} />
-                  ))
+                  <>
+                    <SimpleGrid columns={20}>
+                      <GridItem colSpan={8} className={'table-header'}>
+                        <Text tabIndex={0}>{t('trace.name')}</Text>
+                      </GridItem>
+                      <GridItem colSpan={3} className={'table-header'}>
+                        <Text>{t('trace.tag')}</Text>
+                      </GridItem>
+                      <GridItem colSpan={4} className={'table-header'}>
+                        <Text>{t('trace.tokenUsage')}</Text>&nbsp;
+                      </GridItem>
+                      <GridItem colSpan={2} className={'table-header'}>
+                        <Text>{t('trace.spendTime')}</Text>
+                      </GridItem>
+                      <GridItem colSpan={3} className={'table-header'}>
+                        <Text></Text>
+                      </GridItem>
+                    </SimpleGrid>
+                    <Divider
+                      orientation="end"
+                      style={{
+                        border: '1px solid #ccc',
+                        width: '100%',
+                        margin: '0px 5px 0px 0px'
+                      }}
+                    />
+                    {spans.map((node: TraceModal) => (
+                      <TraceTree key={node.id} treeData={node.children} node={node} handleClick={handleNodeClick} />
+                    ))}
+                  </>
                 )}
               </VStack>
             ) : (
