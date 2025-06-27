@@ -460,8 +460,16 @@ class McpService {
           )
 
           const result = cachedListTools(server)
-          span.setAttribute('outputs', JSON.stringify(result))
-          span.end()
+          result
+            .then((data) => {
+              span.setAttribute('outputs', JSON.stringify(result))
+              span.end()
+              return data
+            })
+            .catch((error) => {
+              span.recordException(error)
+              span.end()
+            })
           return result
         }
       )
@@ -480,7 +488,7 @@ class McpService {
         `${server.name}.CallTool`,
         {
           attributes: {
-            inputs: JSON.stringify(server),
+            inputs: JSON.stringify({ server, name, args }),
             tags: `MCP[${name}]`
           }
         },
