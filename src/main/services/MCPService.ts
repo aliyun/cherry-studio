@@ -462,7 +462,7 @@ class McpService {
           const result = cachedListTools(server)
           result
             .then((data) => {
-              span.setAttribute('outputs', JSON.stringify(result))
+              span.setAttribute('outputs', JSON.stringify(data))
               span.end()
               return data
             })
