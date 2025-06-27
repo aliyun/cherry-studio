@@ -129,4 +129,6 @@
 .table-header {
   font-weight: bold;
   text-align: 'center';
+  align-items: center;
+  justify-content: center;
 }
