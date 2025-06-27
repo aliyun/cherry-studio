@@ -23,6 +23,7 @@
   "scripts": {
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
+    "dev:win": "cross-env NODE_OPTIONS='--max-old-space-size=4096' electron-vite dev",
     "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "yarn typecheck && yarn check:i18n && yarn test",
@@ -151,6 +152,7 @@
     "balanced-match": "^3.0.1",
     "browser-image-compression": "^2.0.2",
     "color": "^5.0.0",
+    "cross-env": "^7.0.3",
     "dayjs": "^1.11.11",
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
