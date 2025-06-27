@@ -2117,8 +2117,8 @@
       }
     },
     "trace": {
-      "label": "跟蹤",
-      "traceWindow": "追蹤視窗",
+      "label": "呼叫鏈",
+      "traceWindow": "呼叫鏈視窗",
       "backList": "返回清單",
       "spanDetail": "Span詳情",
       "name": "名字",

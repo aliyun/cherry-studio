@@ -2117,8 +2117,8 @@
       }
     },
     "trace": {
-      "label": "トレース",
-      "traceWindow": "トレースウィンドウ",
+      "label": "呼び出しチェーン",
+      "traceWindow": "呼び出しチェーンウィンドウ",
       "backList": "リストに戻る",
       "spanDetail": "スパンの詳細",
       "name": "名前",

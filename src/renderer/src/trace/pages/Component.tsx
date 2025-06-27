@@ -23,13 +23,15 @@ export const SimpleGrid: React.FC<{
   templateColumns?: string
   children: React.ReactNode
   leftSpace?: number
-}> = ({ columns, templateColumns, children, leftSpace = 0, ...props }) => (
+  style?: React.CSSProperties
+}> = ({ columns, templateColumns, children, leftSpace = 0, style, ...props }) => (
   <div
     style={{
       display: 'grid',
       gridTemplateColumns: templateColumns || (columns ? `repeat(${columns}, 1fr)` : undefined),
       gap: '1px',
-      paddingLeft: leftSpace
+      paddingLeft: leftSpace,
+      ...style
     }}
     {...props}>
     {children}
@@ -73,6 +75,7 @@ export const GridItem: React.FC<
       gridColumn: colSpan ? `span ${colSpan}` : undefined,
       gridRow: rowSpan ? `span ${rowSpan}` : undefined,
       padding: padding ? `${padding}px` : undefined,
+      textAlign: 'center',
       ...style
     }}
     {...props}

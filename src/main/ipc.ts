@@ -22,7 +22,7 @@ import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
-import { openTraceWindow } from './services/NodeTraceService'
+import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
@@ -495,4 +495,5 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.TRACE_OPEN_WINDOW, (_, topicId: string, traceId: string, autoOpen?: boolean) =>
     openTraceWindow(topicId, traceId, autoOpen)
   )
+  ipcMain.handle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => setTraceWindowTitle(title))
 }

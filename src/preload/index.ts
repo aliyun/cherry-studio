@@ -272,7 +272,8 @@ const api = {
     cleanTopic: (topicId: string, traceId?: string) =>
       ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_TOPIC, topicId, traceId),
     openWindow: (topicId: string, traceId: string, autoOpen?: boolean) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_OPEN_WINDOW, topicId, traceId, autoOpen)
+      ipcRenderer.invoke(IpcChannel.TRACE_OPEN_WINDOW, topicId, traceId, autoOpen),
+    setTraceWindowTitle: (title: string) => ipcRenderer.invoke(IpcChannel.TRACE_SET_TITLE, title)
   }
 }
 

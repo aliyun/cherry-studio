@@ -2117,8 +2117,8 @@
       }
     },
     "trace": {
-      "label": "跟踪",
-      "traceWindow": "跟踪窗口",
+      "label": "调用链",
+      "traceWindow": "调用链窗口",
       "backList": "返回列表",
       "spanDetail": "Span详情",
       "name": "名字",

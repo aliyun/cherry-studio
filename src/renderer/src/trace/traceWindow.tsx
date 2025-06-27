@@ -15,6 +15,7 @@ function getParams() {
 const App = () => {
   const [traceId, setTraceId] = useState('')
   const [topicId, setTopicId] = useState('')
+  const [title, setTitle] = useState('Call Chain Window')
 
   useEffect(() => {
     // 支持首次通过URL参数打开
@@ -32,8 +33,13 @@ const App = () => {
 
     window.electron.ipcRenderer.on('set-language', (_event, data) => {
       i18n.changeLanguage(data.lang)
+      const newTitle = i18n.t('trace.traceWindow')
+      if (newTitle !== title) {
+        window.api.trace.setTraceWindowTitle(i18n.t('trace.traceWindow'))
+        setTitle(newTitle)
+      }
     })
-  }, [])
+  }, [title])
 
   const handleFooterClick = () => {
     window.api.shell.openExternal('https://www.aliyun.com/product/edas')
@@ -46,7 +52,7 @@ const App = () => {
         <p
           onClick={handleFooterClick}
           style={{ color: '#1677ff', cursor: 'pointer', textDecoration: 'underline', display: 'contents' }}>
-          该功能由Alibaba EDAS团队提供支持
+          由阿里云 EDAS 提供技术支持
         </p>
       </footer>
     </>

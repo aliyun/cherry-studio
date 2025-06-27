@@ -145,27 +145,27 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
     <div className="trace-window">
       <div className=".tab-container_trace">
         <SimpleGrid columns={1} templateColumns="1fr">
-          <Box padding={5} className="scroll-container">
+          <Box padding={0} className="scroll-container">
             {showList ? (
               <VStack grap={1} align="start">
                 {spans.length === 0 ? (
                   <Text>没有找到Trace信息</Text>
                 ) : (
                   <>
-                    <SimpleGrid columns={20}>
-                      <GridItem colSpan={8} className={'table-header'}>
+                    <SimpleGrid columns={20} style={{ width: '100%' }}>
+                      <GridItem colSpan={8} padding={0} className={'table-header'}>
                         <Text tabIndex={0}>{t('trace.name')}</Text>
                       </GridItem>
-                      <GridItem colSpan={3} className={'table-header'}>
+                      {/*   <GridItem colSpan={3} className={'table-header'}>
                         <Text>{t('trace.tag')}</Text>
-                      </GridItem>
-                      <GridItem colSpan={4} className={'table-header'}>
+                      </GridItem> */}
+                      <GridItem colSpan={5} padding={0} className={'table-header'}>
                         <Text>{t('trace.tokenUsage')}</Text>&nbsp;
                       </GridItem>
-                      <GridItem colSpan={2} className={'table-header'}>
+                      <GridItem colSpan={3} padding={0} className={'table-header'}>
                         <Text>{t('trace.spendTime')}</Text>
                       </GridItem>
-                      <GridItem colSpan={3} className={'table-header'}>
+                      <GridItem colSpan={4} padding={0} className={'table-header'}>
                         <Text></Text>
                       </GridItem>
                     </SimpleGrid>

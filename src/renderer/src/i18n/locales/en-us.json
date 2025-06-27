@@ -2117,8 +2117,8 @@
       }
     },
     "trace": {
-      "label": "Trace",
-      "traceWindow": "Trace Window",
+      "label": "Call Chain",
+      "traceWindow": "Call Chain Window",
       "backList": "Back To List",
       "spanDetail": "Span Details",
       "name": "Name",

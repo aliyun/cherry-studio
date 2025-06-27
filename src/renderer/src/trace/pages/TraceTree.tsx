@@ -39,7 +39,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
   const [isOpen, setIsOpen] = useState(true)
   const hasChildren = node.children && node.children.length > 0
   const [endTime, setEndTime] = useState(node.endTime || Date.now())
-  const [usedTime, setUsedTime] = useState(convertTime((node.endTime || Date.now()) - node.startTime))
+  const [usedTime, setUsedTime] = useState('--')
 
   // 定时刷新未结束的 span
   useEffect(() => {
@@ -67,7 +67,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
         width: '100%'
       }}>
       <SimpleGrid columns={20}>
-        <GridItem colSpan={8} style={{ padding: `4px 4px 4px ${paddingLeft}px` }}>
+        <GridItem colSpan={8} style={{ padding: `4px 4px 4px ${paddingLeft}px`, textAlign: 'left' }}>
           <HStack grap={2}>
             <IconButton
               aria-label="Toggle"
@@ -92,7 +92,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
             </Text>
           </HStack>
         </GridItem>
-        <GridItem padding={4} colSpan={3}>
+        {/* <GridItem padding={4} colSpan={3}>
           <Text
             // ml={2}
             style={{
@@ -102,15 +102,15 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
             }}>
             {node.attributes?.tags}
           </Text>
-        </GridItem>
-        <GridItem padding={4} colSpan={4}>
+        </GridItem> */}
+        <GridItem padding={4} colSpan={5}>
           <Text style={{ color: 'red' }}>{node.usage ? '↑' + node.usage.prompt_tokens : ''}</Text>&nbsp;
           <Text style={{ color: 'green' }}>{node.usage ? '↓' + node.usage.completion_tokens : ''}</Text>
         </GridItem>
-        <GridItem padding={4} colSpan={2}>
+        <GridItem padding={4} colSpan={3}>
           <Text /** ml={2} */>{usedTime}</Text>
         </GridItem>
-        <GridItem padding={4} colSpan={3}>
+        <GridItem padding={4} colSpan={4}>
           <ProgressBar progress={node.percent} start={node.start} />
         </GridItem>
       </SimpleGrid>
