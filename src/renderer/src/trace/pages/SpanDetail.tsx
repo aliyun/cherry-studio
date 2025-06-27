@@ -23,7 +23,22 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
   const { t } = useTranslation()
 
   const changeJsonData = useCallback(() => {
-    const data = showInput ? node.attributes?.inputs : node.attributes?.outputs
+    let data: any = {}
+    if (!node.attributes) {
+      setJsonData(data)
+      setIsJson(true)
+      return
+    }
+    if (showInput) {
+      data = node.attributes.inputs
+    } else if ('outputs' in node.attributes) {
+      data = node.attributes.outputs
+    } else {
+      data = node.events?.find((e) => e.name === 'exception')
+      setIsJson(true)
+      setJsonData(data)
+      return
+    }
     if (typeof data === 'string' && (data.startsWith('{') || data.startsWith('['))) {
       try {
         setJsonData(JSON.parse(data))
@@ -43,6 +58,20 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
     setUsedTime(convertTime(endTime - node.startTime))
     changeJsonData()
   }, [node, showInput, changeJsonData, endTime])
+
+  useEffect(() => {
+    const updateCopyButtonTitles = () => {
+      const copyButtons = document.querySelectorAll('.copy-to-clipboard-container > span')
+      copyButtons.forEach((btn) => {
+        btn.setAttribute('title', t('code_block.copy'))
+      })
+    }
+
+    updateCopyButtonTitles()
+    const timer = setInterval(updateCopyButtonTitles, 100) // 每秒检查一次
+
+    return () => clearInterval(timer)
+  }, [t])
 
   const formatDate = (timestamp: number | null) => {
     if (timestamp == null) {
@@ -114,7 +143,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
       <Box className="code-container">
         {isJson ? (
           <ReactJson
-            src={jsonData}
+            src={jsonData || ''}
             displayDataTypes={false}
             displayObjectSize={false}
             indentWidth={2}

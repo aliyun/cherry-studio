@@ -27,10 +27,10 @@ export const convertTime = (time: number | null): string => {
     return `${(time / 1000).toFixed(2)}s`
   }
   if (time > 100) {
-    return `${(time / 1000).toFixed(0)}s`
+    return `${time.toFixed(0)}ms`
   }
   if (time > 10) {
-    return `${(time / 1000).toFixed(1)}s`
+    return `${time.toFixed(1)}ms`
   }
   return time.toFixed(2) + 'ms'
 }
