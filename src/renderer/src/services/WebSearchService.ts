@@ -4,9 +4,9 @@ import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import type { setWebSearchStatus } from '@renderer/store/runtime'
+import { setWebSearchStatus } from '@renderer/store/runtime'
 import { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
-import type {
+import {
   KnowledgeBase,
   KnowledgeItem,
   KnowledgeReference,
@@ -18,7 +18,7 @@ import type {
 import { hasObjectKey, uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessage } from '@renderer/utils/error'
-import type { ExtractResults } from '@renderer/utils/extract'
+import { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
 import { consolidateReferencesByUrl, selectReferences } from '@renderer/utils/websearch'
 import dayjs from 'dayjs'
@@ -173,6 +173,7 @@ class WebSearchService {
     if (websearch.searchWithTime) {
       formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
+
     // try {
     return await webSearchEngine.search(formattedQuery, websearch, httpOptions)
     // } catch (error) {
@@ -437,9 +438,6 @@ class WebSearchService {
       Logger.log('[processWebsearch] No valid question found in extractResults.websearch')
       return { results: [] }
     }
-
-    // 使用请求特定的signal，如果没有则回退到全局signal
-    const signal = this.getRequestState(requestId).signal || this.signal
 
     // 使用请求特定的signal，如果没有则回退到全局signal
     const signal = this.getRequestState(requestId).signal || this.signal
