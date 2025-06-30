@@ -170,7 +170,7 @@ export const searchKnowledgeBase = async (
         span: currentSpan
       })
     }
-    return []
+    throw error
   }
 }
 

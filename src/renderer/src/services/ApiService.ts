@@ -175,8 +175,13 @@ async function fetchExternalTool(
       if (webSearchProvider) {
         safeWebSearchProvider = { ...webSearchProvider, topicId: lastUserMessage.topicId, parentSpanId }
       }
+      const webSearchResponse = await WebSearchService.processWebsearch(
+        webSearchProvider!,
+        extractResults,
+        lastUserMessage.id
+      )
       return {
-        results: await WebSearchService.processWebsearch(safeWebSearchProvider!, extractResults),
+        results: webSearchResponse,
         source: WebSearchSource.WEBSEARCH
       }
     } catch (error) {

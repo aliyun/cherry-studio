@@ -1,3 +1,4 @@
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -154,7 +155,13 @@ const MessageItem: FC<Props> = ({
       {!isEditing && (
         <>
           <MessageContentContainer
-            className="message-content-container"
+            className={
+              message.role === 'user'
+                ? 'message-content-container message-content-container-user'
+                : message.role === 'assistant'
+                  ? 'message-content-container message-content-container-assistant'
+                  : 'message-content-container'
+            }
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
               fontSize,
@@ -215,7 +222,7 @@ const MessageContainer = styled.div`
   }
 `
 
-const MessageContentContainer = styled.div`
+const MessageContentContainer = styled(Scrollbar)`
   max-width: 100%;
   padding-left: 46px;
   margin-top: 5px;
@@ -229,6 +236,7 @@ const MessageFooter = styled.div`
   align-items: center;
   gap: 20px;
   margin-left: 46px;
+  margin-top: 2px;
 `
 
 const NewContextMessage = styled.div`

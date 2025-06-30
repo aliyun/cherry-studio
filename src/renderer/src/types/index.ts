@@ -423,7 +423,7 @@ export interface KnowledgeBase {
   id: string
   name: string
   model: Model
-  dimensions: number
+  dimensions?: number
   description?: string
   items: KnowledgeItem[]
   created_at: number
@@ -500,7 +500,6 @@ export type WebSearchProvider = {
   url?: string
   basicAuthUsername?: string
   basicAuthPassword?: string
-  contentLimit?: number
   usingBrowser?: boolean
   topicId?: string
   parentSpanId?: string
@@ -542,6 +541,14 @@ export enum WebSearchSource {
 export type WebSearchResponse = {
   results?: WebSearchResults
   source: WebSearchSource
+}
+
+export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
+
+export type WebSearchStatus = {
+  phase: WebSearchPhase
+  countBefore?: number
+  countAfter?: number
 }
 
 export type KnowledgeReference = {
@@ -725,4 +732,16 @@ export interface StoreSyncAction {
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
+
+export type S3Config = {
+  endpoint: string
+  region: string
+  bucket: string
+  access_key_id: string
+  secret_access_key: string
+  root?: string
+  fileName?: string
+  skipBackupFile?: boolean
+}
+
 export type { Message } from './newMessage'
