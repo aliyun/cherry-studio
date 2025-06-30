@@ -176,7 +176,7 @@ async function fetchExternalTool(
         safeWebSearchProvider = { ...webSearchProvider, topicId: lastUserMessage.topicId, parentSpanId }
       }
       const webSearchResponse = await WebSearchService.processWebsearch(
-        webSearchProvider!,
+        safeWebSearchProvider!,
         extractResults,
         lastUserMessage.id
       )

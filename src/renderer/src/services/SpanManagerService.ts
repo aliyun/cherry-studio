@@ -1,8 +1,14 @@
+import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
 import { TokenUsage } from '@mcp-trace/trace-core'
 import { cleanContext, endContext, getContext, startContext } from '@mcp-trace/trace-web'
 import { context, Span, SpanStatusCode, trace } from '@opentelemetry/api'
+import { CompletionsResult } from '@renderer/aiCore/middleware/schemas'
+import { isAsyncIterable } from '@renderer/aiCore/middleware/utils'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Topic } from '@renderer/types'
+import { SdkRawChunk } from '@renderer/types/sdk'
+import { OpenAI } from 'openai'
+import { Stream } from 'openai/streaming'
 
 export interface StartSpanParams {
   topicId?: string
@@ -44,7 +50,8 @@ class SpanManagerService {
     }
     const span = this.spanMap.get(params.topicId)?.pop()
     if (span) {
-      span.setAttributes({ outputs: JSON.stringify(params.outputs || {}) })
+      const data = isCompletionsResult(params.outputs) ? params.outputs.getText() : JSON.stringify(params.outputs || {})
+      span.setAttributes({ outputs: data })
       if (params.error) {
         span.recordException(params.error)
       }
@@ -105,7 +112,6 @@ class SpanManagerService {
       }
     }
 
-    console.log('endSpan', span['name'], JSON.stringify(span.spanContext()))
     if (params.error) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
@@ -163,12 +169,25 @@ export function withSpanResult<F extends (...args: any) => any>(
     if (result instanceof Promise) {
       return result
         .then((data) => {
-          const usageData = typeof data !== 'object' ? null : 'usage' in data || 'usageMetadata' in data ? data : null
-          const usage = getUsage(usageData)
-          if (usage && span) {
-            window.api.trace.tokenUsage(span.spanContext().spanId, usage)
+          if (!data || typeof data !== 'object') {
+            endSpan({ topicId: params.topicId, outputs: data, span })
+            return data
           }
-          endSpan({ topicId: params.topicId, outputs: data, span })
+
+          if (data instanceof Stream) {
+            return handleStream(data, span, params.topicId)
+          } else if (data instanceof MessageStream) {
+            handleMessageStream(data, span, params.topicId)
+          } else if (isAsyncIterable<SdkRawChunk>(data)) {
+            return handleAsyncIterable(data, span, params.topicId)
+          } else {
+            const usageData = 'usage' in data || 'usageMetadata' in data ? data : null
+            const usage = getUsage(usageData)
+            if (usage && span) {
+              window.api.trace.tokenUsage(span.spanContext().spanId, usage)
+            }
+            endSpan({ topicId: params.topicId, outputs: getStreamRespText(data), span })
+          }
           return data
         })
         .catch((err) => {
@@ -183,6 +202,157 @@ export function withSpanResult<F extends (...args: any) => any>(
     endSpan({ topicId: params.topicId, error: err as Error, span })
     throw err
   }
+}
+
+function handleStream(
+  stream: Stream<OpenAI.Chat.Completions.ChatCompletionChunk | OpenAI.Responses.ResponseStreamEvent>,
+  span?: Span,
+  topicId?: string
+) {
+  if (!span) {
+    return
+  }
+  const [left, right] = stream.tee()
+
+  processStream(left)
+    .then((data) => {
+      if (data && span) {
+        window.api.trace.tokenUsage(span.spanContext().spanId, data.tokens)
+      }
+      endSpan({ topicId, outputs: getStreamRespText(data.context), span })
+    })
+    .catch((err) => {
+      endSpan({ topicId, error: err, span })
+    })
+  return right
+}
+
+async function processStream(
+  stream: Stream<OpenAI.Chat.Completions.ChatCompletionChunk | OpenAI.Responses.ResponseStreamEvent>
+) {
+  const tokens: TokenUsage = {
+    completion_tokens: 0,
+    prompt_tokens: 0,
+    total_tokens: 0
+  }
+
+  const context: any[] = []
+
+  for await (const chunk of stream) {
+    if ('response' in chunk) {
+      if (chunk.response.usage) {
+        tokens.completion_tokens += chunk.response.usage.output_tokens || 0
+        tokens.prompt_tokens += chunk.response.usage.input_tokens || 0
+        tokens.total_tokens += (chunk.response.usage.input_tokens || 0) + chunk.response.usage.output_tokens
+      }
+      context.push(chunk.response)
+    } else {
+      if ('usage' in chunk && chunk.usage) {
+        tokens.completion_tokens += (chunk as any).usage.completion_tokens || 0
+        tokens.prompt_tokens += (chunk as any).usage.prompt_tokens || 0
+        tokens.total_tokens += ((chunk as any).usage.completion_tokens || 0) + (chunk as any).usage.prom
+      }
+      context.push(chunk)
+    }
+  }
+  return { tokens, context }
+}
+
+function handleMessageStream(stream: MessageStream, span?: Span, topicId?: string) {
+  if (!span) {
+    return
+  }
+  stream.on('error', (err) => {
+    endSpan({ topicId, error: err, span })
+  })
+  const tokens: TokenUsage = {
+    completion_tokens: 0,
+    prompt_tokens: 0,
+    total_tokens: 0
+  }
+  const messages: { usage?: { output_tokens: number; input_tokens: number } }[] = []
+  stream.on('message', (message) => {
+    if (message.usage) {
+      tokens.completion_tokens += message.usage.output_tokens
+      tokens.prompt_tokens += message.usage.input_tokens
+      tokens.total_tokens += message.usage.output_tokens + message.usage.input_tokens
+    }
+    messages.push(message)
+  })
+  stream.on('end', () => {
+    window.api.trace.tokenUsage(span.spanContext().spanId, tokens)
+    endSpan({ topicId, outputs: messages, span })
+  })
+}
+
+async function handleAsyncIterable<T>(
+  iterable: AsyncIterable<T>,
+  span?: Span,
+  topicId?: string
+): Promise<AsyncIterable<T>> {
+  if (!span) {
+    return iterable
+  }
+  const buffer: T[] = []
+  let sourceDone = false
+  let error: unknown = null
+  const tokens: TokenUsage = {
+    completion_tokens: 0,
+    prompt_tokens: 0,
+    total_tokens: 0
+  }
+
+  // 启动消费线程
+  ;(async () => {
+    try {
+      for await (const item of iterable) {
+        buffer.push(item)
+        const usage = getUsage(item)
+        tokens.completion_tokens += usage?.completion_tokens || 0
+        tokens.prompt_tokens += usage?.prompt_tokens || 0
+        tokens.total_tokens += usage?.total_tokens || 0
+      }
+    } catch (e) {
+      error = e
+      span.recordException(e instanceof Error ? e : new Error(String(e)))
+    } finally {
+      sourceDone = true
+      window.api.trace.tokenUsage(span.spanContext().spanId, tokens)
+      endSpan({ topicId, outputs: buffer, span })
+    }
+  })()
+
+  // 返回新的可复用迭代器
+  return {
+    async *[Symbol.asyncIterator]() {
+      while (!sourceDone || buffer.length > 0) {
+        if (error) throw error
+        if (buffer.length === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+          continue
+        }
+        yield buffer.shift()!
+      }
+    }
+  }
+}
+
+function isCompletionsResult(data: any): data is CompletionsResult {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof data.getText === 'function' &&
+    (data.rawOutput === undefined || typeof data.rawOutput === 'object') &&
+    (data.stream === undefined || typeof data.stream === 'object') &&
+    (data.controller === undefined || data.controller instanceof AbortController)
+  )
+}
+
+function getStreamRespText(data: any) {
+  if (isCompletionsResult(data)) {
+    return { ...data, isStream: true, streamText: data.getText() }
+  }
+  return data
 }
 
 function getUsage(result?: any): TokenUsage | undefined {

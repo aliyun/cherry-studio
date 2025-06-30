@@ -111,7 +111,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
           <Text /** ml={2} */>{usedTime}</Text>
         </GridItem>
         <GridItem padding={4} colSpan={4}>
-          <ProgressBar progress={node.percent} start={node.start} />
+          <ProgressBar progress={Math.max(node.percent, 5)} start={node.start} />
         </GridItem>
       </SimpleGrid>
       <Divider
