@@ -214,7 +214,7 @@ function handleStream(
   }
   const [left, right] = stream.tee()
 
-  processStream(left)
+  processStream(right)
     .then((data) => {
       if (data && span) {
         window.api.trace.tokenUsage(span.spanContext().spanId, data.tokens)
@@ -224,7 +224,7 @@ function handleStream(
     .catch((err) => {
       endSpan({ topicId, error: err, span })
     })
-  return right
+  return left
 }
 
 async function processStream(
