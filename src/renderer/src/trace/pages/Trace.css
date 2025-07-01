@@ -135,3 +135,10 @@
   padding-top: 4px;
   background-color: var(--trace-header-bg);
 }
+
+.code-context {
+  overflow-wrap: break-word;
+  word-break: break-all;
+  width: 100%;
+  white-space: pre-wrap;
+}

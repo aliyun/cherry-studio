@@ -75,7 +75,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
 
   const formatDate = (timestamp: number | null) => {
     if (timestamp == null) {
-      return 'invalid timestamp'
+      return ''
     }
     const date = new Date(timestamp)
     const pad = (n: number) => n.toString().padStart(2, '0')
@@ -163,7 +163,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
               overflowX: 'auto',
               marginTop: '2px'
             }}>
-            <code>{`${typeof jsonData === 'object' ? JSON.stringify(jsonData, null, 2) : String(jsonData)}`}</code>
+            <code className="code-context">{`${typeof jsonData === 'object' ? JSON.stringify(jsonData, null, 2) : String(jsonData)}`}</code>
           </pre>
         )}
       </Box>

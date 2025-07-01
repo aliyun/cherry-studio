@@ -41,25 +41,10 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
       // 计算 usedTime
       const endTime = node.endTime || Date.now()
       const usedTime = endTime - node.startTime
-      if (node.children && node.children.length > 0) {
-        const allChildrenUsedTime = node.children.reduce(
-          (acc, child) => acc + ((child.endTime || Date.now()) - child.startTime),
-          0
-        )
-        const duration = Math.max(allChildrenUsedTime, usedTime)
-        let start = node.start
-        node.children
-          .sort((a, b) => a.startTime - b.startTime)
-          .forEach((child) => {
-            const childDuration = (child.endTime ? child.endTime : Date.now()) - child.startTime
-            const percentage = duration === 0 ? 0 : (childDuration / duration) * node.percent
-            child.percent = percentage
-            child.start = start
-            start += percentage
-          })
-        // 递归
-        updatePercentAndStart(node.children)
-      }
+      const duration = node.rootEnd - node.rootStart
+      node.start = ((node.startTime - node.rootStart) * 100) / duration
+      node.percent = duration === 0 ? 0 : (usedTime * 100) / duration
+      updatePercentAndStart(node.children)
     })
   }, [])
 
@@ -111,20 +96,31 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
     const map: Map<string, TraceModal> = new Map()
     const root: TraceModal[] = []
 
+    let minStart = spans && spans.length > 0 ? spans[0].startTime : 0
+    let maxEnd = spans && spans.length > 0 ? spans[0].endTime || Date.now() : 0
     spans.forEach((span) => {
       if (map.has(span.id)) {
-        map.get(span.id)?.children.push({ ...span, children: [], percent: 100, start: 0 } as TraceModal)
+        map
+          .get(span.id)
+          ?.children.push({ ...span, children: [], percent: 100, start: 0, rootStart: 0, rootEnd: 0 } as TraceModal)
       } else {
-        map.set(span.id, { ...span, children: [], percent: 100, start: 0 } as TraceModal)
+        map.set(span.id, { ...span, children: [], percent: 100, start: 0, rootStart: 0, rootEnd: 0 } as TraceModal)
       }
       if (!span.parentId) {
+        minStart = Math.min(span.startTime, minStart)
+        maxEnd = Math.max(span.endTime || Date.now(), maxEnd)
         root.push(map.get(span.id) as TraceModal)
       }
     })
 
     map.keys().forEach((key) => {
       const span = map.get(key)
-      if (span && span.parentId && map.has(span.parentId)) {
+      if (!span) {
+        return
+      }
+      span.rootStart = minStart
+      span.rootEnd = maxEnd
+      if (span.parentId && map.has(span.parentId)) {
         map.get(span.parentId)?.children.push(span)
       }
     })
