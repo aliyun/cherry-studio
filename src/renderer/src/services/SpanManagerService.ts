@@ -204,58 +204,55 @@ export function withSpanResult<F extends (...args: any) => any>(
   }
 }
 
+export async function* createStreamAdapter<
+  T extends OpenAI.Chat.Completions.ChatCompletionChunk | OpenAI.Responses.ResponseStreamEvent
+>(stream: Stream<T>, topicId?: string, span?: Span): AsyncIterable<T> {
+  const tokens: TokenUsage = {
+    completion_tokens: 0,
+    prompt_tokens: 0,
+    total_tokens: 0
+  }
+  const context: any[] = []
+  try {
+    for await (const chunk of stream) {
+      if (span) {
+        if ('response' in chunk) {
+          if (chunk.response.usage) {
+            tokens.completion_tokens += chunk.response.usage.output_tokens || 0
+            tokens.prompt_tokens += chunk.response.usage.input_tokens || 0
+            tokens.total_tokens += (chunk.response.usage.input_tokens || 0) + chunk.response.usage.output_tokens
+          }
+          context.push(chunk.response)
+        } else {
+          if ('usage' in chunk && chunk.usage) {
+            tokens.completion_tokens += (chunk as any).usage.completion_tokens || 0
+            tokens.prompt_tokens += (chunk as any).usage.prompt_tokens || 0
+            tokens.total_tokens += ((chunk as any).usage.completion_tokens || 0) + (chunk as any).usage.prom
+          }
+          context.push(chunk)
+        }
+      }
+      yield chunk
+    }
+  } catch (err) {
+    endSpan({ topicId, error: err as Error, span })
+    throw err
+  }
+  if (span) {
+    window.api.trace.tokenUsage(span.spanContext().spanId, tokens)
+    endSpan({ topicId, outputs: context, span })
+  }
+}
+
 function handleStream(
   stream: Stream<OpenAI.Chat.Completions.ChatCompletionChunk | OpenAI.Responses.ResponseStreamEvent>,
   span?: Span,
   topicId?: string
 ) {
   if (!span) {
-    return
+    return stream
   }
-  const [left, right] = stream.tee()
-
-  processStream(right)
-    .then((data) => {
-      if (data && span) {
-        window.api.trace.tokenUsage(span.spanContext().spanId, data.tokens)
-      }
-      endSpan({ topicId, outputs: getStreamRespText(data.context), span })
-    })
-    .catch((err) => {
-      endSpan({ topicId, error: err, span })
-    })
-  return left
-}
-
-async function processStream(
-  stream: Stream<OpenAI.Chat.Completions.ChatCompletionChunk | OpenAI.Responses.ResponseStreamEvent>
-) {
-  const tokens: TokenUsage = {
-    completion_tokens: 0,
-    prompt_tokens: 0,
-    total_tokens: 0
-  }
-
-  const context: any[] = []
-
-  for await (const chunk of stream) {
-    if ('response' in chunk) {
-      if (chunk.response.usage) {
-        tokens.completion_tokens += chunk.response.usage.output_tokens || 0
-        tokens.prompt_tokens += chunk.response.usage.input_tokens || 0
-        tokens.total_tokens += (chunk.response.usage.input_tokens || 0) + chunk.response.usage.output_tokens
-      }
-      context.push(chunk.response)
-    } else {
-      if ('usage' in chunk && chunk.usage) {
-        tokens.completion_tokens += (chunk as any).usage.completion_tokens || 0
-        tokens.prompt_tokens += (chunk as any).usage.prompt_tokens || 0
-        tokens.total_tokens += ((chunk as any).usage.completion_tokens || 0) + (chunk as any).usage.prom
-      }
-      context.push(chunk)
-    }
-  }
-  return { tokens, context }
+  return createStreamAdapter(stream, topicId, span)
 }
 
 function handleMessageStream(stream: MessageStream, span?: Span, topicId?: string) {
