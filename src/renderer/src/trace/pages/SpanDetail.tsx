@@ -35,8 +35,8 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
       data = node.attributes.outputs
     } else {
       data = node.events?.find((e) => e.name === 'exception')
-      setIsJson(true)
-      setJsonData(data || '{}')
+      setIsJson(!!data)
+      setJsonData(data || '')
       return
     }
     if (typeof data === 'string' && (data.startsWith('{') || data.startsWith('['))) {
