@@ -425,27 +425,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return await service.retrieveFile(fileId)
   })
 
-  // file service
-  ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
-    const service = FileServiceManager.getInstance().getService(provider)
-    return await service.uploadFile(file)
-  })
-
-  ipcMain.handle(IpcChannel.FileService_List, async (_, provider: Provider) => {
-    const service = FileServiceManager.getInstance().getService(provider)
-    return await service.listFiles()
-  })
-
-  ipcMain.handle(IpcChannel.FileService_Delete, async (_, provider: Provider, fileId: string) => {
-    const service = FileServiceManager.getInstance().getService(provider)
-    return await service.deleteFile(fileId)
-  })
-
-  ipcMain.handle(IpcChannel.FileService_Retrieve, async (_, provider: Provider, fileId: string) => {
-    const service = FileServiceManager.getInstance().getService(provider)
-    return await service.retrieveFile(fileId)
-  })
-
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
 
