@@ -40,7 +40,13 @@ export class StreamHandler {
             this.usage.prompt_tokens += completionChunk.usage.prompt_tokens || 0
             this.usage.total_tokens += completionChunk.usage.total_tokens || 0
           }
-          context = chunk.choices.map((choice) => choice.delta.content).join()
+          context = chunk.choices
+            .map((choice) =>
+              'reasoning_content' in choice.delta && choice.delta.reasoning_content
+                ? choice.delta.reasoning_content
+                : choice.delta.content
+            )
+            .join()
         } else {
           const resp = chunk as OpenAI.Responses.ResponseStreamEvent
           if ('response' in resp && resp.response) {
@@ -61,7 +67,7 @@ export class StreamHandler {
           }
         }
         if (context) {
-          window.api.trace.addStreamMessage(this.topicId, this.modelName || '', context, chunk)
+          window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, chunk)
         }
         yield chunk
       }

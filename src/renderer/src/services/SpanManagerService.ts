@@ -50,15 +50,12 @@ class SpanManagerService {
   }
 
   endTrace(params: EndSpanParams) {
-    const message = this.spanMap
-      .get(params.topicId)
-      ?.filter((entity) => !!entity.getModelName())
-      .map((entity) => entity.getEndMessage())
-      .join('\n')
     const entity = this.getModelSpanEntity(params.topicId)
     const span = entity.getCurrentSpan()
     if (span) {
-      span.setAttributes({ outputs: message })
+      if (params.outputs) {
+        span.setAttributes({ outputs: params.outputs })
+      }
       if (params.error) {
         span.recordException(params.error)
       }
@@ -120,11 +117,6 @@ class SpanManagerService {
     }
     span.end()
     endContext(params.topicId)
-  }
-
-  addEndMessage(message: string, topicId: string, modelName: string) {
-    const entity = this.getModelSpanEntity(topicId, modelName)
-    entity.addEndMessage(message)
   }
 
   getCurrentSpan(topicId: string, modelName?: string): Span | undefined {
@@ -219,7 +211,6 @@ export const addSpan = spanManagerService.addSpan.bind(spanManagerService)
 export const startTrace = spanManagerService.startTrace.bind(spanManagerService)
 export const endTrace = spanManagerService.endTrace.bind(spanManagerService)
 export const endSpan = spanManagerService.endSpan.bind(spanManagerService)
-export const addEndMessage = spanManagerService.addEndMessage.bind(spanManagerService)
 export const currentSpan = spanManagerService.getCurrentSpan.bind(spanManagerService)
 export const addTokenUsage = spanManagerService.addTokenUsage.bind(spanManagerService)
 export const pauseTrace = spanManagerService.pauseTrace.bind(spanManagerService)

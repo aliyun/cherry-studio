@@ -146,6 +146,7 @@ class SpanCacheService implements TraceCache {
   }
 
   private _updateParentOutputs(spanId: string, modelName: string, context: string) {
+    console.log('updateParentOutputs', spanId, modelName, context)
     const span = this.cache.get(spanId)
     if (!span || !context) {
       return

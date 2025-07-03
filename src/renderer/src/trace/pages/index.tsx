@@ -36,19 +36,25 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
     })
   }, [])
 
-  const updatePercentAndStart = React.useCallback((nodes: TraceModal[]) => {
-    nodes.forEach((node) => {
-      // 计算 usedTime
-      const endTime = node.endTime || Date.now()
-      const usedTime = endTime - node.startTime
-      const duration = node.rootEnd - node.rootStart
-      node.start = ((node.startTime - node.rootStart) * 100) / duration
-      node.percent = duration === 0 ? 0 : (usedTime * 100) / duration
-      if (node.children) {
-        updatePercentAndStart(node.children)
-      }
-    })
-  }, [])
+  const updatePercentAndStart = React.useCallback(
+    (nodes: TraceModal[]) => {
+      nodes.forEach((node) => {
+        // 计算 usedTime
+        const endTime = node.endTime || Date.now()
+        const usedTime = endTime - node.startTime
+        const duration = node.rootEnd - node.rootStart
+        node.start = ((node.startTime - node.rootStart) * 100) / duration
+        node.percent = duration === 0 ? 0 : (usedTime * 100) / duration
+        if (node.children) {
+          updatePercentAndStart(node.children)
+        }
+        if (selectNode?.id === node.id) {
+          setSelectNode(node)
+        }
+      })
+    },
+    [selectNode]
+  )
 
   const getTraceData = React.useCallback(async (): Promise<boolean> => {
     const datas = topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
@@ -66,8 +72,6 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
         intervalRef.current = null
       }
       let ended = await getTraceData()
-      setShowList(true)
-      setSelectNode(null)
 
       // 判断是否结束
 
@@ -182,7 +186,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
                 )}
               </VStack>
             ) : (
-              selectNode && <SpanDetail node={selectNode} clickShowModal={handleShowList} />
+              !showList && selectNode && <SpanDetail node={selectNode} clickShowModal={handleShowList} />
             )}
           </Box>
         </SimpleGrid>

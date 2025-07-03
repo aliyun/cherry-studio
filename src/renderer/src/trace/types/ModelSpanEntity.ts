@@ -20,7 +20,6 @@ export interface EndSpanParams {
 export class ModelSpanEntity {
   private modelName?: string
   private spans: Span[] = []
-  private endMessage: string[] = []
 
   constructor(modelName?: string) {
     this.modelName = modelName
@@ -58,13 +57,5 @@ export class ModelSpanEntity {
 
   getSpanById(spanId?: string) {
     return spanId ? this.spans.find((span) => span.spanContext().spanId === spanId) : undefined
-  }
-
-  addEndMessage(message: string) {
-    this.endMessage.push(message)
-  }
-
-  getEndMessage() {
-    return this.endMessage.join('\n')
   }
 }

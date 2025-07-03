@@ -109,7 +109,7 @@ async function fetchExternalTool(
           return await fetchSearchSummary(params)
         },
         {
-          name: `${summaryAssistant.model.name}.Summary`,
+          name: `${summaryAssistant.model?.name}.Summary`,
           tag: 'LLM',
           topicId: lastUserMessage.topicId,
           modelName: summaryAssistant.model.name
