@@ -5,10 +5,12 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import Logger from '@renderer/config/logger'
 import {
   isGenerateImageModel,
+  isGenerateImageModels,
   isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isVisionModel,
+  isVisionModels,
   isWebSearchModel
 } from '@renderer/config/models'
 import db from '@renderer/databases'
@@ -32,12 +34,11 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
+import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
-import { getFilesFromDropEvent } from '@renderer/utils/input'
-import { getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
+import { getFilesFromDropEvent, getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
@@ -97,17 +98,57 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
-  const [mentionModels, setMentionModels] = useState<Model[]>([])
+  const [mentionedModels, setMentionedModels] = useState<Model[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
   const currentMessageId = useRef<string>('')
-  const isVision = useMemo(() => isVisionModel(model), [model])
-  const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const { bases: knowledgeBases } = useKnowledgeBases()
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
+  const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
+  const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
+
+  const isVisionSupported = useMemo(
+    () =>
+      (mentionedModels.length > 0 && isVisionModels(mentionedModels)) ||
+      (mentionedModels.length === 0 && isVisionAssistant),
+    [mentionedModels, isVisionAssistant]
+  )
+
+  const isGenerateImageSupported = useMemo(
+    () =>
+      (mentionedModels.length > 0 && isGenerateImageModels(mentionedModels)) ||
+      (mentionedModels.length === 0 && isGenerateImageAssistant),
+    [mentionedModels, isGenerateImageAssistant]
+  )
+
+  // 仅允许在不含图片文件时mention非视觉模型
+  const couldMentionNotVisionModel = useMemo(() => {
+    return !files.some((file) => file.type === FileTypes.IMAGE)
+  }, [files])
+
+  // 允许在支持视觉或生成图片时添加图片文件
+  const couldAddImageFile = useMemo(() => {
+    return isVisionSupported || isGenerateImageSupported
+  }, [isVisionSupported, isGenerateImageSupported])
+
+  const couldAddTextFile = useMemo(() => {
+    return isVisionSupported || (!isVisionSupported && !isGenerateImageSupported)
+  }, [isGenerateImageSupported, isVisionSupported])
+
+  const supportedExts = useMemo(() => {
+    if (couldAddImageFile && couldAddTextFile) {
+      return [...imageExts, ...documentExts, ...textExts]
+    } else if (couldAddImageFile) {
+      return [...imageExts]
+    } else if (couldAddTextFile) {
+      return [...documentExts, ...textExts]
+    } else {
+      return []
+    }
+  }, [couldAddImageFile, couldAddTextFile])
 
   const quickPanel = useQuickPanel()
 
@@ -182,8 +223,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         baseUserMessage.files = uploadedFiles
       }
 
-      if (mentionModels) {
-        baseUserMessage.mentions = mentionModels
+      if (mentionedModels) {
+        baseUserMessage.mentions = mentionedModels
       }
 
       const assistantWithTopicPrompt = topic.prompt
@@ -209,7 +250,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       console.error('Failed to send message:', error)
       parent.recordException(error as Error)
     }
-  }, [assistant, dispatch, files, inputEmpty, loading, mentionModels, resizeTextArea, text, topic])
+  }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, topic])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
@@ -273,7 +314,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           description: '',
           icon: <Upload />,
           action: () => {
-            inputbarToolsRef.current?.openQuickPanel()
+            inputbarToolsRef.current?.openAttachmentQuickPanel()
           }
         },
         ...knowledgeBases.map((base) => {
@@ -354,8 +395,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     //other keys should be ignored
     const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
     if (isEnterPressed) {
+      if (quickPanel.isVisible) return event.preventDefault()
+
       if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
-        if (quickPanel.isVisible) return event.preventDefault()
         sendMessage()
         return event.preventDefault()
       } else {
@@ -383,8 +425,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && mentionModels.length > 0) {
-      setMentionModels((prev) => prev.slice(0, -1))
+    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && mentionedModels.length > 0) {
+      setMentionedModels((prev) => prev.slice(0, -1))
       return event.preventDefault()
     }
 
@@ -446,36 +488,39 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onInput = () => !expended && resizeTextArea()
 
-  const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newText = e.target.value
-    setText(newText)
+  const onChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newText = e.target.value
+      setText(newText)
 
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    const cursorPosition = textArea?.selectionStart ?? 0
-    const lastSymbol = newText[cursorPosition - 1]
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      const cursorPosition = textArea?.selectionStart ?? 0
+      const lastSymbol = newText[cursorPosition - 1]
 
-    if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '/') {
-      const quickPanelMenu =
-        inputbarToolsRef.current?.getQuickPanelMenu({
-          t,
-          files,
-          model,
-          text: newText,
-          openSelectFileMenu,
-          translate
-        }) || []
+      if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '/') {
+        const quickPanelMenu =
+          inputbarToolsRef.current?.getQuickPanelMenu({
+            t,
+            files,
+            couldAddImageFile,
+            text: newText,
+            openSelectFileMenu,
+            translate
+          }) || []
 
-      quickPanel.open({
-        title: t('settings.quickPanel.title'),
-        list: quickPanelMenu,
-        symbol: '/'
-      })
-    }
+        quickPanel.open({
+          title: t('settings.quickPanel.title'),
+          list: quickPanelMenu,
+          symbol: '/'
+        })
+      }
 
-    if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
-      inputbarToolsRef.current?.openMentionModelsPanel()
-    }
-  }
+      if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
+        inputbarToolsRef.current?.openMentionModelsPanel()
+      }
+    },
+    [enableQuickPanelTriggers, quickPanel, t, files, couldAddImageFile, openSelectFileMenu, translate]
+  )
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
@@ -483,7 +528,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         event,
         isVisionModel(model),
         isGenerateImageModel(model),
-        supportExts,
+        supportedExts,
         setFiles,
         setText,
         pasteLongTextAsFile,
@@ -493,7 +538,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         t
       )
     },
-    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
+    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportedExts, t, text]
   )
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -514,35 +559,38 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setIsFileDragging(false)
   }
 
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsFileDragging(false)
+  const handleDrop = useCallback(
+    async (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsFileDragging(false)
 
-    const files = await getFilesFromDropEvent(e).catch((err) => {
-      Logger.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] handleDrop:', err)
-      return null
-    })
-
-    if (files) {
-      let supportedFiles = 0
-
-      files.forEach((file) => {
-        if (supportExts.includes(getFileExtension(file.path))) {
-          setFiles((prevFiles) => [...prevFiles, file])
-          supportedFiles++
-        }
+      const files = await getFilesFromDropEvent(e).catch((err) => {
+        Logger.error('[Inputbar] handleDrop:', err)
+        return null
       })
 
-      // 如果有文件，但都不支持
-      if (files.length > 0 && supportedFiles === 0) {
-        window.message.info({
-          key: 'file_not_supported',
-          content: t('chat.input.file_not_supported')
+      if (files) {
+        let supportedFiles = 0
+
+        files.forEach((file) => {
+          if (supportedExts.includes(getFileExtension(file.path))) {
+            setFiles((prevFiles) => [...prevFiles, file])
+            supportedFiles++
+          }
         })
+
+        // 如果有文件，但都不支持
+        if (files.length > 0 && supportedFiles === 0) {
+          window.message.info({
+            key: 'file_not_supported',
+            content: t('chat.input.file_not_supported')
+          })
+        }
       }
-    }
-  }
+    },
+    [supportedExts, t]
+  )
 
   const onTranslated = (translatedText: string) => {
     setText(translatedText)
@@ -689,7 +737,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const handleRemoveModel = (model: Model) => {
-    setMentionModels(mentionModels.filter((m) => m.id !== model.id))
+    setMentionedModels(mentionedModels.filter((m) => m.id !== model.id))
   }
 
   const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
@@ -720,13 +768,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [assistant, model, updateAssistant])
 
-  const onMentionModel = useCallback((model: Model) => {
-    setMentionModels((prev) => {
-      const modelId = getModelUniqId(model)
-      const exists = prev.some((m) => getModelUniqId(m) === modelId)
-      return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
-    })
-  }, [])
+  const onMentionModel = useCallback(
+    (model: Model) => {
+      // 我想应该没有模型是只支持视觉而不支持文本的？
+      if (isVisionModel(model) || couldMentionNotVisionModel) {
+        setMentionedModels((prev) => {
+          const modelId = getModelUniqId(model)
+          const exists = prev.some((m) => getModelUniqId(m) === modelId)
+          return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
+        })
+      } else {
+        console.error('在已上传图片时，不能添加非视觉模型')
+      }
+    },
+    [couldMentionNotVisionModel]
+  )
 
   const onToggleExpended = () => {
     const currentlyExpanded = expended || !!textareaHeight
@@ -778,8 +834,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
             />
           )}
-          {mentionModels.length > 0 && (
-            <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
+          {mentionedModels.length > 0 && (
+            <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
           )}
           <Textarea
             value={text}
@@ -824,6 +880,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               assistant={assistant}
               model={model}
               files={files}
+              extensions={supportedExts}
               setFiles={setFiles}
               showThinkingButton={showThinkingButton}
               showKnowledgeIcon={showKnowledgeIcon}
@@ -831,8 +888,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               handleKnowledgeBaseSelect={handleKnowledgeBaseSelect}
               setText={setText}
               resizeTextArea={resizeTextArea}
-              mentionModels={mentionModels}
+              mentionModels={mentionedModels}
               onMentionModel={onMentionModel}
+              couldMentionNotVisionModel={couldMentionNotVisionModel}
+              couldAddImageFile={couldAddImageFile}
               onEnableGenerateImage={onEnableGenerateImage}
               isExpended={isExpended}
               onToggleExpended={onToggleExpended}
