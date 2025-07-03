@@ -503,6 +503,7 @@ export type WebSearchProvider = {
   usingBrowser?: boolean
   topicId?: string
   parentSpanId?: string
+  modelName?: string
 }
 
 export type WebSearchProviderResult = {

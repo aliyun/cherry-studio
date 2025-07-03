@@ -265,7 +265,8 @@ export function applyCompletionsMiddlewares<
         {
           name: `${params.assistant?.model?.name}.client`,
           tag: 'LLM',
-          topicId: params.topicId
+          topicId: params.topicId || '',
+          modelName: params.assistant?.model?.name
         },
         sdkPayload
       )

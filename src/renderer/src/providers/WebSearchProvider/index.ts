@@ -11,12 +11,14 @@ export default class WebSearchEngineProvider {
   private providerName: string
   private topicId: string | undefined
   private parentSpanId: string | undefined
+  private modelName: string | undefined
 
   constructor(provider: WebSearchProvider, parentSpanId?: string) {
     this.sdk = WebSearchProviderFactory.create(provider)
     this.providerName = provider.name
     this.topicId = provider.topicId
     this.parentSpanId = parentSpanId
+    this.modelName = provider.modelName
   }
 
   public async search(
@@ -31,8 +33,9 @@ export default class WebSearchEngineProvider {
       {
         name: `${this.providerName}.search`,
         tag: 'Web',
-        topicId: this.topicId,
-        parentSpanId: this.parentSpanId
+        topicId: this.topicId || '',
+        parentSpanId: this.parentSpanId,
+        modelName: this.modelName
       },
       { query, websearch }
     )

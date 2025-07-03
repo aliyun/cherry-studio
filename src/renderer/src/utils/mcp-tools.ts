@@ -267,7 +267,11 @@ export function openAIToolsToMcpTool(
   return tool
 }
 
-export async function callMCPTool(toolResponse: MCPToolResponse, topicId?: string): Promise<MCPCallToolResponse> {
+export async function callMCPTool(
+  toolResponse: MCPToolResponse,
+  topicId?: string,
+  modelName?: string
+): Promise<MCPCallToolResponse> {
   Logger.log(`[MCP] Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
   try {
     const server = getMcpServerByTool(toolResponse.tool)
@@ -282,7 +286,7 @@ export async function callMCPTool(toolResponse: MCPToolResponse, topicId?: strin
         name: toolResponse.tool.name,
         args: toolResponse.arguments
       },
-      currentSpan(topicId)?.spanContext()
+      topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
     )
     if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
       if (resp.data) {
@@ -557,7 +561,7 @@ export async function parseAndCallTools<R>(
 
   const toolPromises = curToolResponses.map(async (toolResponse) => {
     const images: string[] = []
-    const toolCallResponse = await callMCPTool(toolResponse, topicId)
+    const toolCallResponse = await callMCPTool(toolResponse, topicId, model.name)
     upsertMCPToolResponse(
       allToolResponses,
       {

@@ -442,27 +442,32 @@ class WebSearchService {
     // 使用请求特定的signal，如果没有则回退到全局signal
     const signal = this.getRequestState(requestId).signal || this.signal
 
-    const span = addSpan({
-      topicId: webSearchProvider.topicId,
-      name: `WebSearch`,
-      inputs: {
-        question: extractResults.websearch.question,
-        provider: webSearchProvider.id
-      },
-      tag: `Web`,
-      parentSpanId: webSearchProvider.parentSpanId
-    })
+    const span = webSearchProvider.topicId
+      ? addSpan({
+          topicId: webSearchProvider.topicId,
+          name: `WebSearch`,
+          inputs: {
+            question: extractResults.websearch.question,
+            provider: webSearchProvider.id
+          },
+          tag: `Web`,
+          parentSpanId: webSearchProvider.parentSpanId,
+          modelName: webSearchProvider.modelName
+        })
+      : undefined
     const questions = extractResults.websearch.question
     const links = extractResults.websearch.links
 
     // 处理 summarize
     if (questions[0] === 'summarize' && links && links.length > 0) {
       const contents = await fetchWebContents(links, undefined, undefined, { signal })
-      endSpan({
-        topicId: webSearchProvider.topicId,
-        outputs: contents,
-        span
-      })
+      webSearchProvider.topicId &&
+        endSpan({
+          topicId: webSearchProvider.topicId,
+          outputs: contents,
+          modelName: webSearchProvider.modelName,
+          span
+        })
       return { query: 'summaries', results: contents }
     }
 
@@ -503,6 +508,7 @@ class WebSearchService {
         endSpan({
           topicId: webSearchProvider.topicId,
           outputs: finalResults,
+          modelName: webSearchProvider.modelName,
           span
         })
       }
@@ -556,6 +562,7 @@ class WebSearchService {
       endSpan({
         topicId: webSearchProvider.topicId,
         outputs: finalResults,
+        modelName: webSearchProvider.modelName,
         span
       })
     }

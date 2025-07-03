@@ -44,7 +44,9 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
       const duration = node.rootEnd - node.rootStart
       node.start = ((node.startTime - node.rootStart) * 100) / duration
       node.percent = duration === 0 ? 0 : (usedTime * 100) / duration
-      updatePercentAndStart(node.children)
+      if (node.children) {
+        updatePercentAndStart(node.children)
+      }
     })
   }, [])
 

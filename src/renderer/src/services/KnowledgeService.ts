@@ -96,7 +96,8 @@ export const searchKnowledgeBase = async (
   base: KnowledgeBase,
   rewrite?: string,
   topicId?: string,
-  parentSpanId?: string
+  parentSpanId?: string,
+  modelName?: string
 ): Promise<Array<ExtractChunkData & { file: FileType | null }>> => {
   let currentSpan: Span | undefined = undefined
   try {
@@ -114,7 +115,8 @@ export const searchKnowledgeBase = async (
           base: baseParams
         },
         tag: 'Knowledge',
-        parentSpanId
+        parentSpanId,
+        modelName
       })
     }
 
@@ -157,7 +159,8 @@ export const searchKnowledgeBase = async (
       endSpan({
         topicId,
         outputs: [],
-        span: currentSpan
+        span: currentSpan,
+        modelName
       })
     }
     return result
@@ -167,7 +170,8 @@ export const searchKnowledgeBase = async (
       endSpan({
         topicId,
         error: error instanceof Error ? error : new Error(String(error)),
-        span: currentSpan
+        span: currentSpan,
+        modelName
       })
     }
     throw error
@@ -178,7 +182,8 @@ export const processKnowledgeSearch = async (
   extractResults: ExtractResults,
   knowledgeBaseIds: string[] | undefined,
   topicId: string,
-  parentSpanId?: string
+  parentSpanId?: string,
+  modelName?: string
 ): Promise<KnowledgeReference[]> => {
   if (
     !extractResults.knowledge?.question ||
@@ -207,14 +212,17 @@ export const processKnowledgeSearch = async (
       knowledgeBaseIds: knowledgeBaseIds
     },
     tag: 'Knowledge',
-    parentSpanId
+    parentSpanId,
+    modelName
   })
 
   // 为每个知识库执行多问题搜索
   const baseSearchPromises = bases.map(async (base) => {
     // 为每个问题搜索并合并结果
     const allResults = await Promise.all(
-      questions.map((question) => searchKnowledgeBase(question, base, rewrite, topicId, span?.spanContext().spanId))
+      questions.map((question) =>
+        searchKnowledgeBase(question, base, rewrite, topicId, span?.spanContext().spanId, modelName)
+      )
     )
 
     // 合并结果并去重
@@ -245,7 +253,8 @@ export const processKnowledgeSearch = async (
   endSpan({
     topicId,
     outputs: resultsPerBase,
-    span
+    span,
+    modelName
   })
 
   // 重新为引用分配ID

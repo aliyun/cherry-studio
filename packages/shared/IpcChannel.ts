@@ -233,5 +233,6 @@ export enum IpcChannel {
   TRACE_CLEAN_TOPIC = 'trace:cleanTopic',
   TRACE_TOKEN_USAGE = 'trace:tokenUsage',
   TRACE_OPEN_WINDOW = 'trace:openWindow',
-  TRACE_SET_TITLE = 'trace:setTitle'
+  TRACE_SET_TITLE = 'trace:setTitle',
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage'
 }

@@ -1,5 +1,19 @@
-import { Attributes, Link } from '@opentelemetry/api'
+import { Link } from '@opentelemetry/api'
 import { TimedEvent } from '@opentelemetry/sdk-trace-base'
+
+export type AttributeValue =
+  | string
+  | number
+  | boolean
+  | Array<null | undefined | string>
+  | Array<null | undefined | number>
+  | Array<null | undefined | boolean>
+  | { [key: string]: string | number | boolean }
+  | Array<null | undefined | { [key: string]: string | number | boolean }>
+
+export type Attributes = {
+  [key: string]: AttributeValue
+}
 
 export interface TelemetryConfig {
   serviceName: string

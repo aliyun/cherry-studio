@@ -4,7 +4,7 @@ import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { NotificationService } from '@renderer/services/NotificationService'
-import { endTrace } from '@renderer/services/SpanManagerService'
+import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
@@ -292,6 +292,13 @@ const dispatchMultiModelResponses = async (
   const tasksToQueue: { assistantConfig: Assistant; messageStub: Message }[] = []
 
   for (const mentionedModel of mentionedModels) {
+    addSpan({
+      modelName: mentionedModel.name,
+      topicId,
+      name: `multiModel.${mentionedModel.name}`,
+      tag: 'sendMessage',
+      inputs: [triggeringMessage]
+    })
     const assistantForThisMention = { ...assistant, model: mentionedModel }
     const assistantMessage = createAssistantMessage(assistant.id, topicId, {
       askId: triggeringMessage.id,
@@ -835,15 +842,17 @@ const fetchAndProcessAssistantResponseImpl = async (
       assistant: assistant,
       onChunkReceived: streamProcessorCallbacks
     })
-    endTrace({
+    endSpan({
       topicId,
-      outputs: result
+      outputs: result,
+      modelName: assistant.model?.name
     })
   } catch (error: any) {
     console.error('Error fetching chat completion:', error)
-    endTrace({
+    endSpan({
       topicId,
-      error: error
+      error: error,
+      modelName: assistant.model?.name
     })
     if (assistantMessage) {
       callbacks.onError?.(error)

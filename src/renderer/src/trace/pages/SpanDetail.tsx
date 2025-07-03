@@ -34,7 +34,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
     } else if ('outputs' in node.attributes) {
       data = node.attributes.outputs
     } else {
-      data = node.events?.find((e) => e.name === 'exception')
+      data = node.events && Array.isArray(node.events) ? node.events?.find((e) => e.name === 'exception') : undefined
       setIsJson(!!data)
       setJsonData(data || '')
       return
@@ -47,6 +47,10 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
       } catch {
         console.error('failed to parse json data:', data)
       }
+    } else if (typeof data === 'object' || Array.isArray(data)) {
+      setJsonData(data)
+      setIsJson(true)
+      return
     }
     setIsJson(false)
     setJsonData(data as unknown as object)
@@ -99,23 +103,23 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
       <Text style={{ fontWeight: 'bold', fontSize: 14 }}>{t('trace.spanDetail')}</Text>
       <Box padding={0}>
         <Text style={{ fontWeight: 'bold' }}>ID: </Text>
-        <Text>{node?.id}</Text>
+        <Text>{node.id}</Text>
       </Box>
       <Box padding={0}>
         <Text style={{ fontWeight: 'bold' }}>{t('trace.name')}: </Text>
-        <Text>{node?.name}</Text>
+        <Text>{node.name}</Text>
       </Box>
       <Box padding={0}>
         <Text style={{ fontWeight: 'bold' }}>{t('trace.tag')}: </Text>
-        <Text>{node?.attributes?.tags}</Text>
+        <Text>{node.attributes?.tags ? JSON.stringify(node.attributes.tags) : ''}</Text>
       </Box>
       <Box padding={0}>
         <Text style={{ fontWeight: 'bold' }}>{t('trace.startTime')}: </Text>
-        <Text>{formatDate(node?.startTime)}</Text>
+        <Text>{formatDate(node.startTime)}</Text>
       </Box>
       <Box padding={0}>
         <Text style={{ fontWeight: 'bold' }}>{t('trace.endTime')}: </Text>
-        <Text>{formatDate(node?.endTime)}</Text>
+        <Text>{formatDate(node.endTime)}</Text>
       </Box>
       {node.usage && (
         <Box padding={0}>
@@ -130,7 +134,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
       </Box>
       <Box padding={0}>
         <Text style={{ fontWeight: 'bold' }}>{t('trace.parentId')}: </Text>
-        <Text>{node?.parentId}</Text>
+        <Text>{node.parentId}</Text>
       </Box>
       <Box style={{ position: 'relative', margin: '5px 0 0' }}>
         <Button className={`content-button ${showInput ? 'active' : ''}`} onClick={() => setShowInput(true)}>

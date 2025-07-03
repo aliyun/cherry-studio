@@ -111,7 +111,8 @@ async function fetchExternalTool(
         {
           name: `${summaryAssistant.model.name}.Summary`,
           tag: 'LLM',
-          topicId: lastUserMessage.topicId
+          topicId: lastUserMessage.topicId,
+          modelName: summaryAssistant.model.name
         },
         {
           messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
@@ -173,7 +174,12 @@ async function fetchExternalTool(
       WebSearchService.createAbortSignal(lastUserMessage.id)
       let safeWebSearchProvider = webSearchProvider
       if (webSearchProvider) {
-        safeWebSearchProvider = { ...webSearchProvider, topicId: lastUserMessage.topicId, parentSpanId }
+        safeWebSearchProvider = {
+          ...webSearchProvider,
+          topicId: lastUserMessage.topicId,
+          parentSpanId,
+          modelName: assistant.model.name
+        }
       }
       const webSearchResponse = await WebSearchService.processWebsearch(
         safeWebSearchProvider!,
@@ -194,7 +200,8 @@ async function fetchExternalTool(
   // --- Knowledge Base Search Function ---
   const searchKnowledgeBase = async (
     extractResults: ExtractResults | undefined,
-    parentSpanId?: string
+    parentSpanId?: string,
+    modelName?: string
   ): Promise<KnowledgeReference[] | undefined> => {
     if (!hasKnowledgeBase) return
 
@@ -225,7 +232,13 @@ async function fetchExternalTool(
       // const mainTextBlock = mainTextBlocks
       //   ?.map((blockId) => store.getState().messageBlocks.entities[blockId])
       //   .find((block) => block?.type === MessageBlockType.MAIN_TEXT) as MainTextMessageBlock | undefined
-      return await processKnowledgeSearch(tempExtractResults, knowledgeBaseIds, lastUserMessage.topicId, parentSpanId)
+      return await processKnowledgeSearch(
+        tempExtractResults,
+        knowledgeBaseIds,
+        lastUserMessage.topicId,
+        parentSpanId,
+        modelName
+      )
     } catch (error) {
       console.error('Knowledge base search failed:', error)
       return
@@ -250,7 +263,7 @@ async function fetchExternalTool(
     if (shouldWebSearch || shouldKnowledgeSearch) {
       ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([
         searchTheWeb(extractResults, parentSpanId),
-        searchKnowledgeBase(extractResults, parentSpanId)
+        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
       ])
     }
 
@@ -285,7 +298,7 @@ async function fetchExternalTool(
 
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
-        const spanContext = currentSpan(lastUserMessage.topicId)?.spanContext()
+        const spanContext = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext()
         const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
           try {
             const tools = await window.api.mcp.listTools(mcpServer, spanContext)
@@ -388,7 +401,8 @@ export async function fetchChatCompletion({
     {
       name: `${model.name}.Chat`,
       tag: 'LLM',
-      topicId: lastUserMessage.topicId
+      topicId: lastUserMessage.topicId,
+      modelName: model.name
     },
     {
       callType: 'chat',
@@ -523,7 +537,8 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
       {
         name: `${model.name}.Summary`,
         tag: 'LLM',
-        topicId: topicId
+        topicId: topicId || '',
+        modelName: model.name
       },
       params
     )
@@ -561,7 +576,8 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
     {
       name: `${model.name}.SearchSummary`,
       tag: 'LLM',
-      topicId
+      topicId: topicId || '',
+      modelName: model.name
     },
     params
   )

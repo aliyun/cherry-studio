@@ -1,6 +1,7 @@
 import { createSelector } from '@reduxjs/toolkit'
 import Logger from '@renderer/config/logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
@@ -137,6 +138,7 @@ export function useMessageOperations(topic: Topic) {
     for (const askId of askIds) {
       abortCompletion(askId)
     }
+    pauseTrace(topic.id)
     dispatch(newMessagesActions.setTopicLoading({ topicId: topic.id, loading: false }))
   }, [topic.id, dispatch])
 

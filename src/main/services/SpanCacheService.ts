@@ -1,4 +1,4 @@
-import { convertSpanToSpanEntity, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
+import { Attributes, convertSpanToSpanEntity, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 import * as fs from 'fs'
@@ -28,7 +28,7 @@ class SpanCacheService implements TraceCache {
         spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
         spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
         spanEntity.status = SpanStatusCode[span.status.code]
-        spanEntity.attributes = span.attributes
+        spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
         spanEntity.events = span.events
         spanEntity.links = span.links
       }
@@ -80,12 +80,19 @@ class SpanCacheService implements TraceCache {
 
   private _updateEntity(entity: SpanEntity): void {
     entity.topicId = this.topicMap.get(entity.traceId)
-
     const savedEntity = this.cache.get(entity.id)
     if (savedEntity) {
       Object.keys(entity).forEach((key) => {
         const value = entity[key]
-        if (value !== undefined && value !== null) {
+        if (value === undefined) {
+          savedEntity[key] = value
+          return
+        }
+        if (typeof value === 'object') {
+          savedEntity[key] = savedEntity[key] ? { ...savedEntity[key], ...value } : value
+        } else if (Array.isArray(value)) {
+          savedEntity[key] = savedEntity[key] ? [...savedEntity[key], ...value] : value
+        } else {
           savedEntity[key] = value
         }
       })
@@ -120,6 +127,57 @@ class SpanCacheService implements TraceCache {
     }
   }
 
+  addStreamMessage(spanId: string, modelName: string, context: string, message: any) {
+    const span = this.cache.get(spanId)
+    if (!span) {
+      return
+    }
+    const attributes = span.attributes
+    let msgArray: any[] = []
+    if (attributes && attributes['outputs'] && Array.isArray(attributes['outputs'])) {
+      msgArray = attributes['outputs'] || []
+      msgArray.push(message)
+      attributes['outputs'] = msgArray
+    } else {
+      msgArray = [message]
+      span.attributes = { ...attributes, outputs: msgArray } as Attributes
+    }
+    this._updateParentOutputs(span.parentId, modelName, context)
+  }
+
+  private _updateParentOutputs(spanId: string, modelName: string, context: string) {
+    const span = this.cache.get(spanId)
+    if (!span || !context) {
+      return
+    }
+    const attributes = span.attributes
+    // 如果含有modelName属性，是具体的某个modalName输出，拼接到streamText下面
+    if (attributes && 'modelName' in attributes) {
+      const currentValue = attributes['outputs']
+      if (currentValue && typeof currentValue === 'object') {
+        const allContext = (currentValue['streamText'] || '') + context
+        attributes['outputs'] = { ...currentValue, streamText: allContext }
+      } else {
+        attributes['outputs'] = { streamText: context }
+      }
+      span.attributes = attributes
+    } else if (attributes) {
+      // 兼容多模型，使用模型名为key, 对value拼接操作
+      const currentValue = attributes['outputs']
+      if (currentValue && typeof currentValue === 'object') {
+        const allContext = (currentValue[`${modelName}`] || '') + context
+        attributes['outputs'] = { ...currentValue, [`${modelName}`]: allContext }
+      } else {
+        attributes['outputs'] = { [`${modelName}`]: context }
+      }
+      span.attributes = attributes
+    } else {
+      span.attributes = { outputs: { [`${modelName}`]: context } } as Attributes
+    }
+    this.cache.set(span.id, span)
+    this._updateParentOutputs(span.parentId, modelName, context)
+  }
+
   private _updateParentUsage(spanId: string, usage: TokenUsage) {
     const entity = this.cache.get(spanId)
     if (!entity) {
@@ -132,6 +190,7 @@ class SpanCacheService implements TraceCache {
       entity.usage.completion_tokens = entity.usage.completion_tokens + usage.completion_tokens
       entity.usage.total_tokens = entity.usage.total_tokens + usage.total_tokens
     }
+    this.cache.set(entity.id, entity)
     if (entity?.parentId) {
       this._updateParentUsage(entity.parentId, usage)
     }
@@ -176,3 +235,4 @@ export const tokenUsage = spanCacheService.updateTokenUsage.bind(spanCacheServic
 export const saveSpans = spanCacheService.saveSpans.bind(spanCacheService)
 export const getSpans = spanCacheService.getSpans.bind(spanCacheService)
 export const bindTopic = spanCacheService.setTopicId.bind(spanCacheService)
+export const addStreamMessage = spanCacheService.addStreamMessage.bind(spanCacheService)

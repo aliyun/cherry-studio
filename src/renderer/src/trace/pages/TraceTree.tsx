@@ -125,15 +125,17 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
       {hasChildren && isOpen && (
         <Box>
           {node.children &&
-            node.children.map((childNode) => (
-              <TreeNode
-                key={childNode.id}
-                treeData={treeData}
-                node={childNode}
-                handleClick={handleClick}
-                paddingLeft={paddingLeft + 4}
-              />
-            ))}
+            node.children
+              .sort((a, b) => a.startTime - b.startTime)
+              .map((childNode) => (
+                <TreeNode
+                  key={childNode.id}
+                  treeData={treeData}
+                  node={childNode}
+                  handleClick={handleClick}
+                  paddingLeft={paddingLeft + 4}
+                />
+              ))}
         </Box>
       )}
     </div>
