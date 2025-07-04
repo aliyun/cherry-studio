@@ -142,3 +142,14 @@
   width: 100%;
   white-space: pre-wrap;
 }
+
+.footer-link {
+  color: #666666;
+  cursor: pointer;
+  text-decoration: underline;
+  display: contents;
+  transition: color 0.2s;
+}
+.footer-link:hover {
+  color: #1677ff;
+}

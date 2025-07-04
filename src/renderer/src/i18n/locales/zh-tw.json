@@ -2243,7 +2243,8 @@
       "parentId": "上級Id",
       "inputs": "輸入",
       "outputs": "輸出",
-      "noTraceList": "沒有找到Trace資訊"
+      "noTraceList": "沒有找到Trace資訊",
+      "edasSupport": "由阿里雲 EDAS 提供技術支持"
     }
   }
 }

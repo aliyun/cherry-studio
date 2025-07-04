@@ -38,28 +38,13 @@ export const convertTime = (time: number | null): string => {
 const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddingLeft = 4 }) => {
   const [isOpen, setIsOpen] = useState(true)
   const hasChildren = node.children && node.children.length > 0
-  const [endTime, setEndTime] = useState(node.endTime || Date.now())
   const [usedTime, setUsedTime] = useState('--')
-
-  // 定时刷新未结束的 span
-  useEffect(() => {
-    let timer: NodeJS.Timeout | undefined
-    if (!node.endTime) {
-      timer = setInterval(() => {
-        setEndTime(Date.now())
-      }, 200)
-    } else {
-      setEndTime(node.endTime)
-    }
-    return () => {
-      if (timer) clearInterval(timer)
-    }
-  }, [node.endTime, node.startTime])
 
   // 只在 endTime 或 node 变化时更新 usedTime
   useEffect(() => {
+    const endTime = node.endTime || Date.now()
     setUsedTime(convertTime(endTime - node.startTime))
-  }, [endTime, node])
+  }, [node])
 
   return (
     <div

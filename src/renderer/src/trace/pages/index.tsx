@@ -49,7 +49,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
           updatePercentAndStart(node.children)
         }
         if (selectNode?.id === node.id) {
-          setSelectNode(node)
+          setSelectNode(JSON.parse(JSON.stringify(node)))
         }
       })
     },
@@ -134,7 +134,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
   }
 
   const handleNodeClick = (node: TraceModal) => {
-    setSelectNode(node)
+    setSelectNode(JSON.parse(JSON.stringify(node)))
     setShowList(false)
   }
 

@@ -2240,7 +2240,8 @@
       "parentId": "Parent Id",
       "inputs": "Inputs",
       "outputs": "Outputs",
-      "noTraceList": "No trace information found"
+      "noTraceList": "No trace information found",
+      "edasSupport": "Supported By Alibaba Cloud EDAS"
     }
   }
 }

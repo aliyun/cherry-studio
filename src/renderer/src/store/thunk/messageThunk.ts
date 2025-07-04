@@ -847,8 +847,9 @@ const fetchAndProcessAssistantResponseImpl = async (
     })
     endSpan({
       topicId,
-      outputs: result,
-      modelName: assistant.model?.name
+      outputs: result ? result.getText() : '',
+      modelName: assistant.model?.name,
+      modelEnded: true
     })
   } catch (error: any) {
     console.error('Error fetching chat completion:', error)

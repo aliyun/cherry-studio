@@ -49,10 +49,8 @@ const App = () => {
     <>
       <TracePage traceId={traceId} topicId={topicId} />
       <footer>
-        <p
-          onClick={handleFooterClick}
-          style={{ color: '#1677ff', cursor: 'pointer', textDecoration: 'underline', display: 'contents' }}>
-          由阿里云 EDAS 提供技术支持
+        <p onClick={handleFooterClick} className="footer-link">
+          {i18n.t('trace.edasSupport')}
         </p>
       </footer>
     </>
