@@ -88,7 +88,25 @@ class SpanCacheService implements TraceCache {
           savedEntity[key] = value
           return
         }
-        if (typeof value === 'object') {
+        if (key === 'attributes') {
+          const savedAttrs = savedEntity.attributes || {}
+          Object.keys(value).forEach((attrKey) => {
+            const jsonData =
+              typeof value[attrKey] === 'string' && value[attrKey].startsWith('{')
+                ? JSON.parse(value[attrKey])
+                : value[attrKey]
+            if (
+              savedAttrs[attrKey] !== undefined &&
+              typeof jsonData === 'object' &&
+              typeof savedAttrs[attrKey] === 'object'
+            ) {
+              savedAttrs[attrKey] = { ...savedAttrs[attrKey], ...jsonData }
+            } else {
+              savedAttrs[attrKey] = value[attrKey]
+            }
+          })
+          savedEntity.attributes = savedAttrs
+        } else if (typeof value === 'object') {
           savedEntity[key] = savedEntity[key] ? { ...savedEntity[key], ...value } : value
         } else if (Array.isArray(value)) {
           savedEntity[key] = savedEntity[key] ? [...savedEntity[key], ...value] : value
@@ -159,6 +177,10 @@ class SpanCacheService implements TraceCache {
       }
     }
   }
+
+  // cleanHistoryTrace(topicId: string, traceId: string) {
+
+  // }
 
   private _updateParentOutputs(spanId: string, modelName: string, context: string) {
     const span = this.cache.get(spanId)

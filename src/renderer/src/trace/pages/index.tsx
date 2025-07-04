@@ -3,7 +3,7 @@ import './Trace.css'
 import { SpanEntity } from '@mcp-trace/trace-core'
 import { TraceModal } from '@renderer/trace/pages/TraceModel'
 import { Divider } from 'antd/lib'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Box, GridItem, SimpleGrid, Text, VStack } from './Component'
@@ -22,7 +22,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const { t } = useTranslation()
 
-  const mergeTraceModals = React.useCallback((oldNodes: TraceModal[], newNodes: TraceModal[]): TraceModal[] => {
+  const mergeTraceModals = useCallback((oldNodes: TraceModal[], newNodes: TraceModal[]): TraceModal[] => {
     const oldMap = new Map(oldNodes.map((n) => [n.id, n]))
     return newNodes.map((newNode) => {
       const oldNode = oldMap.get(newNode.id)
@@ -36,67 +36,18 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
     })
   }, [])
 
-  const updatePercentAndStart = React.useCallback(
-    (nodes: TraceModal[]) => {
-      nodes.forEach((node) => {
-        // 计算 usedTime
-        const endTime = node.endTime || Date.now()
-        const usedTime = endTime - node.startTime
-        const duration = node.rootEnd - node.rootStart
-        node.start = ((node.startTime - node.rootStart) * 100) / duration
-        node.percent = duration === 0 ? 0 : (usedTime * 100) / duration
-        if (node.children) {
-          updatePercentAndStart(node.children)
-        }
-        if (selectNode?.id === node.id) {
-          setSelectNode(JSON.parse(JSON.stringify(node)))
-        }
-      })
-    },
-    [selectNode]
-  )
-
-  const getTraceData = React.useCallback(async (): Promise<boolean> => {
-    const datas = topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
-    const matchedSpans = getRootSpan(datas)
-    updatePercentAndStart(matchedSpans)
-    setSpans((prev) => mergeTraceModals(prev, matchedSpans))
-    return !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
-  }, [topicId, traceId, updatePercentAndStart, mergeTraceModals])
-
-  useEffect(() => {
-    const handleShowTrace = async () => {
-      // 清理旧的 interval
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+  const updatePercentAndStart = useCallback((nodes: TraceModal[]) => {
+    nodes.forEach((node) => {
+      const endTime = node.endTime || Date.now()
+      const usedTime = endTime - node.startTime
+      const duration = node.rootEnd - node.rootStart
+      node.start = ((node.startTime - node.rootStart) * 100) / duration
+      node.percent = duration === 0 ? 0 : (usedTime * 100) / duration
+      if (node.children) {
+        updatePercentAndStart(node.children)
       }
-      let ended = await getTraceData()
-
-      // 判断是否结束
-
-      if (!ended) {
-        intervalRef.current = setInterval(async () => {
-          // 注意：这里也要防止多次 setState
-          ended = await getTraceData()
-
-          if (ended && intervalRef.current) {
-            clearInterval(intervalRef.current)
-            intervalRef.current = null
-          }
-        }, 200)
-      }
-    }
-
-    handleShowTrace()
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
-  }, [updatePercentAndStart, mergeTraceModals, getTraceData, traceId, topicId])
+    })
+  }, [])
 
   const getRootSpan = (spans: SpanEntity[]): TraceModal[] => {
     const map: Map<string, TraceModal> = new Map()
@@ -119,11 +70,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
       }
     })
 
-    map.keys().forEach((key) => {
-      const span = map.get(key)
-      if (!span) {
-        return
-      }
+    map.forEach((span) => {
       span.rootStart = minStart
       span.rootEnd = maxEnd
       if (span.parentId && map.has(span.parentId)) {
@@ -133,9 +80,31 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
     return root
   }
 
-  const handleNodeClick = (node: TraceModal) => {
-    setSelectNode(JSON.parse(JSON.stringify(node)))
-    setShowList(false)
+  const findNodeById = useCallback((nodes: TraceModal[], id: string): TraceModal | null => {
+    for (const n of nodes) {
+      if (n.id === id) return n
+      if (n.children) {
+        const found = findNodeById(n.children, id)
+        if (found) return found
+      }
+    }
+    return null
+  }, [])
+
+  const getTraceData = useCallback(async (): Promise<boolean> => {
+    const datas = topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
+    const matchedSpans = getRootSpan(datas)
+    updatePercentAndStart(matchedSpans)
+    setSpans((prev) => mergeTraceModals(prev, matchedSpans))
+    return !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
+  }, [topicId, traceId, updatePercentAndStart, mergeTraceModals])
+
+  const handleNodeClick = (nodeId: string) => {
+    const latestNode = findNodeById(spans, nodeId)
+    if (latestNode) {
+      setSelectNode(latestNode)
+      setShowList(false)
+    }
   }
 
   const handleShowList = () => {
@@ -143,9 +112,47 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
     setSelectNode(null)
   }
 
+  useEffect(() => {
+    const handleShowTrace = async () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+      let ended = await getTraceData()
+      if (!ended) {
+        intervalRef.current = setInterval(async () => {
+          ended = await getTraceData()
+          if (ended && intervalRef.current) {
+            clearInterval(intervalRef.current)
+            intervalRef.current = null
+          }
+        }, 200)
+      }
+    }
+    handleShowTrace()
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [getTraceData, traceId, topicId])
+
+  useEffect(() => {
+    if (selectNode) {
+      const latest = findNodeById(spans, selectNode.id)
+      if (!latest) {
+        setShowList(true)
+        setSelectNode(null)
+      } else if (latest !== selectNode) {
+        setSelectNode(latest)
+      }
+    }
+  }, [spans, selectNode, findNodeById])
+
   return (
     <div className="trace-window">
-      <div className=".tab-container_trace">
+      <div className="tab-container_trace">
         <SimpleGrid columns={1} templateColumns="1fr">
           <Box padding={0} className="scroll-container">
             {showList ? (
@@ -158,9 +165,6 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
                       <GridItem colSpan={8} padding={0} className={'table-header'}>
                         <Text tabIndex={0}>{t('trace.name')}</Text>
                       </GridItem>
-                      {/*   <GridItem colSpan={3} className={'table-header'}>
-                        <Text>{t('trace.tag')}</Text>
-                      </GridItem> */}
                       <GridItem colSpan={5} padding={0} className={'table-header'}>
                         <Text>{t('trace.tokenUsage')}</Text>&nbsp;
                       </GridItem>
@@ -186,7 +190,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
                 )}
               </VStack>
             ) : (
-              !showList && selectNode && <SpanDetail node={selectNode} clickShowModal={handleShowList} />
+              selectNode && <SpanDetail node={selectNode} clickShowModal={handleShowList} />
             )}
           </Box>
         </SimpleGrid>

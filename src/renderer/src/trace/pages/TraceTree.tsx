@@ -8,7 +8,7 @@ import { ProgressBar } from './ProgressBar'
 
 interface TreeNodeProps {
   node: TraceModal
-  handleClick: (node: TraceModal) => void
+  handleClick: (nodeId: string) => void
   treeData?: TraceModal[]
   paddingLeft?: number
 }
@@ -71,7 +71,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
               style={{ cursor: 'pointer', userSelect: 'none' }}
               onClick={(e) => {
                 e.preventDefault()
-                handleClick(node)
+                handleClick(node.id)
               }}>
               {node.name}
             </Text>

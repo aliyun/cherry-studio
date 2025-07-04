@@ -11,7 +11,7 @@ export class CompletionsResultHandler {
   private modelName?: string
 
   constructor(data: any, span: Span, topicId: string, modelName?: string) {
-    this.data = !data || this.isCompletionsResult(data) ? undefined : data
+    this.data = data && this.isCompletionsResult(data) ? { ...data, finishText: data.getText() } : data
     this.span = span
     this.topicId = topicId
     this.tokenUsage = this.getUsage(data)

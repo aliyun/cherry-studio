@@ -56,12 +56,10 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
     setJsonData(data as unknown as object)
   }, [node, showInput])
 
-  const endTime = node.endTime || Date.now()
-
   useEffect(() => {
-    setUsedTime(convertTime(endTime - node.startTime))
+    setUsedTime(convertTime((node.endTime || Date.now()) - node.startTime))
     changeJsonData()
-  }, [node, showInput, changeJsonData, endTime])
+  }, [node.endTime, node.startTime, node.attributes, changeJsonData])
 
   useEffect(() => {
     const updateCopyButtonTitles = () => {
