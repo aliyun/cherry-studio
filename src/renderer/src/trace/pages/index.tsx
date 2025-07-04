@@ -13,28 +13,37 @@ import TraceTree from './TraceTree'
 export interface TracePageProp {
   topicId: string
   traceId: string
+  reload?: boolean
 }
 
-export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
+export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = false }) => {
   const [spans, setSpans] = useState<TraceModal[]>([])
   const [selectNode, setSelectNode] = useState<TraceModal | null>(null)
   const [showList, setShowList] = useState(true)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const { t } = useTranslation()
+  const [needReload, setNeedReload] = useState(reload)
 
-  const mergeTraceModals = useCallback((oldNodes: TraceModal[], newNodes: TraceModal[]): TraceModal[] => {
-    const oldMap = new Map(oldNodes.map((n) => [n.id, n]))
-    return newNodes.map((newNode) => {
-      const oldNode = oldMap.get(newNode.id)
-      if (oldNode) {
-        oldNode.children = mergeTraceModals(oldNode.children, newNode.children)
-        Object.assign(oldNode, newNode)
-        return oldNode
-      } else {
-        return newNode
-      }
-    })
-  }, [])
+  const mergeTraceModals = useCallback(
+    (oldNodes: TraceModal[], newNodes: TraceModal[]): TraceModal[] => {
+      const oldMap = new Map(oldNodes.map((n) => [n.id, n]))
+      return newNodes.map((newNode) => {
+        const oldNode = oldMap.get(newNode.id)
+        if (oldNode) {
+          // 如果旧节点已经结束，则直接返回旧节点
+          if (oldNode.endTime && !needReload) {
+            return oldNode
+          }
+          oldNode.children = mergeTraceModals(oldNode.children, newNode.children)
+          Object.assign(oldNode, newNode)
+          return oldNode
+        } else {
+          return newNode
+        }
+      })
+    },
+    [needReload]
+  )
 
   const updatePercentAndStart = useCallback((nodes: TraceModal[]) => {
     nodes.forEach((node) => {
@@ -63,7 +72,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
       } else {
         map.set(span.id, { ...span, children: [], percent: 100, start: 0, rootStart: 0, rootEnd: 0 } as TraceModal)
       }
-      if (!span.parentId) {
+      if (!span.parentId || span.parentId === 'aaaaaaaaaaaaaaaa') {
         minStart = Math.min(span.startTime, minStart)
         maxEnd = Math.max(span.endTime || Date.now(), maxEnd)
         root.push(map.get(span.id) as TraceModal)
@@ -96,7 +105,9 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
     const matchedSpans = getRootSpan(datas)
     updatePercentAndStart(matchedSpans)
     setSpans((prev) => mergeTraceModals(prev, matchedSpans))
-    return !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
+    const isEnded = !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
+    setNeedReload(isEnded)
+    return isEnded
   }, [topicId, traceId, updatePercentAndStart, mergeTraceModals])
 
   const handleNodeClick = (nodeId: string) => {
@@ -113,24 +124,27 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId }) => {
   }
 
   useEffect(() => {
+    let unmounted = false
     const handleShowTrace = async () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
         intervalRef.current = null
       }
-      let ended = await getTraceData()
-      if (!ended) {
+      const ended = await getTraceData()
+      // 只有未结束时才启动定时刷新
+      if (!ended && !unmounted) {
         intervalRef.current = setInterval(async () => {
-          ended = await getTraceData()
-          if (ended && intervalRef.current) {
+          const endedInner = await getTraceData()
+          if (endedInner && intervalRef.current) {
             clearInterval(intervalRef.current)
             intervalRef.current = null
           }
-        }, 200)
+        }, 300)
       }
     }
     handleShowTrace()
     return () => {
+      unmounted = true
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
         intervalRef.current = null

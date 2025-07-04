@@ -15,6 +15,7 @@ function getParams() {
 const App = () => {
   const [traceId, setTraceId] = useState('')
   const [topicId, setTopicId] = useState('')
+  const [reload, setReload] = useState(false)
   const [title, setTitle] = useState('Call Chain Window')
   const [lang, setLang] = useState('zh')
 
@@ -30,6 +31,7 @@ const App = () => {
       if (data?.traceId && data?.topicId) {
         setTraceId(data.traceId)
         setTopicId(data.topicId)
+        setReload(data.reload || false)
       }
     }
 
@@ -59,7 +61,7 @@ const App = () => {
 
   return (
     <>
-      <TracePage traceId={traceId} topicId={topicId} />
+      <TracePage traceId={traceId} topicId={topicId} reload={reload} />
       <footer>
         <p onClick={handleFooterClick} className="footer-link">
           {i18n.t('trace.edasSupport')}
