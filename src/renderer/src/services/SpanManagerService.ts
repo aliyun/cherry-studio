@@ -97,6 +97,11 @@ class SpanManagerService {
   endSpan(params: EndSpanParams) {
     const entity = this.getModelSpanEntity(params.topicId, params.modelName)
     const span = params.span || entity.getCurrentSpan(params.modelName)
+    if (params.modelEnded && params.modelName && params.outputs) {
+      const rootEntity = this.getModelSpanEntity(params.topicId)
+      const span = rootEntity?.getRootSpan()
+      window.api.trace.addEndMessage(span?.spanContext().spanId || '', params.modelName, params.outputs)
+    }
     if (!span) {
       console.info(`No active span found for topicId: ${params.topicId}-modelName: ${params.modelName}.`)
       return

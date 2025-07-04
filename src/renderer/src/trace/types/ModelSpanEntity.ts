@@ -15,6 +15,7 @@ export interface EndSpanParams {
   outputs?: any | any[]
   error?: Error
   span?: Span
+  modelEnded?: boolean
 }
 
 export class ModelSpanEntity {
@@ -53,6 +54,10 @@ export class ModelSpanEntity {
 
   getModelName() {
     return this.modelName
+  }
+
+  getRootSpan() {
+    return this.spans && this.spans.length > 0 ? this.spans[0] : undefined
   }
 
   getSpanById(spanId?: string) {

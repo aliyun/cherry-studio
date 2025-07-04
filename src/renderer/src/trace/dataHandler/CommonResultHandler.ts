@@ -69,7 +69,6 @@ export class CompletionsResultHandler {
     if (span && topicId) {
       const handler = new CompletionsResultHandler(data, span!, topicId, modelName)
       handler.finish()
-      return handler.data
     }
     return data
   }

@@ -33,6 +33,7 @@ import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import {
+  addEndMessage,
   addStreamMessage,
   bindTopic,
   cleanTopic,
@@ -582,6 +583,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     openTraceWindow(topicId, traceId, autoOpen)
   )
   ipcMain.handle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => setTraceWindowTitle(title))
+  ipcMain.handle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>
+    addEndMessage(spanId, modelName, message)
+  )
   ipcMain.handle(
     IpcChannel.TRACE_ADD_STREAM_MESSAGE,
     (_, spanId: string, modelName: string, context: string, msg: any) =>

@@ -145,8 +145,22 @@ class SpanCacheService implements TraceCache {
     this._updateParentOutputs(span.parentId, modelName, context)
   }
 
+  setEndMessage(spanId: string, modelName: string, message: string) {
+    const span = this.cache.get(spanId)
+    if (span && span.attributes) {
+      let outputs = span.attributes['outputs']
+      if (!outputs || typeof outputs !== 'object') {
+        outputs = {}
+      }
+      if (!(`${modelName}` in outputs) || !outputs[`${modelName}`]) {
+        outputs[`${modelName}`] = message
+        span.attributes[`outputs`] = outputs
+        this.cache.set(spanId, span)
+      }
+    }
+  }
+
   private _updateParentOutputs(spanId: string, modelName: string, context: string) {
-    console.log('updateParentOutputs', spanId, modelName, context)
     const span = this.cache.get(spanId)
     if (!span || !context) {
       return
@@ -235,5 +249,6 @@ export const saveEntity = spanCacheService.saveEntity.bind(spanCacheService)
 export const tokenUsage = spanCacheService.updateTokenUsage.bind(spanCacheService)
 export const saveSpans = spanCacheService.saveSpans.bind(spanCacheService)
 export const getSpans = spanCacheService.getSpans.bind(spanCacheService)
+export const addEndMessage = spanCacheService.setEndMessage.bind(spanCacheService)
 export const bindTopic = spanCacheService.setTopicId.bind(spanCacheService)
 export const addStreamMessage = spanCacheService.addStreamMessage.bind(spanCacheService)
