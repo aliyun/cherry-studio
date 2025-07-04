@@ -25,14 +25,15 @@ const App = () => {
       setTraceId(traceId)
       setTopicId(topicId)
     }
-    window.electron.ipcRenderer.on('set-trace', (_event, data) => {
+
+    const setTraceHandler = (_, data) => {
       if (data?.traceId && data?.topicId) {
         setTraceId(data.traceId)
         setTopicId(data.topicId)
       }
-    })
+    }
 
-    window.electron.ipcRenderer.on('set-language', (_event, data) => {
+    const setLangHandler = (_, data) => {
       i18n.changeLanguage(data.lang)
       setLang(data.lang)
       const newTitle = i18n.t('trace.traceWindow')
@@ -40,7 +41,15 @@ const App = () => {
         window.api.trace.setTraceWindowTitle(i18n.t('trace.traceWindow'))
         setTitle(newTitle)
       }
-    })
+    }
+
+    window.electron.ipcRenderer.on('set-trace', setTraceHandler)
+    window.electron.ipcRenderer.on('set-language', setLangHandler)
+
+    return () => {
+      window.electron.ipcRenderer.removeListener('set-trace', setTraceHandler)
+      window.electron.ipcRenderer.removeListener('set-language', setLangHandler)
+    }
   }, [title])
 
   const handleFooterClick = () => {
