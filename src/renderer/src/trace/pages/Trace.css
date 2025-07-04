@@ -146,10 +146,11 @@
 .footer-link {
   color: #666666;
   cursor: pointer;
-  text-decoration: underline;
-  display: contents;
+  text-decoration: none;
+  display: block;
   transition: color 0.2s;
 }
 .footer-link:hover {
-  color: #1677ff;
+  color: #062afb;
+  text-decoration: underline;
 }

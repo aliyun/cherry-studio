@@ -16,6 +16,7 @@ const App = () => {
   const [traceId, setTraceId] = useState('')
   const [topicId, setTopicId] = useState('')
   const [title, setTitle] = useState('Call Chain Window')
+  const [lang, setLang] = useState('zh')
 
   useEffect(() => {
     // 支持首次通过URL参数打开
@@ -33,6 +34,7 @@ const App = () => {
 
     window.electron.ipcRenderer.on('set-language', (_event, data) => {
       i18n.changeLanguage(data.lang)
+      setLang(data.lang)
       const newTitle = i18n.t('trace.traceWindow')
       if (newTitle !== title) {
         window.api.trace.setTraceWindowTitle(i18n.t('trace.traceWindow'))
@@ -42,6 +44,7 @@ const App = () => {
   }, [title])
 
   const handleFooterClick = () => {
+    console.log('handleFooterClick current lang', lang)
     window.api.shell.openExternal('https://www.aliyun.com/product/edas')
   }
 
