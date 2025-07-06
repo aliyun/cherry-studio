@@ -73,5 +73,4 @@ db.version(7)
     message_blocks: 'id, messageId, file.id' // Correct syntax with comma separator
   })
   .upgrade((tx) => upgradeToV7(tx))
-
 export default db

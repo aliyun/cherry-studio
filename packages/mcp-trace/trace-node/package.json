@@ -1,0 +1,42 @@
+{
+  "name": "@mcp-trace/trace-node",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "rslib build --watch",
+    "build": "rslib build",
+    "prepare": "npm run build",
+    "prepublishOnly": "pnpm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "dependencies": {
+    "@mcp-trace/trace-core": "workspace:^1.0.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/context-async-hooks": "^2.0.0",
+    "@opentelemetry/core": "^2.0.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.200.0",
+    "@opentelemetry/sdk-trace-base": "^2.0.0",
+    "@opentelemetry/sdk-trace-node": "^2.0.0",
+    "@types/react": "^19.0.0",
+    "jotai": "^2.12.3",
+    "react": "^19.0.0",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "@mcp-trace/trace-core": "workspace:^1.0.0",
+    "@rslib/core": "0.5.3",
+    "@types/jest": "^29.5.14",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0"
+  }
+}

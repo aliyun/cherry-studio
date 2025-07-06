@@ -6,6 +6,7 @@ import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
@@ -14,8 +15,9 @@ import {
   type StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import { context, trace } from '@opentelemetry/api'
 import { nanoid } from '@reduxjs/toolkit'
-import {
+import type {
   GetMCPPromptResponse,
   GetResourceResponse,
   MCPCallToolResponse,
@@ -437,17 +439,41 @@ class McpService {
   }
 
   async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
-    const cachedListTools = withCache<[MCPServer], MCPTool[]>(
-      this.listToolsImpl.bind(this),
-      (server) => {
-        const serverKey = this.getServerKey(server)
-        return `mcp:list_tool:${serverKey}`
-      },
-      5 * 60 * 1000, // 5 minutes TTL
-      `[MCP] Tools from ${server.name}`
-    )
+    return context.with(context.active(), () =>
+      trace.getTracer('CherryStudio').startActiveSpan(
+        `${server.name}.ListTools`,
+        {
+          attributes: {
+            inputs: JSON.stringify(server),
+            tags: 'MCP'
+          }
+        },
+        async (span) => {
+          const cachedListTools = withCache<[MCPServer], MCPTool[]>(
+            this.listToolsImpl.bind(this),
+            (server) => {
+              const serverKey = this.getServerKey(server)
+              return `mcp:list_tool:${serverKey}`
+            },
+            5 * 60 * 1000, // 5 minutes TTL
+            `[MCP] Tools from ${server.name}`
+          )
 
-    return cachedListTools(server)
+          const result = cachedListTools(server)
+          result
+            .then((data) => {
+              span.setAttribute('outputs', JSON.stringify(data))
+              span.end()
+              return data
+            })
+            .catch((error) => {
+              span.recordException(error)
+              span.end()
+            })
+          return result
+        }
+      )
+    )
   }
 
   /**
@@ -457,24 +483,41 @@ class McpService {
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args: any }
   ): Promise<MCPCallToolResponse> {
-    try {
-      Logger.info('[MCP] Calling:', server.name, name, args)
-      if (typeof args === 'string') {
-        try {
-          args = JSON.parse(args)
-        } catch (e) {
-          Logger.error('[MCP] args parse error', args)
+    return context.with(context.active(), () =>
+      trace.getTracer('CherryStudio').startActiveSpan(
+        `${server.name}.CallTool`,
+        {
+          attributes: {
+            inputs: JSON.stringify({ server, name, args }),
+            tags: `MCP[${name}]`
+          }
+        },
+        async (span) => {
+          try {
+            Logger.info('[MCP] Calling:', server.name, name, args)
+            if (typeof args === 'string') {
+              try {
+                args = JSON.parse(args)
+              } catch (e) {
+                Logger.error('[MCP] args parse error', args)
+              }
+            }
+            const client = await this.initClient(server)
+            const result = await client.callTool({ name, arguments: args }, undefined, {
+              timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
+            })
+            span.setAttribute('outputs', JSON.stringify(result))
+            span.end()
+            return result as MCPCallToolResponse
+          } catch (error) {
+            Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
+            span.recordException(error instanceof Error ? error : new Error(String(error)))
+            span.end()
+            throw error
+          }
         }
-      }
-      const client = await this.initClient(server)
-      const result = await client.callTool({ name, arguments: args }, undefined, {
-        timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
-      })
-      return result as MCPCallToolResponse
-    } catch (error) {
-      Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
-      throw error
-    }
+      )
+    )
   }
 
   public async getInstallInfo() {
@@ -541,6 +584,7 @@ class McpService {
   /**
    * Get a specific prompt from an MCP server with caching
    */
+  @TraceMethod({ spanName: 'getPrompt', tag: 'mcp' })
   public async getPrompt(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }
@@ -627,6 +671,7 @@ class McpService {
   /**
    * Get a specific resource from an MCP server with caching
    */
+  @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
   public async getResource(
     _: Electron.IpcMainInvokeEvent,
     { server, uri }: { server: MCPServer; uri: string }

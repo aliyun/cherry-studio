@@ -13,6 +13,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
@@ -173,6 +174,15 @@ const MessageMenubar: FC<Props> = (props) => {
     },
     [isTranslating, message, getTranslationUpdater, mainTextContent]
   )
+
+  const [isDevelopModel] = useState(true)
+
+  const handleTraceUserMessage = useCallback(async () => {
+    console.log('current traceId', message.traceId, 'start send')
+    if (message.traceId) {
+      window.api.trace.openWindow(message.topicId, message.traceId)
+    }
+  }, [message])
 
   const isEditable = useMemo(() => {
     return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
@@ -550,6 +560,13 @@ const MessageMenubar: FC<Props> = (props) => {
           </Tooltip>
         </ActionButton>
       </Popconfirm>
+      {isDevelopModel && (
+        <Tooltip title={t('trace.label')} mouseEnterDelay={0.8}>
+          <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
+            <TraceIcon size={16} className={'lucide lucide-trash'} />
+          </ActionButton>
+        </Tooltip>
+      )}
       {!isUserMessage && (
         <Dropdown
           menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}

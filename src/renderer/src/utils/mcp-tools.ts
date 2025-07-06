@@ -3,6 +3,7 @@ import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@go
 import Logger from '@renderer/config/logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
+import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
 import {
@@ -266,7 +267,11 @@ export function openAIToolsToMcpTool(
   return tool
 }
 
-export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse> {
+export async function callMCPTool(
+  toolResponse: MCPToolResponse,
+  topicId?: string,
+  modelName?: string
+): Promise<MCPCallToolResponse> {
   Logger.log(`[MCP] Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
   try {
     const server = getMcpServerByTool(toolResponse.tool)
@@ -275,11 +280,14 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
       throw new Error(`Server not found: ${toolResponse.tool.serverName}`)
     }
 
-    const resp = await window.api.mcp.callTool({
-      server,
-      name: toolResponse.tool.name,
-      args: toolResponse.arguments
-    })
+    const resp = await window.api.mcp.callTool(
+      {
+        server,
+        name: toolResponse.tool.name,
+        args: toolResponse.arguments
+      },
+      topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
+    )
     if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
       if (resp.data) {
         const mcpServer: MCPServer = {
@@ -505,7 +513,8 @@ export async function parseAndCallTools<R>(
   onChunk: CompletionsParams['onChunk'],
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
-  mcpTools?: MCPTool[]
+  mcpTools?: MCPTool[],
+  topicId?: CompletionsParams['topicId']
 ): Promise<SdkMessageParam[]>
 
 export async function parseAndCallTools<R>(
@@ -514,7 +523,8 @@ export async function parseAndCallTools<R>(
   onChunk: CompletionsParams['onChunk'],
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
-  mcpTools?: MCPTool[]
+  mcpTools?: MCPTool[],
+  topicId?: CompletionsParams['topicId']
 ): Promise<SdkMessageParam[]>
 
 export async function parseAndCallTools<R>(
@@ -523,7 +533,8 @@ export async function parseAndCallTools<R>(
   onChunk: CompletionsParams['onChunk'],
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
-  mcpTools?: MCPTool[]
+  mcpTools?: MCPTool[],
+  topicId?: CompletionsParams['topicId']
 ): Promise<R[]> {
   const toolResults: R[] = []
   let curToolResponses: MCPToolResponse[] = []
@@ -550,7 +561,7 @@ export async function parseAndCallTools<R>(
 
   const toolPromises = curToolResponses.map(async (toolResponse) => {
     const images: string[] = []
-    const toolCallResponse = await callMCPTool(toolResponse)
+    const toolCallResponse = await callMCPTool(toolResponse, topicId, model.name)
     upsertMCPToolResponse(
       allToolResponses,
       {
