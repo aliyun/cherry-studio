@@ -2252,7 +2252,7 @@
       "inputs": "输入",
       "outputs": "输出",
       "noTraceList": "没有找到Trace信息",
-      "edasSupport": "由阿里云 EDAS 提供技术支持"
+      "edasSupport": "Powered by Alibaba Cloud EDAS"
     }
   }
 }
