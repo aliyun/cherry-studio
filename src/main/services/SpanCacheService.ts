@@ -106,10 +106,6 @@ class SpanCacheService implements TraceCache {
             }
           })
           savedEntity.attributes = savedAttrs
-        } else if (typeof value === 'object') {
-          savedEntity[key] = savedEntity[key] ? { ...savedEntity[key], ...value } : value
-        } else if (Array.isArray(value)) {
-          savedEntity[key] = savedEntity[key] ? [...savedEntity[key], ...value] : value
         } else {
           savedEntity[key] = value
         }
@@ -178,9 +174,16 @@ class SpanCacheService implements TraceCache {
     }
   }
 
-  // cleanHistoryTrace(topicId: string, traceId: string) {
+  cleanHistoryTrace(topicId: string, traceId: string) {
+    Array.from(this.cache.values())
+      .filter((span) => span.topicId === topicId)
+      .forEach((span) => this.cache.delete(span.id))
 
-  // }
+    const filePath = path.join(this.fileDir, topicId, traceId)
+    if (fs.existsSync(filePath)) {
+      fs.rmSync(filePath, { recursive: true })
+    }
+  }
 
   private _updateParentOutputs(spanId: string, modelName: string, context: string) {
     const span = this.cache.get(spanId)
@@ -274,3 +277,4 @@ export const getSpans = spanCacheService.getSpans.bind(spanCacheService)
 export const addEndMessage = spanCacheService.setEndMessage.bind(spanCacheService)
 export const bindTopic = spanCacheService.setTopicId.bind(spanCacheService)
 export const addStreamMessage = spanCacheService.addStreamMessage.bind(spanCacheService)
+export const cleanHistoryTrace = spanCacheService.cleanHistoryTrace.bind(spanCacheService)
