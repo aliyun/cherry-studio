@@ -393,9 +393,6 @@ export async function fetchChatCompletion({
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-  if (enableWebSearch) {
-    onChunkReceived({ type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS })
-  }
   return await withSpanResult(
     async (params, options) => await AI.completions(params, options),
     {

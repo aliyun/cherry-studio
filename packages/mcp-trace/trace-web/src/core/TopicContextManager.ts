@@ -55,6 +55,7 @@ export class TopicContextManager implements ContextManager {
 
   with(context, fn, thisArg, ...args) {
     // 直接调用fn，不做全局active切换
+    console.trace('with context:', context)
     return fn.apply(thisArg, args)
   }
 
