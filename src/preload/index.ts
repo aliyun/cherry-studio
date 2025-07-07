@@ -312,10 +312,12 @@ const api = {
     saveEntity: (entity: SpanEntity) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_ENTITY, entity),
     bindTopic: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_BIND_TOPIC, topicId, traceId),
     tokenUsage: (spanId: string, usage: TokenUsage) => ipcRenderer.invoke(IpcChannel.TRACE_TOKEN_USAGE, spanId, usage),
+    cleanHistory: (topicId: string, traceId: string) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_HISTORY, topicId, traceId),
     cleanTopic: (topicId: string, traceId?: string) =>
       ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_TOPIC, topicId, traceId),
-    openWindow: (topicId: string, traceId: string, autoOpen?: boolean) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_OPEN_WINDOW, topicId, traceId, autoOpen),
+    openWindow: (topicId: string, traceId: string, autoOpen?: boolean, reload?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.TRACE_OPEN_WINDOW, topicId, traceId, autoOpen, reload),
     setTraceWindowTitle: (title: string) => ipcRenderer.invoke(IpcChannel.TRACE_SET_TITLE, title),
     addEndMessage: (spanId: string, modelName: string, context: string) =>
       ipcRenderer.invoke(IpcChannel.TRACE_ADD_END_MESSAGE, spanId, modelName, context),

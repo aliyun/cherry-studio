@@ -10,6 +10,7 @@ import { handleMessageStream } from '@renderer/trace/dataHandler/MessageStreamHa
 import { handleStream } from '@renderer/trace/dataHandler/StreamHandler'
 import { EndSpanParams, ModelSpanEntity, StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { SdkRawChunk } from '@renderer/types/sdk'
 import { Stream } from 'openai/streaming'
 
@@ -46,6 +47,53 @@ class SpanManagerService {
     entity.addSpan(span)
     const traceId = span.spanContext().traceId
     window.api.trace.bindTopic(params.topicId, traceId)
+    return span
+  }
+
+  restartTrace(message: Message) {
+    if (!message.traceId) {
+      return
+    }
+    window.api.trace.cleanHistory(message.topicId, message.traceId)
+
+    const input = {
+      message: message.blocks.map((block) => block).join(''),
+      askId: message.askId,
+      topicId: message.topicId,
+      traceId: message.traceId
+    }
+
+    // 创建一个虚拟的 root span，traceId 为 message.traceId
+    const fakeParentSpan = webTracer.startSpan('restartTrace', {
+      root: true,
+      attributes: {
+        inputs: JSON.stringify(input),
+        tags: 'history'
+      }
+    })
+    // 强制覆盖 traceId（仅限于自定义 tracer或hack，标准API不支持，部分实现可用）
+    fakeParentSpan['_spanContext'].traceId = message.traceId
+
+    const parentCtx = trace.setSpan(context.active(), fakeParentSpan)
+
+    window.api.trace.bindTopic(message.topicId, message.traceId)
+    const span = webTracer.startSpan(
+      'resendMessage',
+      {
+        attributes: {
+          inputs: message.blocks.map((block) => block).join('') || '',
+          tags: 'resendMessage'
+        }
+      },
+      parentCtx
+    )
+
+    const ctx = trace.setSpan(context.active(), span)
+    startContext(message.topicId, ctx)
+    const entity = this.getModelSpanEntity(message.topicId)
+    entity.addSpan(span)
+    window.api.trace.openWindow(message.topicId, message.traceId, false, true)
+    fakeParentSpan.end()
     return span
   }
 
@@ -219,6 +267,7 @@ export const endSpan = spanManagerService.endSpan.bind(spanManagerService)
 export const currentSpan = spanManagerService.getCurrentSpan.bind(spanManagerService)
 export const addTokenUsage = spanManagerService.addTokenUsage.bind(spanManagerService)
 export const pauseTrace = spanManagerService.pauseTrace.bind(spanManagerService)
+export const restartTrace = spanManagerService.restartTrace.bind(spanManagerService)
 
 EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId, traceId }) => {
   window.api.trace.openWindow(topicId, traceId, false)

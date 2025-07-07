@@ -36,6 +36,7 @@ import {
   addEndMessage,
   addStreamMessage,
   bindTopic,
+  cleanHistoryTrace,
   cleanTopic,
   getSpans,
   saveEntity,
@@ -583,8 +584,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) => bindTopic(traceId, topicId))
   ipcMain.handle(IpcChannel.TRACE_CLEAN_TOPIC, (_, topicId: string, traceId?: string) => cleanTopic(topicId, traceId))
   ipcMain.handle(IpcChannel.TRACE_TOKEN_USAGE, (_, spanId: string, usage: TokenUsage) => tokenUsage(spanId, usage))
-  ipcMain.handle(IpcChannel.TRACE_OPEN_WINDOW, (_, topicId: string, traceId: string, autoOpen?: boolean) =>
-    openTraceWindow(topicId, traceId, autoOpen)
+  ipcMain.handle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string) =>
+    cleanHistoryTrace(topicId, traceId)
+  )
+  ipcMain.handle(
+    IpcChannel.TRACE_OPEN_WINDOW,
+    (_, topicId: string, traceId: string, autoOpen?: boolean, reload?: boolean) =>
+      openTraceWindow(topicId, traceId, autoOpen, reload)
   )
   ipcMain.handle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => setTraceWindowTitle(title))
   ipcMain.handle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>
