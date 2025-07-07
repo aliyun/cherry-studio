@@ -307,7 +307,7 @@ const api = {
   setDisableHardwareAcceleration: (isDisable: boolean) =>
     ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   trace: {
-    saveData: (traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, traceId),
+    saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
     getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
     saveEntity: (entity: SpanEntity) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_ENTITY, entity),
     bindTopic: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_BIND_TOPIC, topicId, traceId),

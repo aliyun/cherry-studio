@@ -68,7 +68,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
       } else {
         map.set(span.id, { ...span, children: [], percent: 100, start: 0, rootStart: 0, rootEnd: 0 } as TraceModal)
       }
-      if (!span.parentId) {
+      if (!span.parentId || !map.has(span.parentId)) {
         minStart = Math.min(span.startTime, minStart)
         maxEnd = Math.max(span.endTime || Date.now(), maxEnd)
         root.push(map.get(span.id) as TraceModal)

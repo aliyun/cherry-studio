@@ -3,6 +3,7 @@ import { TokenUsage } from '@mcp-trace/trace-core'
 import { cleanContext, endContext, getContext, startContext } from '@mcp-trace/trace-web'
 import { context, Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { isAsyncIterable } from '@renderer/aiCore/middleware/utils'
+import { db } from '@renderer/databases'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { handleAsyncIterable } from '@renderer/trace/dataHandler/AsyncIterableHandler'
 import { handleResult } from '@renderer/trace/dataHandler/CommonResultHandler'
@@ -57,7 +58,7 @@ class SpanManagerService {
     window.api.trace.cleanHistory(message.topicId, message.traceId)
 
     const input = {
-      message: message.blocks.map((block) => block).join(''),
+      message: message.blocks.map(async (block) => await db.message_blocks.get(block)).join(''),
       askId: message.askId,
       topicId: message.topicId,
       traceId: message.traceId
@@ -91,16 +92,16 @@ class SpanManagerService {
     const ctx = trace.setSpan(context.active(), span)
     startContext(message.topicId, ctx)
     const entity = this.getModelSpanEntity(message.topicId)
+    entity.addSpan(fakeParentSpan)
     entity.addSpan(span)
     window.api.trace.openWindow(message.topicId, message.traceId, false, true)
-    fakeParentSpan.end()
     return span
   }
 
   endTrace(params: EndSpanParams) {
     const entity = this.getModelSpanEntity(params.topicId)
-    const span = entity.getCurrentSpan()
-    if (span) {
+    let span = entity.getCurrentSpan()
+    while (span) {
       if (params.outputs) {
         span.setAttributes({ outputs: params.outputs })
       }
@@ -108,11 +109,10 @@ class SpanManagerService {
         span.recordException(params.error)
       }
       span.end()
-      window.api.trace.saveData(span.spanContext().traceId)
-    } else {
-      return console.error('No active span found to end.')
+      entity.removeSpan(span)
+      span = entity.getCurrentSpan()
     }
-    entity.removeSpan(span)
+    window.api.trace.saveData(params.topicId)
     cleanContext(params.topicId)
     this.pauseTrace(params.topicId)
   }
