@@ -25,7 +25,6 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.200.0",
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@types/react": "^19.0.0",
-    "jotai": "^2.12.3",
     "react": "^19.0.0",
     "reflect-metadata": "^0.2.2"
   },

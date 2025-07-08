@@ -51,8 +51,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
       style={{
         width: '100%'
       }}>
-      <SimpleGrid columns={20}>
-        <GridItem colSpan={8} style={{ padding: `4px 4px 4px ${paddingLeft}px`, textAlign: 'left' }}>
+      <SimpleGrid columns={20} style={{ height: '28px', paddingRight: '5px', paddingLeft: '5px' }}>
+        <GridItem colSpan={8} style={{ paddingLeft: `${paddingLeft}px`, textAlign: 'left' }}>
           <HStack grap={2}>
             <IconButton
               aria-label="Toggle"
@@ -68,7 +68,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
             <Text
               role="button"
               tabIndex={0}
-              style={{ cursor: 'pointer', userSelect: 'none' }}
+              className={node.status === 'ERROR' ? 'error-text' : 'default-text'}
               onClick={(e) => {
                 e.preventDefault()
                 handleClick(node.id)
@@ -88,11 +88,11 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
             {node.attributes?.tags}
           </Text>
         </GridItem> */}
-        <GridItem padding={4} colSpan={5}>
+        <GridItem colSpan={5}>
           <Text style={{ color: 'red' }}>{node.usage ? '↑' + node.usage.prompt_tokens : ''}</Text>&nbsp;
           <Text style={{ color: 'green' }}>{node.usage ? '↓' + node.usage.completion_tokens : ''}</Text>
         </GridItem>
-        <GridItem padding={4} colSpan={3}>
+        <GridItem colSpan={3}>
           <Text /** ml={2} */>{usedTime}</Text>
         </GridItem>
         <GridItem padding={4} colSpan={4}>

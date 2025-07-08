@@ -54,7 +54,13 @@ class SpanCacheService implements TraceCache {
   }
 
   async saveSpans(topicId: string) {
-    const traceId = Object.entries(this.topicMap).find(([, tp]) => tp === topicId)?.[0]
+    let traceId: string | undefined
+    for (const [key, value] of this.topicMap.entries()) {
+      if (value === topicId) {
+        traceId = key
+        break // 找到后立即退出循环
+      }
+    }
     const spans = Array.from(this.cache.values().filter((e) => e.traceId === traceId))
     await this._saveToFile(spans)
   }

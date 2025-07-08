@@ -101,6 +101,8 @@ class SpanManagerService {
   endTrace(params: EndSpanParams) {
     const entity = this.getModelSpanEntity(params.topicId)
     let span = entity.getCurrentSpan()
+    const code = params.error ? SpanStatusCode.ERROR : SpanStatusCode.OK
+    const message = params.error ? params.error.message : ''
     while (span) {
       if (params.outputs) {
         span.setAttributes({ outputs: params.outputs })
@@ -108,6 +110,7 @@ class SpanManagerService {
       if (params.error) {
         span.recordException(params.error)
       }
+      span.setStatus({ code, message })
       span.end()
       entity.removeSpan(span)
       span = entity.getCurrentSpan()
@@ -150,6 +153,10 @@ class SpanManagerService {
       const span = rootEntity?.getRootSpan()
       window.api.trace.addEndMessage(span?.spanContext().spanId || '', params.modelName, params.outputs)
     }
+    if (params.modelEnded && params.error && params.modelName) {
+      const rootEntity = this.getModelSpanEntity(params.topicId)
+      rootEntity.addModelError(params.error)
+    }
     if (!span) {
       console.info(`No active span found for topicId: ${params.topicId}-modelName: ${params.modelName}.`)
       return
@@ -160,14 +167,12 @@ class SpanManagerService {
       this.getModelSpanEntity(params.topicId).removeSpan(span)
     }
 
-    if (params.error) {
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: params.error.message
-      })
-    } else if (params.outputs) {
+    const code = params.error ? SpanStatusCode.ERROR : SpanStatusCode.OK
+    const message = params.error ? params.error.message : 'success'
+    if (params.outputs) {
       span.setAttributes({ outputs: JSON.stringify(params.outputs || {}) })
     }
+    span.setStatus({ code, message })
     span.end()
     endContext(params.topicId)
   }

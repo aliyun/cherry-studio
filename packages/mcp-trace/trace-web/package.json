@@ -28,7 +28,6 @@
     "@opentelemetry/sdk-trace-web": "^2.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "jotai": "^2.12.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

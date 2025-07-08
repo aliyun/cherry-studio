@@ -170,7 +170,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
                   <Text>没有找到Trace信息</Text>
                 ) : (
                   <>
-                    <SimpleGrid columns={20} style={{ width: '100%' }}>
+                    <SimpleGrid columns={20} style={{ width: '100%' }} className="floating">
                       <GridItem colSpan={8} padding={0} className={'table-header'}>
                         <Text tabIndex={0}>{t('trace.name')}</Text>
                       </GridItem>
@@ -189,7 +189,8 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
                       style={{
                         border: '1px solid #ccc',
                         width: '100%',
-                        margin: '0px 5px 0px 0px'
+                        marginTop: '30px',
+                        marginBottom: '0px'
                       }}
                     />
                     {spans.map((node: TraceModal) => (

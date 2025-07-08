@@ -63,4 +63,10 @@ export class ModelSpanEntity {
   getSpanById(spanId?: string) {
     return spanId ? this.spans.find((span) => span.spanContext().spanId === spanId) : undefined
   }
+
+  addModelError(error: Error) {
+    this.spans.forEach((span) => {
+      span.recordException(error, Date.now())
+    })
+  }
 }

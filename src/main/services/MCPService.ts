@@ -15,7 +15,7 @@ import {
   type StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
-import { context, trace } from '@opentelemetry/api'
+import { context, SpanStatusCode, trace } from '@opentelemetry/api'
 import { nanoid } from '@reduxjs/toolkit'
 import type {
   GetMCPPromptResponse,
@@ -507,11 +507,13 @@ class McpService {
               timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
             })
             span.setAttribute('outputs', JSON.stringify(result))
+            span.setStatus({ code: SpanStatusCode.OK })
             span.end()
             return result as MCPCallToolResponse
           } catch (error) {
             Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
             span.recordException(error instanceof Error ? error : new Error(String(error)))
+            span.setStatus({ code: SpanStatusCode.ERROR, message: error instanceof Error ? error.message : '' })
             span.end()
             throw error
           }
