@@ -59,7 +59,7 @@ let traceWin: BrowserWindow | null = null
 export function openTraceWindow(topicId: string, traceId: string, autoOpen = true, reload = false) {
   if (traceWin && !traceWin.isDestroyed()) {
     traceWin.focus()
-    traceWin.webContents.send('set-trace', { traceId, topicId })
+    traceWin.webContents.send('set-trace', { traceId, topicId, reload })
     return
   }
 

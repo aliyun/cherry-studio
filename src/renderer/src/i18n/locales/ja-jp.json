@@ -2264,7 +2264,7 @@
       "inputs": "入力",
       "outputs": "出力",
       "noTraceList": "トレース情報が見つかりません",
-      "edasSupport": "Alibaba Cloud EDASによる技術サポート"
+      "edasSupport": "Powered by Alibaba Cloud EDAS"
     }
   }
 }

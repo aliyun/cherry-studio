@@ -2264,7 +2264,7 @@
       "inputs": "входы",
       "outputs": "выходы",
       "noTraceList": "Информация о следах не найдена",
-      "edasSupport": "Поддерживается Alibaba Cloud EDAS"
+      "edasSupport": "Powered by Alibaba Cloud EDAS"
     }
   }
 }
