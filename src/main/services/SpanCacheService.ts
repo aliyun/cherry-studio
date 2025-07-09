@@ -53,7 +53,14 @@ class SpanCacheService implements TraceCache {
     }
   }
 
-  async saveSpans(traceId: string) {
+  async saveSpans(topicId: string) {
+    let traceId: string | undefined
+    for (const [key, value] of this.topicMap.entries()) {
+      if (value === topicId) {
+        traceId = key
+        break // 找到后立即退出循环
+      }
+    }
     const spans = Array.from(this.cache.values().filter((e) => e.traceId === traceId))
     await this._saveToFile(spans)
   }
@@ -106,10 +113,6 @@ class SpanCacheService implements TraceCache {
             }
           })
           savedEntity.attributes = savedAttrs
-        } else if (typeof value === 'object') {
-          savedEntity[key] = savedEntity[key] ? { ...savedEntity[key], ...value } : value
-        } else if (Array.isArray(value)) {
-          savedEntity[key] = savedEntity[key] ? [...savedEntity[key], ...value] : value
         } else {
           savedEntity[key] = value
         }
@@ -178,9 +181,16 @@ class SpanCacheService implements TraceCache {
     }
   }
 
-  // cleanHistoryTrace(topicId: string, traceId: string) {
+  cleanHistoryTrace(topicId: string, traceId: string) {
+    Array.from(this.cache.values())
+      .filter((span) => span.topicId === topicId)
+      .forEach((span) => this.cache.delete(span.id))
 
-  // }
+    const filePath = path.join(this.fileDir, topicId, traceId)
+    if (fs.existsSync(filePath)) {
+      fs.rmSync(filePath, { recursive: true })
+    }
+  }
 
   private _updateParentOutputs(spanId: string, modelName: string, context: string) {
     const span = this.cache.get(spanId)
@@ -268,9 +278,11 @@ class SpanCacheService implements TraceCache {
 export const spanCacheService = new SpanCacheService()
 export const cleanTopic = spanCacheService.cleanTopic.bind(spanCacheService)
 export const saveEntity = spanCacheService.saveEntity.bind(spanCacheService)
+export const getEntity = spanCacheService.getEntity.bind(spanCacheService)
 export const tokenUsage = spanCacheService.updateTokenUsage.bind(spanCacheService)
 export const saveSpans = spanCacheService.saveSpans.bind(spanCacheService)
 export const getSpans = spanCacheService.getSpans.bind(spanCacheService)
 export const addEndMessage = spanCacheService.setEndMessage.bind(spanCacheService)
 export const bindTopic = spanCacheService.setTopicId.bind(spanCacheService)
 export const addStreamMessage = spanCacheService.addStreamMessage.bind(spanCacheService)
+export const cleanHistoryTrace = spanCacheService.cleanHistoryTrace.bind(spanCacheService)

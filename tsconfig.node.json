@@ -7,8 +7,7 @@
     "src/main/env.d.ts",
     "src/renderer/src/types/*",
     "packages/shared/**/*",
-    "packages/mcp-trace/trace-core/src/**/*",
-    "packages/mcp-trace/trace-node/src/**/*",
+    "packages/mcp-trace/**/*",
     "src/renderer/src/services/traceApi.ts"  ],
   "compilerOptions": {
     "composite": true,
@@ -20,8 +19,7 @@
       "@main/*": ["src/main/*"],
       "@types": ["src/renderer/src/types/index.ts"],
       "@shared/*": ["packages/shared/*"],
-      "@mcp-trace/trace-core": ["packages/mcp-trace/trace-core/src"],
-      "@mcp-trace/trace-node": ["packages/mcp-trace/trace-node/src"],
+      "@mcp-trace/*": ["packages/mcp-trace/*"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

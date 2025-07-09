@@ -1,6 +1,6 @@
 import { isDev } from '@main/constant'
 import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
-import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node'
+import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
 import { context, SpanContext, trace } from '@opentelemetry/api'
 import { BrowserWindow, ipcMain } from 'electron'
 import { NativeImage, nativeImage } from 'electron'
@@ -46,7 +46,6 @@ ipcMain.handle = (channel: string, handler: (...args: any[]) => Promise<any>) =>
     if (carray && typeof carray === 'object' && 'type' in carray && carray.type === 'trace') {
       const span = trace.wrapSpanContext(carray.context as SpanContext)
       ctx = trace.setSpan(context.active(), span)
-      console.log(`Current span:`, trace.getActiveSpan()?.spanContext())
       newArgs = args.slice(0, args.length - 1)
     }
     return context.with(ctx, () => handler(event, ...newArgs))
@@ -57,10 +56,10 @@ export const nodeTraceService = new NodeTraceService()
 
 let traceWin: BrowserWindow | null = null
 
-export function openTraceWindow(topicId: string, traceId: string, autoOpen = true) {
+export function openTraceWindow(topicId: string, traceId: string, autoOpen = true, reload = false) {
   if (traceWin && !traceWin.isDestroyed()) {
     traceWin.focus()
-    traceWin.webContents.send('set-trace', { traceId, topicId })
+    traceWin.webContents.send('set-trace', { traceId, topicId, reload })
     return
   }
 
@@ -117,7 +116,8 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
   traceWin.webContents.on('did-finish-load', () => {
     traceWin!.webContents.send('set-trace', {
       traceId,
-      topicId
+      topicId,
+      reload
     })
     traceWin!.webContents.send('set-language', { lang: configManager.get(ConfigKeys.Language) })
     configManager.subscribe(ConfigKeys.Language, setLanguageCallback)

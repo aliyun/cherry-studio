@@ -31,7 +31,9 @@ const App = () => {
       if (data?.traceId && data?.topicId) {
         setTraceId(data.traceId)
         setTopicId(data.topicId)
-        setReload(data.reload || false)
+        if (data.reload) {
+          setReload(!reload)
+        }
       }
     }
 
@@ -45,14 +47,14 @@ const App = () => {
       }
     }
 
-    window.electron.ipcRenderer.on('set-trace', setTraceHandler)
-    window.electron.ipcRenderer.on('set-language', setLangHandler)
+    const removeTraceHandler = window.electron.ipcRenderer.on('set-trace', setTraceHandler)
+    const removeLanguageHandler = window.electron.ipcRenderer.on('set-language', setLangHandler)
 
     return () => {
-      window.electron.ipcRenderer.removeListener('set-trace', setTraceHandler)
-      window.electron.ipcRenderer.removeListener('set-language', setLangHandler)
+      removeTraceHandler()
+      removeLanguageHandler()
     }
-  }, [title])
+  }, [title, reload])
 
   const handleFooterClick = () => {
     console.log('handleFooterClick current lang', lang)

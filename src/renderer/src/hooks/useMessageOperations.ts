@@ -1,7 +1,7 @@
 import { createSelector } from '@reduxjs/toolkit'
 import Logger from '@renderer/config/logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { pauseTrace } from '@renderer/services/SpanManagerService'
+import { pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
@@ -20,7 +20,7 @@ import {
   updateMessageAndBlocksThunk,
   updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, Model, Topic } from '@renderer/types'
+import type { Assistant, LanguageCode, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -98,6 +98,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const resendMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
+      await restartTrace(message)
       await dispatch(resendMessageThunk(topic.id, message, assistant))
     },
     [dispatch, topic.id]
@@ -158,6 +159,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const regenerateAssistantMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
+      await restartTrace(message)
       if (message.role !== 'assistant') {
         console.warn('regenerateAssistantMessage should only be called for assistant messages.')
         return
@@ -205,9 +207,9 @@ export function useMessageOperations(topic: Topic) {
   const getTranslationUpdater = useCallback(
     async (
       messageId: string,
-      targetLanguage: string,
+      targetLanguage: LanguageCode,
       sourceBlockId?: string,
-      sourceLanguage?: string
+      sourceLanguage?: LanguageCode
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
       if (!topic.id) return null
 
@@ -382,6 +384,7 @@ export function useMessageOperations(topic: Topic) {
         console.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
         return
       }
+      await restartTrace(message, mainTextBlock.content)
 
       const fileBlocks = editedBlocks.filter(
         (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE

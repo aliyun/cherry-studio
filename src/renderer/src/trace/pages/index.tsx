@@ -22,28 +22,24 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
   const [showList, setShowList] = useState(true)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const { t } = useTranslation()
-  const [needReload, setNeedReload] = useState(reload)
 
-  const mergeTraceModals = useCallback(
-    (oldNodes: TraceModal[], newNodes: TraceModal[]): TraceModal[] => {
-      const oldMap = new Map(oldNodes.map((n) => [n.id, n]))
-      return newNodes.map((newNode) => {
-        const oldNode = oldMap.get(newNode.id)
-        if (oldNode) {
-          // 如果旧节点已经结束，则直接返回旧节点
-          if (oldNode.endTime && !needReload) {
-            return oldNode
-          }
-          oldNode.children = mergeTraceModals(oldNode.children, newNode.children)
-          Object.assign(oldNode, newNode)
+  const mergeTraceModals = useCallback((oldNodes: TraceModal[], newNodes: TraceModal[]): TraceModal[] => {
+    const oldMap = new Map(oldNodes.map((n) => [n.id, n]))
+    return newNodes.map((newNode) => {
+      const oldNode = oldMap.get(newNode.id)
+      if (oldNode) {
+        // 如果旧节点已经结束，则直接返回旧节点
+        if (oldNode.endTime) {
           return oldNode
-        } else {
-          return newNode
         }
-      })
-    },
-    [needReload]
-  )
+        oldNode.children = mergeTraceModals(oldNode.children, newNode.children)
+        Object.assign(oldNode, newNode)
+        return oldNode
+      } else {
+        return newNode
+      }
+    })
+  }, [])
 
   const updatePercentAndStart = useCallback((nodes: TraceModal[]) => {
     nodes.forEach((node) => {
@@ -72,7 +68,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
       } else {
         map.set(span.id, { ...span, children: [], percent: 100, start: 0, rootStart: 0, rootEnd: 0 } as TraceModal)
       }
-      if (!span.parentId || span.parentId === 'aaaaaaaaaaaaaaaa') {
+      if (!span.parentId || !map.has(span.parentId)) {
         minStart = Math.min(span.startTime, minStart)
         maxEnd = Math.max(span.endTime || Date.now(), maxEnd)
         root.push(map.get(span.id) as TraceModal)
@@ -106,7 +102,6 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
     updatePercentAndStart(matchedSpans)
     setSpans((prev) => mergeTraceModals(prev, matchedSpans))
     const isEnded = !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
-    setNeedReload(isEnded)
     return isEnded
   }, [topicId, traceId, updatePercentAndStart, mergeTraceModals])
 
@@ -124,7 +119,6 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
   }
 
   useEffect(() => {
-    let unmounted = false
     const handleShowTrace = async () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
@@ -132,7 +126,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
       }
       const ended = await getTraceData()
       // 只有未结束时才启动定时刷新
-      if (!ended && !unmounted) {
+      if (!ended) {
         intervalRef.current = setInterval(async () => {
           const endedInner = await getTraceData()
           if (endedInner && intervalRef.current) {
@@ -144,13 +138,12 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
     }
     handleShowTrace()
     return () => {
-      unmounted = true
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
         intervalRef.current = null
       }
     }
-  }, [getTraceData, traceId, topicId])
+  }, [getTraceData, traceId, topicId, reload])
 
   useEffect(() => {
     if (selectNode) {
@@ -175,7 +168,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
                   <Text>没有找到Trace信息</Text>
                 ) : (
                   <>
-                    <SimpleGrid columns={20} style={{ width: '100%' }}>
+                    <SimpleGrid columns={20} style={{ width: '100%' }} className="floating">
                       <GridItem colSpan={8} padding={0} className={'table-header'}>
                         <Text tabIndex={0}>{t('trace.name')}</Text>
                       </GridItem>
@@ -194,7 +187,8 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
                       style={{
                         border: '1px solid #ccc',
                         width: '100%',
-                        margin: '0px 5px 0px 0px'
+                        marginTop: '30px',
+                        marginBottom: '0px'
                       }}
                     />
                     {spans.map((node: TraceModal) => (

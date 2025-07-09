@@ -23,9 +23,11 @@ export const SimpleGrid: React.FC<{
   templateColumns?: string
   children: React.ReactNode
   leftSpace?: number
+  className?: string
   style?: React.CSSProperties
-}> = ({ columns, templateColumns, children, leftSpace = 0, style, ...props }) => (
+}> = ({ columns, templateColumns, children, leftSpace = 0, style, className, ...props }) => (
   <div
+    className={className}
     style={{
       display: 'grid',
       gridTemplateColumns: templateColumns || (columns ? `repeat(${columns}, 1fr)` : undefined),
@@ -39,9 +41,10 @@ export const SimpleGrid: React.FC<{
 )
 
 // Text 组件
-export const Text: React.FC<React.HTMLAttributes<HTMLSpanElement>> = ({ style, ...props }) => (
+export const Text: React.FC<React.HTMLAttributes<HTMLSpanElement>> = ({ style, className, ...props }) => (
   <span
     style={{ fontSize: 12, ...style, cursor: props.onClick ? 'pointer' : undefined }}
+    className={className}
     {...props}
     onClick={props.onClick ? props.onClick : undefined}
   />
