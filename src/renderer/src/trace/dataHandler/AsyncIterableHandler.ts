@@ -23,13 +23,39 @@ export class AsyncIterableHandler {
 
   async handleChunk(chunk: SdkRawChunk) {
     let context = 'choices' in chunk ? chunk.choices.map((ch) => ch.delta.context).join() : ''
-    if (!context) {
-      context =
-        'candidates' in chunk && chunk.candidates
-          ? chunk.candidates?.map((ch) => ch.content?.parts?.map((p) => p.text).join()).join()
-          : ''
+    if (!context && 'candidates' in chunk && chunk.candidates) {
+      context = chunk.candidates
+        .map(
+          (ch) =>
+            ch.content?.parts
+              ?.map((p) => {
+                if (p.text) {
+                  return p.text
+                } else if (p.functionCall) {
+                  return `${p.functionCall.name}(${JSON.stringify(p.functionCall.args || '')})`
+                } else if (p.codeExecutionResult) {
+                  return p.codeExecutionResult.output || String(p.codeExecutionResult.outcome || '')
+                } else if (p.executableCode) {
+                  return `'''${p.executableCode.language || ''}\n${p.executableCode.code}\n'''`
+                } else if (p.fileData) {
+                  return JSON.stringify(p.fileData)
+                } else if (p.functionResponse) {
+                  return `${p.functionResponse.name}: ${JSON.stringify(p.functionResponse.response)}`
+                } else if (p.inlineData) {
+                  return p.inlineData.data
+                } else if (p.videoMetadata) {
+                  return `fps: ${p.videoMetadata.fps}, start:${p.videoMetadata.startOffset}, end:${p.videoMetadata.endOffset}`
+                } else {
+                  return ''
+                }
+              })
+              .join() || ''
+        )
+        .join()
     }
-    window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, chunk)
+    if (context) {
+      window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, chunk)
+    }
     if ('usageMetadata' in chunk && chunk.usageMetadata) {
       this.usageToken.prompt_tokens = chunk.usageMetadata.promptTokenCount || 0
       this.usageToken.total_tokens = chunk.usageMetadata.totalTokenCount || 0
