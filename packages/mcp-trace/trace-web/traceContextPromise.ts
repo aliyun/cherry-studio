@@ -1,6 +1,4 @@
-import { Context, context, propagation, ROOT_CONTEXT } from '@opentelemetry/api'
-
-import { setRootContext } from './WebStackContextManager'
+import { Context, context } from '@opentelemetry/api'
 
 const originalPromise = globalThis.Promise
 
@@ -84,18 +82,6 @@ class TraceContextPromise<T> extends Promise<T> {
       )
     }, capturedContext)
   }
-}
-
-export function setParentContext(ctx: Context) {
-  // setRootContext(ctx)
-  const values = {}
-  propagation.inject(ctx, values)
-  console.log(JSON.stringify(values))
-  setRootContext(ctx)
-}
-
-export function resetParentContext() {
-  setRootContext(ROOT_CONTEXT)
 }
 
 /**

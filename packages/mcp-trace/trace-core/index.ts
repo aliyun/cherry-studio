@@ -1,7 +1,6 @@
 export * from './core/spanConvert'
 export * from './core/traceCache'
 export * from './core/traceMethod'
-export * from './exporters/FileSpanExporter'
 export * from './exporters/FuncSpanExporter'
 export * from './processors/CacheSpanProcessor'
 export * from './processors/EmitterSpanProcessor'

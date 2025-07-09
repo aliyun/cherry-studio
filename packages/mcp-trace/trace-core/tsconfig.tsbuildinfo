@@ -1,1 +1,0 @@
-{"root":["./src/index.ts","./src/async/asynctracehooks.ts","./src/async/fetch.ts","./src/core/spanconvert.ts","./src/core/tracecache.ts","./src/core/tracemethod.ts","./src/exporters/funcspanexporter.ts","./src/processors/cachespanprocessor.ts","./src/processors/emitterspanprocessor.ts","./src/processors/funcspanprocessor.ts","./src/types/config.ts"],"version":"5.7.3"}

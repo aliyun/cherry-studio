@@ -1,10 +1,11 @@
-import { defaultConfig, TraceConfig } from '@mcp-trace/trace-core'
 import { trace, Tracer } from '@opentelemetry/api'
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { BatchSpanProcessor, ConsoleSpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
+
+import { defaultConfig, TraceConfig } from '../trace-core/types/config'
 
 export class NodeTracer {
   private static provider: NodeTracerProvider

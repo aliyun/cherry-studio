@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 
-import { Span, SpanStatusCode, trace } from '@opentelemetry/api'
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { context as traceContext } from '@opentelemetry/api'
 
 import { defaultConfig } from '../types/config'
@@ -11,87 +11,6 @@ export interface SpanDecoratorOptions {
   tag?: string
 }
 
-// typescrit 5.0+
-export function Traced<This, Args extends any[], Return>(options?: SpanDecoratorOptions) {
-  return (originalMethod: (this: This, ...args: Args) => Return, context: ClassMethodDecoratorContext<This>) => {
-    const methodName = String(context.name)
-    const spanName = options?.spanName || `method:${methodName}`
-    const traceName = options?.traceName || defaultConfig.defaultTracerName || 'default'
-    const tag = options?.tag || ''
-
-    return function (this: This, ...args: Args): Return {
-      const tracer = trace.getTracer(traceName)
-
-      return traceContext.with(traceContext.active(), () =>
-        tracer.startActiveSpan(spanName, (span: Span) => {
-          try {
-            span.setAttributes({
-              'class.name': this?.constructor?.name || 'unknown',
-              inputs: JSON.stringify(args),
-              tags: tag
-            })
-
-            const result = originalMethod.apply(this, args)
-            span.setStatus({ code: SpanStatusCode.OK })
-            span.setAttribute('outputs', convertToString(result))
-            span.end()
-            return result
-          } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error))
-            span.setStatus({ code: SpanStatusCode.ERROR, message: err.message })
-            span.recordException(err)
-            span.end()
-            throw error
-          }
-        })
-      )
-    }
-  }
-}
-
-// typescrit 5.0+
-export function TracedAsync<This, Args extends any[], Return>(options?: SpanDecoratorOptions) {
-  return (
-    originalMethod: (this: This, ...args: Args) => Promise<Return>,
-    context: ClassMethodDecoratorContext<This>
-  ) => {
-    const methodName = String(context.name)
-    const spanName = options?.spanName || `method:${methodName}`
-    const traceName = options?.traceName || defaultConfig.defaultTracerName || 'default'
-    const tag = options?.tag || ''
-
-    return function async(this: This, ...args: Args): Promise<Return> {
-      const tracer = trace.getTracer(traceName)
-
-      return traceContext.with(traceContext.active(), () =>
-        tracer.startActiveSpan(spanName, (span: Span) => {
-          span.setAttributes({
-            'class.name': this?.constructor?.name || 'unknown',
-            inputs: JSON.stringify(args),
-            tags: tag
-          })
-
-          return originalMethod
-            .apply(this, args)
-            .then((res) => {
-              span.setStatus({ code: SpanStatusCode.OK })
-              span.setAttribute('outputs', convertToString(res))
-              return res
-            })
-            .catch((error) => {
-              const err = error instanceof Error ? error : new Error(String(error))
-              span.setStatus({ code: SpanStatusCode.ERROR, message: err.message })
-              span.recordException(err)
-              throw err
-            })
-            .finally(() => span.end())
-        })
-      )
-    }
-  }
-}
-
-// typescrit 5.0-
 export function TraceMethod(traced: SpanDecoratorOptions) {
   return function (target: any, propertyKey?: any, descriptor?: PropertyDescriptor | undefined) {
     // 兼容静态方法装饰器只传2个参数的情况

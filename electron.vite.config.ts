@@ -16,8 +16,8 @@ export default defineConfig({
         '@main': resolve('src/main'),
         '@types': resolve('src/renderer/src/types'),
         '@shared': resolve('packages/shared'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core/src'),
-        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node/src')
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
+        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node')
       }
     },
     build: {
@@ -46,7 +46,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@shared': resolve('packages/shared'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core/src')
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core')
       }
     },
     build: {
@@ -83,8 +83,8 @@ export default defineConfig({
       alias: {
         '@renderer': resolve('src/renderer/src'),
         '@shared': resolve('packages/shared'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core/src'),
-        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web/src')
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
+        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web')
       }
     },
     optimizeDeps: {

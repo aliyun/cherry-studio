@@ -1,6 +1,6 @@
 import { isDev } from '@main/constant'
 import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
-import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node'
+import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
 import { context, SpanContext, trace } from '@opentelemetry/api'
 import { BrowserWindow, ipcMain } from 'electron'
 import { NativeImage, nativeImage } from 'electron'
