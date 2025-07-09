@@ -1,4 +1,4 @@
-import { getFilesDir, getFileType, getTempDir } from '@main/utils/file'
+import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileMetadata } from '@types'
 import * as crypto from 'crypto'
@@ -189,6 +189,8 @@ class FileStorage {
       count: 1
     }
 
+    logger.info('[FileStorage] File uploaded:', fileMetadata)
+
     return fileMetadata
   }
 
@@ -258,7 +260,13 @@ class FileStorage {
       }
     }
 
-    return fs.readFileSync(filePath, 'utf8')
+    try {
+      const result = readTextFileWithAutoEncoding(filePath)
+      return result
+    } catch (error) {
+      logger.error(error)
+      return 'failed to read file'
+    }
   }
 
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
