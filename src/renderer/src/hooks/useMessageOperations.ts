@@ -98,7 +98,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const resendMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
-      restartTrace(message)
+      await restartTrace(message)
       await dispatch(resendMessageThunk(topic.id, message, assistant))
     },
     [dispatch, topic.id]
@@ -159,7 +159,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const regenerateAssistantMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
-      restartTrace(message)
+      await restartTrace(message)
       if (message.role !== 'assistant') {
         console.warn('regenerateAssistantMessage should only be called for assistant messages.')
         return
@@ -384,6 +384,7 @@ export function useMessageOperations(topic: Topic) {
         console.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
         return
       }
+      await restartTrace(message, mainTextBlock.content)
 
       const fileBlocks = editedBlocks.filter(
         (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE

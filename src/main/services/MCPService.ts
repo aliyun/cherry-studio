@@ -463,11 +463,13 @@ class McpService {
           result
             .then((data) => {
               span.setAttribute('outputs', JSON.stringify(data))
+              span.setStatus({ code: SpanStatusCode.OK })
               span.end()
               return data
             })
             .catch((error) => {
               span.recordException(error)
+              span.setStatus({ code: SpanStatusCode.ERROR, message: error.message })
               span.end()
             })
           return result

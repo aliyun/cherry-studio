@@ -1,5 +1,5 @@
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
-import { TokenUsage } from '@mcp-trace/trace-core'
+import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { cleanContext, endContext, getContext, startContext } from '@mcp-trace/trace-web'
 import { context, Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { isAsyncIterable } from '@renderer/aiCore/middleware/utils'
@@ -12,6 +12,7 @@ import { handleStream } from '@renderer/trace/dataHandler/StreamHandler'
 import { EndSpanParams, ModelSpanEntity, StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
 import { SdkRawChunk } from '@renderer/types/sdk'
 import { Stream } from 'openai/streaming'
 
@@ -51,48 +52,42 @@ class SpanManagerService {
     return span
   }
 
-  restartTrace(message: Message) {
+  async restartTrace(message: Message, text?: string) {
     if (!message.traceId) {
       return
     }
     window.api.trace.cleanHistory(message.topicId, message.traceId)
+    let _context = text
+    if (!_context) {
+      const blocks = await Promise.all(
+        message.blocks.map(async (blockId) => {
+          return await db.message_blocks.get(blockId)
+        })
+      )
+      _context = blocks.find((data) => data?.type === MessageBlockType.MAIN_TEXT)?.content
+    }
 
     const input = {
-      message: message.blocks.map(async (block) => await db.message_blocks.get(block)).join(''),
+      messageId: message.id,
+      context: _context,
       askId: message.askId,
       topicId: message.topicId,
       traceId: message.traceId
     }
 
-    // 创建一个虚拟的 root span，traceId 为 message.traceId
-    const fakeParentSpan = webTracer.startSpan('restartTrace', {
-      root: true,
+    window.api.trace.bindTopic(message.topicId, message.traceId)
+    const span = webTracer.startSpan('resendMessage', {
       attributes: {
         inputs: JSON.stringify(input),
-        tags: 'history'
+        tags: 'resendMessage'
       }
     })
-    // 强制覆盖 traceId（仅限于自定义 tracer或hack，标准API不支持，部分实现可用）
-    fakeParentSpan['_spanContext'].traceId = message.traceId
-
-    const parentCtx = trace.setSpan(context.active(), fakeParentSpan)
-
-    window.api.trace.bindTopic(message.topicId, message.traceId)
-    const span = webTracer.startSpan(
-      'resendMessage',
-      {
-        attributes: {
-          inputs: message.blocks.map((block) => block).join('') || '',
-          tags: 'resendMessage'
-        }
-      },
-      parentCtx
-    )
+    window.api.trace.saveEntity({ id: span.spanContext().spanId, traceId: message.traceId } as SpanEntity)
+    span['_spanContext'].traceId = message.traceId
 
     const ctx = trace.setSpan(context.active(), span)
     startContext(message.topicId, ctx)
     const entity = this.getModelSpanEntity(message.topicId)
-    entity.addSpan(fakeParentSpan)
     entity.addSpan(span)
     window.api.trace.openWindow(message.topicId, message.traceId, false, true)
     return span

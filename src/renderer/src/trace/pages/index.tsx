@@ -119,7 +119,6 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
   }
 
   useEffect(() => {
-    let unmounted = false
     const handleShowTrace = async () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
@@ -127,7 +126,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
       }
       const ended = await getTraceData()
       // 只有未结束时才启动定时刷新
-      if (!ended && !unmounted) {
+      if (!ended) {
         intervalRef.current = setInterval(async () => {
           const endedInner = await getTraceData()
           if (endedInner && intervalRef.current) {
@@ -139,7 +138,6 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
     }
     handleShowTrace()
     return () => {
-      unmounted = true
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
         intervalRef.current = null

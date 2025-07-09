@@ -278,6 +278,7 @@ class SpanCacheService implements TraceCache {
 export const spanCacheService = new SpanCacheService()
 export const cleanTopic = spanCacheService.cleanTopic.bind(spanCacheService)
 export const saveEntity = spanCacheService.saveEntity.bind(spanCacheService)
+export const getEntity = spanCacheService.getEntity.bind(spanCacheService)
 export const tokenUsage = spanCacheService.updateTokenUsage.bind(spanCacheService)
 export const saveSpans = spanCacheService.saveSpans.bind(spanCacheService)
 export const getSpans = spanCacheService.getSpans.bind(spanCacheService)
