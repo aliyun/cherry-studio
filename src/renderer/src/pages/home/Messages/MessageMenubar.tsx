@@ -180,7 +180,12 @@ const MessageMenubar: FC<Props> = (props) => {
   const handleTraceUserMessage = useCallback(async () => {
     console.log('current traceId', message.traceId, 'start send')
     if (message.traceId) {
-      window.api.trace.openWindow(message.topicId, message.traceId)
+      window.api.trace.openWindow(
+        message.topicId,
+        message.traceId,
+        true,
+        message.role === 'user' ? undefined : message.model?.name
+      )
     }
   }, [message])
 

@@ -130,10 +130,10 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
         <Text style={{ fontWeight: 'bold' }}>{t('trace.spendTime')}: </Text>
         <Text>{usedTime}</Text>
       </Box>
-      <Box padding={0}>
+      {/* <Box padding={0}>
         <Text style={{ fontWeight: 'bold' }}>{t('trace.parentId')}: </Text>
         <Text>{node.parentId}</Text>
-      </Box>
+      </Box> */}
       <Box style={{ position: 'relative', margin: '5px 0 0' }}>
         <Button className={`content-button ${showInput ? 'active' : ''}`} onClick={() => setShowInput(true)}>
           {t('trace.inputs')}

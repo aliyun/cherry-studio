@@ -209,7 +209,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     Logger.log('[DEBUG] Starting to send message')
 
-    const parent = spanManagerService.startTrace({ topicId: topic.id, name: 'sendMessage', inputs: text })
+    const parent = spanManagerService.startTrace(
+      { topicId: topic.id, name: 'sendMessage', inputs: text },
+      mentionedModels && mentionedModels.length > 0 ? mentionedModels : [assistant.model]
+    )
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent.spanContext().traceId })
 
     try {

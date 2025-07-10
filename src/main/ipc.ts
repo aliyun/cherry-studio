@@ -591,19 +591,21 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setDisableHardwareAcceleration(isDisable)
   })
   ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
-  ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string) => getSpans(topicId, traceId))
+  ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
+    getSpans(topicId, traceId, modelName)
+  )
   ipcMain.handle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => saveEntity(entity))
   ipcMain.handle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => getEntity(spanId))
   ipcMain.handle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) => bindTopic(traceId, topicId))
   ipcMain.handle(IpcChannel.TRACE_CLEAN_TOPIC, (_, topicId: string, traceId?: string) => cleanTopic(topicId, traceId))
   ipcMain.handle(IpcChannel.TRACE_TOKEN_USAGE, (_, spanId: string, usage: TokenUsage) => tokenUsage(spanId, usage))
-  ipcMain.handle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string) =>
-    cleanHistoryTrace(topicId, traceId)
+  ipcMain.handle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string, modelName?: string) =>
+    cleanHistoryTrace(topicId, traceId, modelName)
   )
   ipcMain.handle(
     IpcChannel.TRACE_OPEN_WINDOW,
-    (_, topicId: string, traceId: string, autoOpen?: boolean, reload?: boolean) =>
-      openTraceWindow(topicId, traceId, autoOpen, reload)
+    (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
+      openTraceWindow(topicId, traceId, autoOpen, modelName)
   )
   ipcMain.handle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => setTraceWindowTitle(title))
   ipcMain.handle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>

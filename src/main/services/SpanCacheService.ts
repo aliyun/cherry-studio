@@ -1,7 +1,7 @@
 import { Attributes, convertSpanToSpanEntity, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
-import * as fs from 'fs'
+import fs from 'fs/promises'
 import * as os from 'os'
 import * as path from 'path'
 
@@ -39,17 +39,20 @@ class SpanCacheService implements TraceCache {
     this.cache.clear()
   }
 
-  cleanTopic(topicId: string, traceId?: string) {
+  async cleanTopic(topicId: string, traceId?: string) {
     const spans = Array.from(this.cache.values().filter((e) => e.topicId === topicId))
     spans.map((e) => e.id).forEach((id) => this.cache.delete(id))
-    if (fs.existsSync(path.join(this.fileDir, topicId))) {
-      if (traceId) {
-        fs.rmSync(path.join(this.fileDir, topicId, traceId))
-      } else {
-        fs.readdirSync(path.join(this.fileDir, topicId)).forEach((file) => {
-          fs.rmSync(path.join(this.fileDir, topicId, file))
+
+    await this._checkFolder(path.join(this.fileDir, topicId))
+
+    if (traceId) {
+      fs.rm(path.join(this.fileDir, topicId, traceId))
+    } else {
+      fs.readdir(path.join(this.fileDir, topicId)).then((files) =>
+        files.forEach((file) => {
+          fs.rm(path.join(this.fileDir, topicId, file))
         })
-      }
+      )
     }
   }
 
@@ -61,22 +64,32 @@ class SpanCacheService implements TraceCache {
         break // 找到后立即退出循环
       }
     }
+    if (!traceId) {
+      return
+    }
     const spans = Array.from(this.cache.values().filter((e) => e.traceId === traceId))
-    await this._saveToFile(spans)
+    await this._saveToFile(spans, traceId, topicId)
+    this.topicMap.delete(traceId)
+    spans.forEach((span) => {
+      this.cache.delete(span.id)
+    })
   }
 
-  getSpans: (topicId: string, traceId: string) => Promise<SpanEntity[]> = async (topicId: string, traceId: string) => {
+  async getSpans(topicId: string, traceId: string, modelName?: string) {
     if (this.topicMap.has(traceId)) {
       const spans: SpanEntity[] = []
       this.cache
         .values()
         .filter((spanEntity) => {
-          return spanEntity.traceId === traceId
+          return spanEntity.traceId === traceId && spanEntity.modelName
+        })
+        .filter((spanEntity) => {
+          return !modelName || spanEntity.modelName === modelName
         })
         .forEach((sp) => spans.push(sp))
       return spans
     } else {
-      return this._getHisData(topicId, traceId)
+      return this._getHisData(topicId, traceId, modelName)
     }
   }
 
@@ -122,7 +135,6 @@ class SpanCacheService implements TraceCache {
   }
 
   setTopicId(traceId: string, topicId: string): void {
-    //TODO clean oldData
     this.topicMap.set(traceId, topicId)
   }
 
@@ -181,14 +193,31 @@ class SpanCacheService implements TraceCache {
     }
   }
 
-  cleanHistoryTrace(topicId: string, traceId: string) {
+  async cleanHistoryTrace(topicId: string, traceId: string, modelName?: string) {
     Array.from(this.cache.values())
       .filter((span) => span.topicId === topicId)
       .forEach((span) => this.cache.delete(span.id))
 
+    const ids = this.cache
+      .values()
+      .filter((span) => span.traceId === traceId && span.modelName === modelName)
+      .map((span) => span.id)
+
+    ids.forEach((id) => this.cache.delete(id))
+
     const filePath = path.join(this.fileDir, topicId, traceId)
-    if (fs.existsSync(filePath)) {
-      fs.rmSync(filePath, { recursive: true })
+    const fileExists = await this._existFile(filePath)
+    if (!modelName && fileExists) {
+      await fs.rm(filePath, { recursive: true })
+    } else if (modelName && fileExists) {
+      const modelFilePath = path.join(filePath, traceId)
+      const allSpans = await this.getSpans(topicId, traceId)
+      await fs.rm(modelFilePath, { recursive: true })
+      allSpans
+        .filter((span) => span.modelName !== modelName)
+        .forEach((span) => {
+          this.cache.set(span.id, span)
+        })
     }
   }
 
@@ -199,7 +228,7 @@ class SpanCacheService implements TraceCache {
     }
     const attributes = span.attributes
     // 如果含有modelName属性，是具体的某个modalName输出，拼接到streamText下面
-    if (attributes && 'modelName' in attributes) {
+    if (attributes && span.modelName) {
       const currentValue = attributes['outputs']
       if (currentValue && typeof currentValue === 'object') {
         const allContext = (currentValue['streamText'] || '') + context
@@ -208,18 +237,10 @@ class SpanCacheService implements TraceCache {
         attributes['outputs'] = { streamText: context }
       }
       span.attributes = attributes
-    } else if (attributes) {
-      // 兼容多模型，使用模型名为key, 对value拼接操作
-      const currentValue = attributes['outputs']
-      if (currentValue && typeof currentValue === 'object') {
-        const allContext = (currentValue[`${modelName}`] || '') + context
-        attributes['outputs'] = { ...currentValue, [`${modelName}`]: allContext }
-      } else {
-        attributes['outputs'] = { [`${modelName}`]: context }
-      }
-      span.attributes = attributes
-    } else {
+    } else if (span.modelName) {
       span.attributes = { outputs: { [`${modelName}`]: context } } as Attributes
+    } else {
+      return
     }
     this.cache.set(span.id, span)
     this._updateParentOutputs(span.parentId, modelName, context)
@@ -243,34 +264,71 @@ class SpanCacheService implements TraceCache {
     }
   }
 
-  private async _saveToFile(spans: SpanEntity[]) {
-    spans.map((span) => {
-      if (!span.topicId) {
-        return
-      }
-      let filePath = path.join(this.fileDir, span.topicId)
-      this._checkFolder(filePath)
-      filePath = path.join(filePath, span.traceId)
-      fs.appendFileSync(filePath, JSON.stringify(span) + '\n')
-    })
+  private async _saveToFile(spans: SpanEntity[], traceId: string, topicId: string) {
+    const dirPath = path.join(this.fileDir, topicId)
+    await this._checkFolder(dirPath)
+
+    const filePath = path.join(dirPath, traceId)
+
+    const writeOperations = spans
+      .filter((span) => span.topicId)
+      .map(async (span) => {
+        await fs.appendFile(filePath, JSON.stringify(span) + '\n')
+      })
+
+    await Promise.all(writeOperations)
   }
 
-  private async _getHisData(topicId: string, traceId: string) {
+  private async _getHisData(topicId: string, traceId: string, modelName?: string) {
     const filePath = path.join(this.fileDir, topicId, traceId)
-    if (!fs.existsSync(filePath)) {
-      return []
+
+    try {
+      const fileHandle = await fs.open(filePath, 'r')
+      const stream = fileHandle.createReadStream()
+      const chunks: string[] = []
+
+      for await (const chunk of stream) {
+        chunks.push(chunk.toString())
+      }
+      await fileHandle.close()
+
+      // 使用生成器逐行处理
+      const parseLines = function* (text: string) {
+        for (const line of text.split('\n')) {
+          const trimmed = line.trim()
+          if (trimmed) {
+            try {
+              yield JSON.parse(trimmed) as SpanEntity
+            } catch (e) {
+              console.error(`JSON解析失败: ${trimmed}`, e)
+            }
+          }
+        }
+      }
+
+      return Array.from(parseLines(chunks.join('')))
+        .filter((span) => span.topicId === topicId && span.traceId === traceId && span.modelName)
+        .filter((span) => !modelName || span.modelName === modelName)
+    } catch (err) {
+      console.error('Error parsing JSON:', err)
+      throw err
     }
-    const buffer = fs.readFileSync(filePath)
-    const lines = buffer
-      .toString()
-      .split('\n')
-      .filter((line) => line.trim() !== '')
-    return lines.map((line) => JSON.parse(line) as SpanEntity)
   }
 
-  private _checkFolder(filePath: string) {
-    if (!fs.existsSync(filePath)) {
-      fs.mkdirSync(filePath)
+  private async _checkFolder(filePath: string) {
+    try {
+      await fs.mkdir(filePath, { recursive: true })
+    } catch (err) {
+      if (typeof err === 'object' && err && 'code' in err && err.code !== 'EEXIST') throw err
+    }
+  }
+
+  private async _existFile(filePath: string) {
+    try {
+      await fs.access(filePath)
+      return true
+    } catch {
+      return false
     }
   }
 }

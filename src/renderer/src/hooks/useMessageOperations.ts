@@ -1,7 +1,7 @@
 import { createSelector } from '@reduxjs/toolkit'
 import Logger from '@renderer/config/logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
+import { appendTrace, pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
@@ -98,7 +98,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const resendMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
-      await restartTrace(message)
+      await restartTrace(message, [assistant.model])
       await dispatch(resendMessageThunk(topic.id, message, assistant))
     },
     [dispatch, topic.id]
@@ -159,7 +159,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const regenerateAssistantMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
-      await restartTrace(message)
+      await restartTrace(message, [assistant.model])
       if (message.role !== 'assistant') {
         console.warn('regenerateAssistantMessage should only be called for assistant messages.')
         return
@@ -175,6 +175,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const appendAssistantResponse = useCallback(
     async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
+      await appendTrace(existingAssistantMessage, newModel)
       if (existingAssistantMessage.role !== 'assistant') {
         console.error('appendAssistantResponse should only be called for an existing assistant message.')
         return
@@ -384,7 +385,8 @@ export function useMessageOperations(topic: Topic) {
         console.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
         return
       }
-      await restartTrace(message, mainTextBlock.content)
+      const models = message.mentions && message.mentions.length > 0 ? message.mentions : [assistant.model]
+      await restartTrace(message, models, mainTextBlock.content)
 
       const fileBlocks = editedBlocks.filter(
         (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE
