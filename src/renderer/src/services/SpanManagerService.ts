@@ -1,7 +1,7 @@
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { cleanContext, endContext, getContext, startContext } from '@mcp-trace/trace-web'
-import { context, Span, SpanStatusCode, trace } from '@opentelemetry/api'
+import { Context, context, Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { isAsyncIterable } from '@renderer/aiCore/middleware/utils'
 import { db } from '@renderer/databases'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -10,7 +10,7 @@ import { handleResult } from '@renderer/trace/dataHandler/CommonResultHandler'
 import { handleMessageStream } from '@renderer/trace/dataHandler/MessageStreamHandler'
 import { handleStream } from '@renderer/trace/dataHandler/StreamHandler'
 import { EndSpanParams, ModelSpanEntity, StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
-import { Topic } from '@renderer/types'
+import { Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import { SdkRawChunk } from '@renderer/types/sdk'
@@ -34,63 +34,164 @@ class SpanManagerService {
     return entity
   }
 
-  startTrace(params: StartSpanParams) {
+  startTrace(params: StartSpanParams, models?: Model[]) {
     const span = webTracer.startSpan(params.name || 'root', {
       root: true,
       attributes: {
-        inputs: JSON.stringify(params.inputs || {})
+        inputs: JSON.stringify(params.inputs || {}),
+        models: JSON.stringify(models || [])
       }
     })
-
-    const ctx = trace.setSpan(context.active(), span)
-    startContext(params.topicId, ctx)
 
     const entity = this.getModelSpanEntity(params.topicId)
     entity.addSpan(span)
     const traceId = span.spanContext().traceId
     window.api.trace.bindTopic(params.topicId, traceId)
+
+    const ctx = this._updateContext(span, params.topicId)
+    models?.forEach((model) => {
+      this._addModelRootSpan({ ...params, name: `${model.name}.handleMessage`, modelName: model.name }, ctx)
+    })
     return span
   }
 
-  async restartTrace(message: Message, text?: string) {
+  async restartTrace(message: Message, models: (Model | undefined)[], text?: string) {
     if (!message.traceId) {
       return
     }
-    window.api.trace.cleanHistory(message.topicId, message.traceId)
-    let _context = text
-    if (!_context) {
+    let content = text
+    if (!content) {
       const blocks = await Promise.all(
         message.blocks.map(async (blockId) => {
           return await db.message_blocks.get(blockId)
         })
       )
-      _context = blocks.find((data) => data?.type === MessageBlockType.MAIN_TEXT)?.content
+      content = blocks.find((data) => data?.type === MessageBlockType.MAIN_TEXT)?.content
     }
 
     const input = {
       messageId: message.id,
-      context: _context,
+      content: content,
       askId: message.askId,
       topicId: message.topicId,
       traceId: message.traceId
     }
 
     window.api.trace.bindTopic(message.topicId, message.traceId)
-    const span = webTracer.startSpan('resendMessage', {
+    let span: Span
+    if (message.role === 'user') {
+      window.api.trace.cleanHistory(message.topicId, message.traceId)
+
+      const topic = await db.topics.get(message.topicId)
+      const _models = topic?.messages.filter((m) => m.role === 'assistant').map((m) => m.model)
+      span = webTracer.startSpan('resendMessage', {
+        attributes: {
+          inputs: JSON.stringify(input),
+          tags: 'resendMessage'
+        }
+      })
+
+      const entity = this.getModelSpanEntity(message.topicId)
+      entity.addSpan(span)
+      const ctx = this._updateContext(span, message.topicId, message.traceId)
+
+      _models?.forEach((model) => {
+        if (!model) {
+          return
+        }
+        this._addModelRootSpan(
+          {
+            inputs: input,
+            topicId: message.topicId,
+            modelName: model.name,
+            name: `${model.name}.handleMessage`
+          },
+          ctx
+        )
+      })
+      window.api.trace.openWindow(message.topicId, message.traceId, false)
+    } else {
+      const model = models && models.length > 0 ? models[0] : message.model
+      window.api.trace.cleanHistory(message.topicId, message.traceId, model?.name)
+
+      span = webTracer.startSpan(`${model?.name}.handleMessage`, {
+        attributes: {
+          inputs: JSON.stringify(input),
+          tags: 'resendMessage',
+          modelName: model?.name
+        }
+      })
+
+      this._updateContext(span, message.topicId, message.traceId)
+      const entity = this.getModelSpanEntity(message.topicId, model?.name)
+      entity.addSpan(span)
+      window.api.trace.openWindow(message.topicId, message.traceId, false, model?.name)
+    }
+    return span
+  }
+
+  async appendTrace(message: Message, model: Model) {
+    if (!message.traceId) {
+      return
+    }
+    const blocks = await Promise.all(
+      message.blocks.map(async (blockId) => {
+        return await db.message_blocks.get(blockId)
+      })
+    )
+    const content = blocks.find((data) => data?.type === MessageBlockType.MAIN_TEXT)?.content
+
+    const input = {
+      messageId: message.id,
+      content,
+      askId: message.askId,
+      topicId: message.topicId,
+      traceId: message.traceId
+    }
+
+    const span = webTracer.startSpan(`${model.name}.handleMessage`, {
       attributes: {
         inputs: JSON.stringify(input),
-        tags: 'resendMessage'
+        tags: 'resendMessage',
+        modelName: model.name
       }
     })
-    window.api.trace.saveEntity({ id: span.spanContext().spanId, traceId: message.traceId } as SpanEntity)
-    span['_spanContext'].traceId = message.traceId
+
+    this._updateContext(span, message.topicId, message.traceId)
+    const entity = this.getModelSpanEntity(message.topicId, model.name)
+    entity.addSpan(span)
+    window.api.trace.openWindow(message.topicId, message.traceId, false, model.name)
+  }
+
+  private _updateContext(span: Span, topicId: string, traceId?: string) {
+    window.api.trace.saveEntity({
+      id: span.spanContext().spanId,
+      traceId: traceId ? traceId : span.spanContext().traceId,
+      topicId
+    } as SpanEntity)
+    if (traceId) {
+      span['_spanContext'].traceId = traceId
+    }
 
     const ctx = trace.setSpan(context.active(), span)
-    startContext(message.topicId, ctx)
-    const entity = this.getModelSpanEntity(message.topicId)
-    entity.addSpan(span)
-    window.api.trace.openWindow(message.topicId, message.traceId, false, true)
-    return span
+    startContext(topicId, ctx)
+    return ctx
+  }
+
+  private _addModelRootSpan(params: StartSpanParams, ctx: Context) {
+    const entity = this.getModelSpanEntity(params.topicId, params.modelName)
+    const rootSpan = webTracer.startSpan(
+      `${params.name}`,
+      {
+        attributes: {
+          inputs: JSON.stringify(params.inputs || {}),
+          modelName: params.modelName,
+          tags: 'ModelHandle'
+        }
+      },
+      ctx
+    )
+    entity.addSpan(rootSpan, true)
   }
 
   endTrace(params: EndSpanParams) {
@@ -110,9 +211,9 @@ class SpanManagerService {
       entity.removeSpan(span)
       span = entity.getCurrentSpan()
     }
-    window.api.trace.saveData(params.topicId)
+    this.finishModelTrace(params.topicId)
     cleanContext(params.topicId)
-    this.pauseTrace(params.topicId)
+    window.api.trace.saveData(params.topicId)
   }
 
   addSpan(params: StartSpanParams) {
@@ -167,14 +268,17 @@ class SpanManagerService {
     if (params.outputs) {
       span.setAttributes({ outputs: JSON.stringify(params.outputs || {}) })
     }
+    if (params.error) {
+      span.recordException(params.error)
+    }
     span.setStatus({ code, message })
     span.end()
     endContext(params.topicId)
   }
 
-  getCurrentSpan(topicId: string, modelName?: string): Span | undefined {
+  getCurrentSpan(topicId: string, modelName?: string, isRoot = false): Span | undefined {
     let entity = this.getModelSpanEntity(topicId, modelName)
-    let span = entity.getCurrentSpan(modelName)
+    let span = isRoot ? entity.getRoot() : entity.getCurrentSpan(modelName)
     if (!span && modelName) {
       entity = this.getModelSpanEntity(topicId)
       span = entity.getCurrentSpan()
@@ -194,8 +298,8 @@ class SpanManagerService {
     }
   }
 
-  async pauseTrace(topicId: string) {
-    this.spanMap.get(topicId)?.forEach((entity) => entity.pauseSpan())
+  async finishModelTrace(topicId: string) {
+    this.spanMap.get(topicId)?.forEach((entity) => entity.finishSpan())
     this.spanMap.delete(topicId)
   }
 }
@@ -266,7 +370,8 @@ export const endTrace = spanManagerService.endTrace.bind(spanManagerService)
 export const endSpan = spanManagerService.endSpan.bind(spanManagerService)
 export const currentSpan = spanManagerService.getCurrentSpan.bind(spanManagerService)
 export const addTokenUsage = spanManagerService.addTokenUsage.bind(spanManagerService)
-export const pauseTrace = spanManagerService.pauseTrace.bind(spanManagerService)
+export const pauseTrace = spanManagerService.finishModelTrace.bind(spanManagerService)
+export const appendTrace = spanManagerService.appendTrace.bind(spanManagerService)
 export const restartTrace = spanManagerService.restartTrace.bind(spanManagerService)
 
 EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId, traceId }) => {

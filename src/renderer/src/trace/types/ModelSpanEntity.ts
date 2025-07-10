@@ -21,6 +21,7 @@ export interface EndSpanParams {
 export class ModelSpanEntity {
   private modelName?: string
   private spans: Span[] = []
+  private root?: Span
 
   constructor(modelName?: string) {
     this.modelName = modelName
@@ -31,7 +32,14 @@ export class ModelSpanEntity {
     return this.spans.length > 0 ? this.spans[this.spans.length - 1] : undefined
   }
 
-  addSpan(span: Span) {
+  getRoot(): Span | undefined {
+    return this.root
+  }
+
+  addSpan(span: Span, isRoot = false) {
+    if (isRoot) {
+      this.root = span
+    }
     this.spans.push(span)
   }
 
@@ -44,7 +52,7 @@ export class ModelSpanEntity {
     return false
   }
 
-  pauseSpan() {
+  finishSpan() {
     this.spans.forEach((span) => {
       span.setAttribute('outputs', 'you paused')
       span.end()

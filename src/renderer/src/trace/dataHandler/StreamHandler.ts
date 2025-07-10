@@ -41,11 +41,22 @@ export class StreamHandler {
             this.usage.total_tokens += completionChunk.usage.total_tokens || 0
           }
           context = chunk.choices
-            .map((choice) =>
-              'reasoning_content' in choice.delta && choice.delta.reasoning_content
-                ? choice.delta.reasoning_content
-                : choice.delta.content
-            )
+            .map((choice) => {
+              if (!choice.delta) {
+                return ''
+              } else if ('reasoning_content' in choice.delta) {
+                return choice.delta.reasoning_content
+              } else if (choice.delta.content) {
+                return choice.delta.content
+              } else if (choice.delta.refusal) {
+                return choice.delta.refusal
+              } else if (choice.delta.tool_calls) {
+                return choice.delta.tool_calls.map((toolCall) => {
+                  return toolCall.function?.name || toolCall.function?.arguments
+                })
+              }
+              return ''
+            })
             .join()
         } else {
           const resp = chunk as OpenAI.Responses.ResponseStreamEvent

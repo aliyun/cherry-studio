@@ -55,6 +55,7 @@ export interface SpanEntity {
   links: Link[] | undefined
   topicId?: string
   usage?: TokenUsage
+  modelName?: string
 }
 
 export const defaultConfig: TelemetryConfig = {

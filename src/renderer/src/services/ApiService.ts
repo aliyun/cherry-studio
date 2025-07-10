@@ -258,7 +258,7 @@ async function fetchExternalTool(
     let webSearchResponseFromSearch: WebSearchResponse | undefined
     let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
 
-    const parentSpanId = currentSpan(lastUserMessage.topicId)?.spanContext().spanId
+    const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
     // 并行执行搜索
     if (shouldWebSearch || shouldKnowledgeSearch) {
       ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([

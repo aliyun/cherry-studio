@@ -13,10 +13,11 @@ import TraceTree from './TraceTree'
 export interface TracePageProp {
   topicId: string
   traceId: string
+  modelName?: string
   reload?: boolean
 }
 
-export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = false }) => {
+export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName, reload = false }) => {
   const [spans, setSpans] = useState<TraceModal[]>([])
   const [selectNode, setSelectNode] = useState<TraceModal | null>(null)
   const [showList, setShowList] = useState(true)
@@ -41,48 +42,40 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
     })
   }, [])
 
-  const updatePercentAndStart = useCallback((nodes: TraceModal[]) => {
+  const updatePercentAndStart = useCallback((nodes: TraceModal[], rootStart?: number, rootEnd?: number) => {
     nodes.forEach((node) => {
-      const endTime = node.endTime || Date.now()
+      const _rootStart = rootStart || node.startTime
+      const _rootEnd = rootEnd || node.endTime || Date.now()
+      const endTime = node.endTime || _rootEnd
       const usedTime = endTime - node.startTime
-      const duration = node.rootEnd - node.rootStart
-      node.start = ((node.startTime - node.rootStart) * 100) / duration
+      const duration = _rootEnd - _rootStart
+      node.start = ((node.startTime - _rootStart) * 100) / duration
       node.percent = duration === 0 ? 0 : (usedTime * 100) / duration
       if (node.children) {
-        updatePercentAndStart(node.children)
+        updatePercentAndStart(node.children, _rootStart, _rootEnd)
       }
     })
   }, [])
 
   const getRootSpan = (spans: SpanEntity[]): TraceModal[] => {
     const map: Map<string, TraceModal> = new Map()
-    const root: TraceModal[] = []
 
-    let minStart = spans && spans.length > 0 ? spans[0].startTime : 0
-    let maxEnd = spans && spans.length > 0 ? spans[0].endTime || Date.now() : 0
-    spans.forEach((span) => {
-      if (map.has(span.id)) {
-        map
-          .get(span.id)
-          ?.children.push({ ...span, children: [], percent: 100, start: 0, rootStart: 0, rootEnd: 0 } as TraceModal)
-      } else {
-        map.set(span.id, { ...span, children: [], percent: 100, start: 0, rootStart: 0, rootEnd: 0 } as TraceModal)
-      }
-      if (!span.parentId || !map.has(span.parentId)) {
-        minStart = Math.min(span.startTime, minStart)
-        maxEnd = Math.max(span.endTime || Date.now(), maxEnd)
-        root.push(map.get(span.id) as TraceModal)
-      }
+    spans.map((span) => {
+      map.set(span.id, { ...span, children: [], percent: 100, start: 0 })
     })
 
-    map.forEach((span) => {
-      span.rootStart = minStart
-      span.rootEnd = maxEnd
-      if (span.parentId && map.has(span.parentId)) {
-        map.get(span.parentId)?.children.push(span)
-      }
-    })
-    return root
+    return Array.from(
+      map.values().filter((span) => {
+        if (span.parentId && map.has(span.parentId)) {
+          const parent = map.get(span.parentId)
+          if (parent) {
+            parent.children.push(span)
+          }
+          return false
+        }
+        return true
+      })
+    )
   }
 
   const findNodeById = useCallback((nodes: TraceModal[], id: string): TraceModal | null => {
@@ -97,13 +90,13 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, reload = 
   }, [])
 
   const getTraceData = useCallback(async (): Promise<boolean> => {
-    const datas = topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
+    const datas = topicId && traceId ? await window.api.trace.getData(topicId, traceId, modelName) : []
     const matchedSpans = getRootSpan(datas)
     updatePercentAndStart(matchedSpans)
     setSpans((prev) => mergeTraceModals(prev, matchedSpans))
     const isEnded = !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
     return isEnded
-  }, [topicId, traceId, updatePercentAndStart, mergeTraceModals])
+  }, [topicId, traceId, modelName, updatePercentAndStart, mergeTraceModals])
 
   const handleNodeClick = (nodeId: string) => {
     const latestNode = findNodeById(spans, nodeId)
