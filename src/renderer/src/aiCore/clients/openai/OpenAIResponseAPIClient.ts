@@ -39,7 +39,7 @@ import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/fi
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
-import OpenAI from 'openai'
+import OpenAI, { AzureOpenAI } from 'openai'
 import { ResponseInput } from 'openai/resources/responses/responses'
 
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -66,6 +66,9 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
    */
   public getClient(model: Model) {
     if (isOpenAILLMModel(model) && !isOpenAIChatCompletionOnlyModel(model)) {
+      if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
+        this.provider = { ...this.provider, apiVersion: 'preview' }
+      }
       return this
     } else {
       return this.client
@@ -77,15 +80,25 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       return this.sdkInstance
     }
 
-    return new OpenAI({
-      dangerouslyAllowBrowser: true,
-      apiKey: this.apiKey,
-      baseURL: this.getBaseURL(),
-      defaultHeaders: {
-        ...this.defaultHeaders(),
-        ...this.provider.extra_headers
-      }
-    })
+    if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
+      this.provider = { ...this.provider, apiHost: `${this.provider.apiHost}/openai/v1` }
+      return new AzureOpenAI({
+        dangerouslyAllowBrowser: true,
+        apiKey: this.apiKey,
+        apiVersion: this.provider.apiVersion,
+        baseURL: this.provider.apiHost
+      })
+    } else {
+      return new OpenAI({
+        dangerouslyAllowBrowser: true,
+        apiKey: this.apiKey,
+        baseURL: this.getBaseURL(),
+        defaultHeaders: {
+          ...this.defaultHeaders(),
+          ...this.provider.extra_headers
+        }
+      })
+    }
   }
 
   override async createCompletions(
@@ -173,7 +186,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       }
 
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
+        const fileContent = (await window.api.file.read(file.id + file.ext, true)).trim()
         parts.push({
           type: 'input_text',
           text: file.origin_name + '\n' + fileContent
@@ -354,16 +367,15 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
             (m) => (m as OpenAI.Responses.EasyInputMessage).role === 'assistant'
           ) as OpenAI.Responses.EasyInputMessage
           const finalUserMessage = userMessage.pop() as OpenAI.Responses.EasyInputMessage
-          if (
-            finalAssistantMessage &&
-            Array.isArray(finalAssistantMessage.content) &&
-            finalUserMessage &&
-            Array.isArray(finalUserMessage.content)
-          ) {
-            finalAssistantMessage.content = [...finalAssistantMessage.content, ...finalUserMessage.content]
+          if (finalUserMessage && Array.isArray(finalUserMessage.content)) {
+            if (finalAssistantMessage && Array.isArray(finalAssistantMessage.content)) {
+              finalAssistantMessage.content = [...finalAssistantMessage.content, ...finalUserMessage.content]
+              // 这里是故意将上条助手消息的内容（包含图片和文件）作为用户消息发送
+              userMessage = [{ ...finalAssistantMessage, role: 'user' } as OpenAI.Responses.EasyInputMessage]
+            } else {
+              userMessage.push(finalUserMessage)
+            }
           }
-          // 这里是故意将上条助手消息的内容（包含图片和文件）作为用户消息发送
-          userMessage = [{ ...finalAssistantMessage, role: 'user' } as OpenAI.Responses.EasyInputMessage]
         }
 
         // 4. 最终请求消息
