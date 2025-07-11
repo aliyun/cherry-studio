@@ -42,7 +42,6 @@ const App = () => {
   }, [title, reload, modelName, traceId, topicId])
 
   const handleFooterClick = () => {
-    console.log('handleFooterClick current lang', lang)
     window.api.shell.openExternal('https://www.aliyun.com/product/edas')
   }
 
@@ -50,9 +49,9 @@ const App = () => {
     <>
       <TracePage traceId={traceId} topicId={topicId} reload={reload} modelName={modelName} />
       <footer>
-        <p onClick={handleFooterClick} className="footer-link">
+        <span onClick={handleFooterClick} className="footer-link">
           {i18n.t('trace.edasSupport')}
-        </p>
+        </span>
       </footer>
     </>
   )

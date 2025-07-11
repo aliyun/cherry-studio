@@ -282,6 +282,10 @@ class SpanCacheService implements TraceCache {
   private async _getHisData(topicId: string, traceId: string, modelName?: string) {
     const filePath = path.join(this.fileDir, topicId, traceId)
 
+    if (!(await this._existFile(filePath))) {
+      return []
+    }
+
     try {
       const fileHandle = await fs.open(filePath, 'r')
       const stream = fileHandle.createReadStream()
