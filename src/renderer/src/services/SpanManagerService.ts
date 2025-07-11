@@ -149,6 +149,8 @@ class SpanManagerService {
       traceId: message.traceId
     }
 
+    window.api.trace.cleanHistory(message.topicId, message.traceId, model.name)
+
     window.api.trace.bindTopic(message.topicId, message.traceId)
     const span = webTracer.startSpan(`${model.name}.handleMessage`, {
       attributes: {

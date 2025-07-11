@@ -18,21 +18,23 @@ class SpanCacheService implements TraceCache {
     const spanEntity = convertSpanToSpanEntity(span)
     spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
     this.cache.set(span.spanContext().spanId, spanEntity)
+    this._updateModelName(spanEntity)
   }
 
   endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
     const spanId = span.spanContext().spanId
-    if (this.cache.has(spanId)) {
-      const spanEntity = this.cache.get(spanId)
-      if (spanEntity) {
-        spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
-        spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
-        spanEntity.status = SpanStatusCode[span.status.code]
-        spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
-        spanEntity.events = span.events
-        spanEntity.links = span.links
-      }
+    const spanEntity = this.cache.get(spanId)
+    if (!spanEntity) {
+      return
     }
+
+    spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
+    spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
+    spanEntity.status = SpanStatusCode[span.status.code]
+    spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
+    spanEntity.events = span.events
+    spanEntity.links = span.links
+    this._updateModelName(spanEntity)
   }
 
   clear: () => void = () => {
@@ -67,7 +69,7 @@ class SpanCacheService implements TraceCache {
     if (!traceId) {
       return
     }
-    const spans = Array.from(this.cache.values().filter((e) => e.traceId === traceId))
+    const spans = Array.from(this.cache.values().filter((e) => e.traceId === traceId || !e.modelName))
     await this._saveToFile(spans, traceId, topicId)
     this.topicMap.delete(traceId)
     spans.forEach((span) => {
@@ -98,6 +100,13 @@ class SpanCacheService implements TraceCache {
     this.cache.set(entity.id, entity)
   }
 
+  private _updateModelName(entity: SpanEntity) {
+    let modelName = entity.modelName || entity.attributes?.modelName?.toString()
+    if (!modelName && entity.parentId) {
+      modelName = this.cache.get(entity.parentId)?.modelName
+    }
+    entity.modelName = modelName
+  }
   private _updateEntity(entity: SpanEntity): void {
     entity.topicId = this.topicMap.get(entity.traceId)
     const savedEntity = this.cache.get(entity.id)
@@ -134,6 +143,11 @@ class SpanCacheService implements TraceCache {
     }
   }
 
+  /**
+   * binding topic id to trace
+   * @param traceId traceId
+   * @param topicId topicId
+   */
   setTopicId(traceId: string, topicId: string): void {
     this.topicMap.set(traceId, topicId)
   }
@@ -148,6 +162,7 @@ class SpanCacheService implements TraceCache {
     } else {
       this._addEntity(entity)
     }
+    this._updateModelName(entity)
   }
 
   updateTokenUsage(spanId: string, usage: TokenUsage) {
@@ -207,17 +222,25 @@ class SpanCacheService implements TraceCache {
 
     const filePath = path.join(this.fileDir, topicId, traceId)
     const fileExists = await this._existFile(filePath)
-    if (!modelName && fileExists) {
+
+    if (!fileExists) {
+      return
+    }
+
+    if (!modelName) {
       await fs.rm(filePath, { recursive: true })
-    } else if (modelName && fileExists) {
-      const modelFilePath = path.join(filePath, traceId)
-      const allSpans = await this.getSpans(topicId, traceId)
-      await fs.rm(modelFilePath, { recursive: true })
-      allSpans
-        .filter((span) => span.modelName !== modelName)
-        .forEach((span) => {
+    } else {
+      const allSpans = await this._getHisData(topicId, traceId)
+      allSpans.forEach((span) => {
+        if (!modelName || modelName !== span.modelName) {
           this.cache.set(span.id, span)
-        })
+        }
+      })
+      try {
+        await fs.rm(filePath, { recursive: true })
+      } catch (error) {
+        console.error(error)
+      }
     }
   }
 
@@ -331,7 +354,8 @@ class SpanCacheService implements TraceCache {
     try {
       await fs.access(filePath)
       return true
-    } catch {
+    } catch (err) {
+      console.log('delete trace file error:', err)
       return false
     }
   }

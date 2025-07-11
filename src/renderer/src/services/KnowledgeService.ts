@@ -166,7 +166,7 @@ export const searchKnowledgeBase = async (
     if (topicId) {
       endSpan({
         topicId,
-        outputs: [],
+        outputs: result,
         span: currentSpan,
         modelName
       })

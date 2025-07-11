@@ -10,7 +10,6 @@ const App = () => {
   const [modelName, setModelName] = useState<string | undefined>(undefined)
   const [reload, setReload] = useState(false)
   const [title, setTitle] = useState('Call Chain Window')
-  const [lang, setLang] = useState('zh')
 
   useEffect(() => {
     const setTraceHandler = (_, data) => {
@@ -24,7 +23,6 @@ const App = () => {
 
     const setLangHandler = (_, data) => {
       i18n.changeLanguage(data.lang)
-      setLang(data.lang)
       const newTitle = i18n.t('trace.traceWindow')
       if (newTitle !== title) {
         window.api.trace.setTraceWindowTitle(i18n.t('trace.traceWindow'))
