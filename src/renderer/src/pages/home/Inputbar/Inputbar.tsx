@@ -213,7 +213,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       { topicId: topic.id, name: 'sendMessage', inputs: text },
       mentionedModels && mentionedModels.length > 0 ? mentionedModels : [assistant.model]
     )
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent.spanContext().traceId })
+    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
 
     try {
       // Dispatch the sendMessage action with all options
@@ -239,7 +239,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
-      message.traceId = parent.spanContext().traceId
+      message.traceId = parent?.spanContext().traceId
 
       currentMessageId.current = message.id
       dispatch(_sendMessage(message, blocks, assistantWithTopicPrompt, topic.id))
@@ -252,7 +252,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setExpend(false)
     } catch (error) {
       console.error('Failed to send message:', error)
-      parent.recordException(error as Error)
+      parent?.recordException(error as Error)
     }
   }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, topic])
 
@@ -530,8 +530,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     async (event: ClipboardEvent) => {
       return await PasteService.handlePaste(
         event,
-        isVisionModel(model),
-        isGenerateImageModel(model),
         supportedExts,
         setFiles,
         setText,
@@ -542,7 +540,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         t
       )
     },
-    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportedExts, t, text]
+    [pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportedExts, t, text]
   )
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -964,7 +962,7 @@ const Container = styled.div`
   flex-direction: column;
   position: relative;
   z-index: 2;
-  padding: 0 20px 18px 20px;
+  padding: 0 24px 18px 24px;
 `
 
 const InputBarContainer = styled.div`

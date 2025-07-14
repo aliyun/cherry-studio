@@ -31,9 +31,9 @@
 }
 
 .error-text {
-  color: '#ffccc7';
-  cursor: 'pointer';
-  user-select: 'none';
+  color: #d42817;
+  cursor: pointer;
+  user-select: none;
 }
 
 .floating {
@@ -49,8 +49,8 @@
 
 .default-text {
   color: val(--trace-text);
-  cursor: 'pointer';
-  user-select: 'none';
+  cursor: pointer;
+  user-select: none;
 }
 
 .tab-header,

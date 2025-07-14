@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.4.9",
+  "version": "1.4.11",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -23,7 +23,6 @@
   "scripts": {
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
-    "dev:win": "cross-env NODE_OPTIONS='--max-old-space-size=4096' electron-vite dev",
     "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "yarn typecheck && yarn check:i18n && yarn test",
@@ -77,7 +76,7 @@
     "os-proxy-config": "^1.1.2",
     "pdfjs-dist": "4.10.38",
     "react-json-view": "^1.21.3",
-    "selection-hook": "^1.0.5",
+    "selection-hook": "^1.0.6",
     "turndown": "7.2.0"
   },
   "devDependencies": {

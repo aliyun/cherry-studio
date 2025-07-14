@@ -52,8 +52,9 @@ export function useMessageOperations(topic: Topic) {
    * Dispatches deleteSingleMessageThunk.
    */
   const deleteMessage = useCallback(
-    async (id: string) => {
+    async (id: string, traceId?: string, modelName?: string) => {
       await dispatch(deleteSingleMessageThunk(topic.id, id))
+      window.api.trace.cleanHistory(topic.id, traceId || '', modelName)
     },
     [dispatch, topic.id]
   )
@@ -98,7 +99,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const resendMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
-      await restartTrace(message, [assistant.model])
+      await restartTrace(message)
       await dispatch(resendMessageThunk(topic.id, message, assistant))
     },
     [dispatch, topic.id]
@@ -159,7 +160,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const regenerateAssistantMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
-      await restartTrace(message, [assistant.model])
+      await restartTrace(message)
       if (message.role !== 'assistant') {
         console.warn('regenerateAssistantMessage should only be called for assistant messages.')
         return
@@ -385,8 +386,8 @@ export function useMessageOperations(topic: Topic) {
         console.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
         return
       }
-      const models = message.mentions && message.mentions.length > 0 ? message.mentions : [assistant.model]
-      await restartTrace(message, models, mainTextBlock.content)
+
+      await restartTrace(message, mainTextBlock.content)
 
       const fileBlocks = editedBlocks.filter(
         (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE

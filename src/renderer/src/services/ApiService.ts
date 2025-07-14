@@ -103,22 +103,24 @@ async function fetchExternalTool(
     summaryAssistant.model = assistant.model || getDefaultModel()
     summaryAssistant.prompt = prompt
 
+    const callSearchSummary = async (params: { messages: Message[]; assistant: Assistant }) => {
+      return await fetchSearchSummary(params)
+    }
+
+    const traceParams = {
+      name: `${summaryAssistant.model?.name}.Summary`,
+      tag: 'LLM',
+      topicId: lastUserMessage.topicId,
+      modelName: summaryAssistant.model.name
+    }
+
+    const searchSummaryParams = {
+      messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
+      assistant: summaryAssistant
+    }
+
     try {
-      const result = await withSpanResult(
-        async (params) => {
-          return await fetchSearchSummary(params)
-        },
-        {
-          name: `${summaryAssistant.model?.name}.Summary`,
-          tag: 'LLM',
-          topicId: lastUserMessage.topicId,
-          modelName: summaryAssistant.model.name
-        },
-        {
-          messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
-          assistant: summaryAssistant
-        }
-      )
+      const result = await withSpanResult(callSearchSummary, traceParams, searchSummaryParams)
 
       if (!result) return getFallbackResult()
 
@@ -393,31 +395,26 @@ export async function fetchChatCompletion({
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-  return await withSpanResult(
-    async (params, options) => await AI.completions(params, options),
-    {
-      name: `${model.name}.Chat`,
-      tag: 'LLM',
-      topicId: lastUserMessage.topicId,
-      modelName: model.name
-    },
-    {
-      callType: 'chat',
-      messages: _messages,
-      assistant,
-      onChunk: onChunkReceived,
-      mcpTools: mcpTools,
-      maxTokens,
-      streamOutput: assistant.settings?.streamOutput || false,
-      enableReasoning,
-      enableWebSearch,
-      enableGenerateImage,
-      topicId: lastUserMessage.topicId
-    },
-    {
-      streamOutput: assistant.settings?.streamOutput || false
-    }
-  )
+
+  const completionsParams: CompletionsParams = {
+    callType: 'chat',
+    messages: _messages,
+    assistant,
+    onChunk: onChunkReceived,
+    mcpTools: mcpTools,
+    maxTokens,
+    streamOutput: assistant.settings?.streamOutput || false,
+    enableReasoning,
+    enableWebSearch,
+    enableGenerateImage,
+    topicId: lastUserMessage.topicId
+  }
+
+  const requestOptions = {
+    streamOutput: assistant.settings?.streamOutput || false
+  }
+
+  return await AI.completionsForTrace(completionsParams, requestOptions)
 }
 
 interface FetchTranslateProps {
@@ -529,16 +526,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   }
 
   try {
-    const { getText } = await withSpanResult(
-      async (parameters) => await AI.completions(parameters),
-      {
-        name: `${model.name}.Summary`,
-        tag: 'LLM',
-        topicId: topicId || '',
-        modelName: model.name
-      },
-      params
-    )
+    const { getText } = await AI.completionsForTrace(params)
     const text = getText()
     return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
@@ -566,18 +554,7 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
     topicId
   }
 
-  return await withSpanResult(
-    async (parameters) => {
-      return await AI.completions(parameters)
-    },
-    {
-      name: `${model.name}.SearchSummary`,
-      tag: 'LLM',
-      topicId: topicId || '',
-      modelName: model.name
-    },
-    params
-  )
+  return await AI.completionsForTrace(params)
 }
 
 export async function fetchGenerate({ prompt, content }: { prompt: string; content: string }): Promise<string> {

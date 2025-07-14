@@ -6,7 +6,7 @@ import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
-import { TraceMethod } from '@mcp-trace/trace-core'
+import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
@@ -15,7 +15,6 @@ import {
   type StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
-import { context, SpanStatusCode, trace } from '@opentelemetry/api'
 import { nanoid } from '@reduxjs/toolkit'
 import type {
   GetMCPPromptResponse,
@@ -39,6 +38,8 @@ import getLoginShellEnvironment from './mcp/shell-env'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
+
+type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: string }
 
 /**
  * Higher-order function to add caching capability to any async function
@@ -90,6 +91,7 @@ class McpService {
     this.stopServer = this.stopServer.bind(this)
     this.abortTool = this.abortTool.bind(this)
     this.cleanup = this.cleanup.bind(this)
+    this.getServerVersion = this.getServerVersion.bind(this)
   }
 
   private getServerKey(server: MCPServer): string {
@@ -442,43 +444,22 @@ class McpService {
   }
 
   async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
-    return context.with(context.active(), () =>
-      trace.getTracer('CherryStudio').startActiveSpan(
-        `${server.name}.ListTools`,
-        {
-          attributes: {
-            inputs: JSON.stringify(server),
-            tags: 'MCP'
-          }
+    const listFunc = (server: MCPServer) => {
+      const cachedListTools = withCache<[MCPServer], MCPTool[]>(
+        this.listToolsImpl.bind(this),
+        (server) => {
+          const serverKey = this.getServerKey(server)
+          return `mcp:list_tool:${serverKey}`
         },
-        async (span) => {
-          const cachedListTools = withCache<[MCPServer], MCPTool[]>(
-            this.listToolsImpl.bind(this),
-            (server) => {
-              const serverKey = this.getServerKey(server)
-              return `mcp:list_tool:${serverKey}`
-            },
-            5 * 60 * 1000, // 5 minutes TTL
-            `[MCP] Tools from ${server.name}`
-          )
-
-          const result = cachedListTools(server)
-          result
-            .then((data) => {
-              span.setAttribute('outputs', JSON.stringify(data))
-              span.setStatus({ code: SpanStatusCode.OK })
-              span.end()
-              return data
-            })
-            .catch((error) => {
-              span.recordException(error)
-              span.setStatus({ code: SpanStatusCode.ERROR, message: error.message })
-              span.end()
-            })
-          return result
-        }
+        5 * 60 * 1000, // 5 minutes TTL
+        `[MCP] Tools from ${server.name}`
       )
-    )
+
+      const result = cachedListTools(server)
+      return result
+    }
+
+    return withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
   }
 
   /**
@@ -486,56 +467,41 @@ class McpService {
    */
   public async callTool(
     _: Electron.IpcMainInvokeEvent,
-    { server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string }
+    { server, name, args, callId }: CallToolArgs
   ): Promise<MCPCallToolResponse> {
     const toolCallId = callId || uuidv4()
     const abortController = new AbortController()
     this.activeToolCalls.set(toolCallId, abortController)
 
-    return context.with(context.active(), () =>
-      trace.getTracer('CherryStudio').startActiveSpan(
-        `${server.name}.CallTool`,
-        {
-          attributes: {
-            inputs: JSON.stringify({ server, name, args }),
-            tags: `MCP[${name}]`
-          }
-        },
-        async (span) => {
+    const callToolFunc = async ({ server, name, args }: CallToolArgs) => {
+      try {
+        Logger.info('[MCP] Calling:', server.name, name, args, 'callId:', toolCallId)
+        if (typeof args === 'string') {
           try {
-            Logger.info('[MCP] Calling:', server.name, name, args, 'callId:', toolCallId)
-            if (typeof args === 'string') {
-              try {
-                args = JSON.parse(args)
-              } catch (e) {
-                Logger.error('[MCP] args parse error', args)
-              }
-            }
-            const client = await this.initClient(server)
-            const result = await client.callTool({ name, arguments: args }, undefined, {
-              onprogress: (process) => {
-                console.log('[MCP] Progress:', process.progress / (process.total || 1))
-                window.api.mcp.setProgress(process.progress / (process.total || 1))
-              },
-              timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute
-              signal: this.activeToolCalls.get(toolCallId)?.signal
-            })
-            span.setAttribute('outputs', JSON.stringify(result))
-            span.setStatus({ code: SpanStatusCode.OK })
-            span.end()
-            return result as MCPCallToolResponse
-          } catch (error) {
-            Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
-            span.recordException(error instanceof Error ? error : new Error(String(error)))
-            span.setStatus({ code: SpanStatusCode.ERROR, message: error instanceof Error ? error.message : '' })
-            span.end()
-            throw error
-          } finally {
-            this.activeToolCalls.delete(toolCallId)
+            args = JSON.parse(args)
+          } catch (e) {
+            Logger.error('[MCP] args parse error', args)
           }
         }
-      )
-    )
+        const client = await this.initClient(server)
+        const result = await client.callTool({ name, arguments: args }, undefined, {
+          onprogress: (process) => {
+            console.log('[MCP] Progress:', process.progress / (process.total || 1))
+            window.api.mcp.setProgress(process.progress / (process.total || 1))
+          },
+          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute
+          signal: this.activeToolCalls.get(toolCallId)?.signal
+        })
+        return result as MCPCallToolResponse
+      } catch (error) {
+        Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
+        throw error
+      } finally {
+        this.activeToolCalls.delete(toolCallId)
+      }
+    }
+
+    return await withSpanFunc(`${server.name}.${name}`, `MCP`, callToolFunc, [{ server, name, args }])
   }
 
   public async getInstallInfo() {
@@ -739,6 +705,31 @@ class McpService {
     } else {
       Logger.warn(`[MCP] No active tool call found for callId: ${callId}`)
       return false
+    }
+  }
+
+  /**
+   * Get the server version information
+   */
+  public async getServerVersion(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<string | null> {
+    try {
+      Logger.info(`[MCP] Getting server version for: ${server.name}`)
+      const client = await this.initClient(server)
+
+      // Try to get server information which may include version
+      const serverInfo = client.getServerVersion()
+      Logger.info(`[MCP] Server info for ${server.name}:`, serverInfo)
+
+      if (serverInfo && serverInfo.version) {
+        Logger.info(`[MCP] Server version for ${server.name}: ${serverInfo.version}`)
+        return serverInfo.version
+      }
+
+      Logger.warn(`[MCP] No version information available for server: ${server.name}`)
+      return null
+    } catch (error: any) {
+      Logger.error(`[MCP] Failed to get server version for ${server.name}:`, error?.message)
+      return null
     }
   }
 }

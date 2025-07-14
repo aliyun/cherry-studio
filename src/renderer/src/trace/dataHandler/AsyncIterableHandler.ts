@@ -38,11 +38,11 @@ export class AsyncIterableHandler {
                 } else if (p.executableCode) {
                   return `'''${p.executableCode.language || ''}\n${p.executableCode.code}\n'''`
                 } else if (p.fileData) {
-                  return JSON.stringify(p.fileData)
+                  return '<Blob Data>'
                 } else if (p.functionResponse) {
                   return `${p.functionResponse.name}: ${JSON.stringify(p.functionResponse.response)}`
                 } else if (p.inlineData) {
-                  return p.inlineData.data
+                  return '<File Data>'
                 } else if (p.videoMetadata) {
                   return `fps: ${p.videoMetadata.fps}, start:${p.videoMetadata.startOffset}, end:${p.videoMetadata.endOffset}`
                 } else {

@@ -231,7 +231,7 @@ export class AnthropicAPIClient extends BaseApiClient<
             }
           })
         } else {
-          const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+          const fileContent = await (await window.api.file.read(file.id + file.ext, true)).trim()
           parts.push({
             type: 'text',
             text: file.origin_name + '\n' + fileContent
@@ -524,9 +524,18 @@ export class AnthropicAPIClient extends BaseApiClient<
           switch (rawChunk.type) {
             case 'message': {
               let i = 0
+              let hasTextContent = false
+              let hasThinkingContent = false
+
               for (const content of rawChunk.content) {
                 switch (content.type) {
                   case 'text': {
+                    if (!hasTextContent) {
+                      controller.enqueue({
+                        type: ChunkType.TEXT_START
+                      } as TextStartChunk)
+                      hasTextContent = true
+                    }
                     controller.enqueue({
                       type: ChunkType.TEXT_DELTA,
                       text: content.text
@@ -539,6 +548,12 @@ export class AnthropicAPIClient extends BaseApiClient<
                     break
                   }
                   case 'thinking': {
+                    if (!hasThinkingContent) {
+                      controller.enqueue({
+                        type: ChunkType.THINKING_START
+                      } as ThinkingStartChunk)
+                      hasThinkingContent = true
+                    }
                     controller.enqueue({
                       type: ChunkType.THINKING_DELTA,
                       text: content.thinking

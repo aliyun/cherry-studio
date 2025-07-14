@@ -10,7 +10,6 @@ const App = () => {
   const [modelName, setModelName] = useState<string | undefined>(undefined)
   const [reload, setReload] = useState(false)
   const [title, setTitle] = useState('Call Chain Window')
-  const [lang, setLang] = useState('zh')
 
   useEffect(() => {
     const setTraceHandler = (_, data) => {
@@ -24,7 +23,6 @@ const App = () => {
 
     const setLangHandler = (_, data) => {
       i18n.changeLanguage(data.lang)
-      setLang(data.lang)
       const newTitle = i18n.t('trace.traceWindow')
       if (newTitle !== title) {
         window.api.trace.setTraceWindowTitle(i18n.t('trace.traceWindow'))
@@ -42,7 +40,6 @@ const App = () => {
   }, [title, reload, modelName, traceId, topicId])
 
   const handleFooterClick = () => {
-    console.log('handleFooterClick current lang', lang)
     window.api.shell.openExternal('https://www.aliyun.com/product/edas')
   }
 
@@ -50,9 +47,9 @@ const App = () => {
     <>
       <TracePage traceId={traceId} topicId={topicId} reload={reload} modelName={modelName} />
       <footer>
-        <p onClick={handleFooterClick} className="footer-link">
+        <span onClick={handleFooterClick} className="footer-link">
           {i18n.t('trace.edasSupport')}
-        </p>
+        </span>
       </footer>
     </>
   )

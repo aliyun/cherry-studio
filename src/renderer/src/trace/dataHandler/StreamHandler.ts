@@ -72,14 +72,14 @@ export class StreamHandler {
           } else if ('text' in resp && resp.text) {
             context = resp.text
           } else if ('partial_image_b64' in resp && resp.partial_image_b64) {
-            context = resp.partial_image_b64
+            context = '<Image Data>'
           } else if ('part' in resp && resp.part) {
             context = 'refusal' in resp.part ? resp.part.refusal : resp.part.text
+          } else {
+            context = ''
           }
         }
-        if (context) {
-          window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, chunk)
-        }
+        window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, chunk)
         yield chunk
       }
       this.finish()

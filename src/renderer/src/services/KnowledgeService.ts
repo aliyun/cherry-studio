@@ -53,9 +53,8 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     rerankModelProvider: rerankProvider.name.toLowerCase(),
     // topN: base.topN,
     // preprocessing: base.preprocessing,
-    preprocessOrOcrProvider: base.preprocessOrOcrProvider
-
-    // topN: base.topN
+    preprocessOrOcrProvider: base.preprocessOrOcrProvider,
+    documentCount: base.documentCount
   }
 }
 
@@ -166,7 +165,7 @@ export const searchKnowledgeBase = async (
     if (topicId) {
       endSpan({
         topicId,
-        outputs: [],
+        outputs: result,
         span: currentSpan,
         modelName
       })

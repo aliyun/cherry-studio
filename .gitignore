@@ -47,6 +47,9 @@ local
 .aider*
 .cursorrules
 .cursor/*
+.claude/*
+.gemini/*
+.trae/*
 
 # vitest
 coverage

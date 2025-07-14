@@ -20,12 +20,13 @@ export function TraceMethod(traced: SpanDecoratorOptions) {
     if (!descriptor || typeof descriptor.value !== 'function') {
       throw new Error('TraceMethod can only be applied to methods.')
     }
+
     const originalMethod = descriptor.value
     const traceName = traced.traceName || defaultConfig.defaultTracerName || 'default'
     const tracer = trace.getTracer(traceName)
-    const name = traced.spanName || propertyKey
 
     descriptor.value = async function (...args: any[]) {
+      const name = traced.spanName || propertyKey
       return tracer.startActiveSpan(name, async (span) => {
         try {
           span.setAttribute('inputs', convertToString(args))
@@ -108,13 +109,25 @@ export function TraceProperty(traced: SpanDecoratorOptions) {
   }
 }
 
-export function withSpanFunc<F extends (...args: any[]) => any>(fn: F): F {
+export function withSpanFunc<F extends (...args: any[]) => any>(
+  name: string,
+  tag: string,
+  fn: F,
+  args: Parameters<F>
+): ReturnType<F> {
   const traceName = defaultConfig.defaultTracerName || 'default'
   const tracer = trace.getTracer(traceName)
-  const name = fn.name || 'anonymousFunction'
-  return function (...args: Parameters<F>) {
-    return traceContext.with(traceContext.active(), () =>
-      tracer.startActiveSpan(name, {}, (span) => {
+  const _name = name || fn.name || 'anonymousFunction'
+  return traceContext.with(traceContext.active(), () =>
+    tracer.startActiveSpan(
+      _name,
+      {
+        attributes: {
+          tags: tag || '',
+          inputs: JSON.stringify(args)
+        }
+      },
+      (span) => {
         // 在这里调用原始函数
         const result = fn(...args)
         if (result instanceof Promise) {
@@ -137,9 +150,9 @@ export function withSpanFunc<F extends (...args: any[]) => any>(fn: F): F {
           span.end()
         }
         return result
-      })
+      }
     )
-  } as F
+  )
 }
 
 function convertToString(args: any | any[]): string | boolean | number {

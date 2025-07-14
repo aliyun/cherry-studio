@@ -42,6 +42,14 @@ export class MessageStreamHandler {
       .map((c) => {
         if (c.type === 'text') {
           return c.text
+        } else if (c.type === 'redacted_thinking') {
+          return c.data
+        } else if (c.type === 'server_tool_use' || c.type === 'tool_use') {
+          return `${c.name}: ${c.input}`
+        } else if (c.type === 'thinking') {
+          return c.thinking
+        } else if (c.type === 'web_search_tool_result') {
+          return c.content
         } else {
           return JSON.stringify(c)
         }
