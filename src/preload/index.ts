@@ -352,6 +352,7 @@ const api = {
     setTraceWindowTitle: (title: string) => ipcRenderer.invoke(IpcChannel.TRACE_SET_TITLE, title),
     addEndMessage: (spanId: string, modelName: string, context: string) =>
       ipcRenderer.invoke(IpcChannel.TRACE_ADD_END_MESSAGE, spanId, modelName, context),
+    cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA),
     addStreamMessage: (spanId: string, modelName: string, context: string, message: any) =>
       ipcRenderer.invoke(IpcChannel.TRACE_ADD_STREAM_MESSAGE, spanId, modelName, context, message)
   }

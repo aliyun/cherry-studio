@@ -26,19 +26,20 @@ export default class WebSearchEngineProvider {
     websearch: WebSearchState,
     httpOptions?: RequestInit
   ): Promise<WebSearchProviderResponse> {
-    const result = await withSpanResult(
-      async ({ query, websearch }) => {
-        return await this.sdk.search(query, websearch, httpOptions)
-      },
-      {
-        name: `${this.providerName}.search`,
-        tag: 'Web',
-        topicId: this.topicId || '',
-        parentSpanId: this.parentSpanId,
-        modelName: this.modelName
-      },
-      { query, websearch }
-    )
+    const callSearch = async ({ query, websearch }) => {
+      return await this.sdk.search(query, websearch, httpOptions)
+    }
+
+    const traceParams = {
+      name: `${this.providerName}.search`,
+      tag: 'Web',
+      topicId: this.topicId || '',
+      parentSpanId: this.parentSpanId,
+      modelName: this.modelName
+    }
+
+    const result = await withSpanResult(callSearch, traceParams, { query, websearch })
+
     return await filterResultWithBlacklist(result, websearch)
   }
 }

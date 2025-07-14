@@ -1,5 +1,5 @@
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import { defaultConfig, SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { cleanContext, endContext, getContext, startContext } from '@mcp-trace/trace-web'
 import { Context, context, Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { isAsyncIterable } from '@renderer/aiCore/middleware/utils'
@@ -35,6 +35,10 @@ class SpanManagerService {
   }
 
   startTrace(params: StartSpanParams, models?: Model[]) {
+    if (!defaultConfig.isDevModel) {
+      console.warn('Trace is enabled in developer mode.')
+      return
+    }
     const span = webTracer.startSpan(params.name || 'root', {
       root: true,
       attributes: {
@@ -55,115 +59,78 @@ class SpanManagerService {
     return span
   }
 
-  async restartTrace(message: Message, models: (Model | undefined)[], text?: string) {
+  async restartTrace(message: Message, text?: string) {
+    if (!defaultConfig.isDevModel) {
+      console.warn('Trace is enabled in developer mode.')
+      return
+    }
+
     if (!message.traceId) {
       return
     }
-    let content = text
-    if (!content) {
+
+    await window.api.trace.bindTopic(message.topicId, message.traceId)
+
+    const input = await this._getContentFromMessage(message, text)
+
+    let _models
+    if (message.role === 'user') {
+      await window.api.trace.cleanHistory(message.topicId, message.traceId)
+
+      const topic = await db.topics.get(message.topicId)
+      _models = topic?.messages.filter((m) => m.role === 'assistant' && m.askId === message.id).map((m) => m.model)
+    } else {
+      _models = [message.model]
+      await window.api.trace.cleanHistory(message.topicId, message.traceId || '', message.model?.name)
+    }
+
+    _models
+      ?.filter((m) => !!m)
+      .forEach((model) => {
+        this._addModelRootSpan({ ...input, modelName: model.name, name: `${model.name}.resendMessage` })
+      })
+
+    const modelName = message.role !== 'user' ? _models[0]?.name : undefined
+    window.api.trace.openWindow(message.topicId, message.traceId, false, modelName)
+  }
+
+  async appendTrace(message: Message, model: Model) {
+    if (!defaultConfig.isDevModel) {
+      console.warn('Trace is enabled in developer mode.')
+      return
+    }
+    if (!message.traceId) {
+      return
+    }
+
+    await window.api.trace.cleanHistory(message.topicId, message.traceId, model.name)
+
+    const input = await this._getContentFromMessage(message)
+    await window.api.trace.bindTopic(message.topicId, message.traceId)
+    this._addModelRootSpan({ ...input, name: `${model.name}.appendMessage`, modelName: model.name })
+    window.api.trace.openWindow(message.topicId, message.traceId, false, model.name)
+  }
+
+  private async _getContentFromMessage(message: Message, content?: string): Promise<StartSpanParams> {
+    let _content = content
+    if (!_content) {
       const blocks = await Promise.all(
         message.blocks.map(async (blockId) => {
           return await db.message_blocks.get(blockId)
         })
       )
-      content = blocks.find((data) => data?.type === MessageBlockType.MAIN_TEXT)?.content
+      _content = blocks.find((data) => data?.type === MessageBlockType.MAIN_TEXT)?.content
     }
-
-    const input = {
-      messageId: message.id,
-      content: content,
-      askId: message.askId,
+    return {
       topicId: message.topicId,
-      traceId: message.traceId
-    }
-
-    window.api.trace.bindTopic(message.topicId, message.traceId)
-    let span: Span
-    if (message.role === 'user') {
-      window.api.trace.cleanHistory(message.topicId, message.traceId)
-
-      const topic = await db.topics.get(message.topicId)
-      const _models = topic?.messages.filter((m) => m.role === 'assistant').map((m) => m.model)
-      span = webTracer.startSpan('resendMessage', {
-        attributes: {
-          inputs: JSON.stringify(input),
-          tags: 'resendMessage'
-        }
-      })
-
-      const entity = this.getModelSpanEntity(message.topicId)
-      entity.addSpan(span)
-      const ctx = this._updateContext(span, message.topicId, message.traceId)
-
-      _models?.forEach((model) => {
-        if (!model) {
-          return
-        }
-        this._addModelRootSpan(
-          {
-            inputs: input,
-            topicId: message.topicId,
-            modelName: model.name,
-            name: `${model.name}.handleMessage`
-          },
-          ctx
-        )
-      })
-      window.api.trace.openWindow(message.topicId, message.traceId, false)
-    } else {
-      const model = models && models.length > 0 ? models[0] : message.model
-      window.api.trace.cleanHistory(message.topicId, message.traceId, model?.name)
-
-      span = webTracer.startSpan(`${model?.name}.handleMessage`, {
-        attributes: {
-          inputs: JSON.stringify(input),
-          tags: 'resendMessage',
-          modelName: model?.name
-        }
-      })
-
-      this._updateContext(span, message.topicId, message.traceId)
-      const entity = this.getModelSpanEntity(message.topicId, model?.name)
-      entity.addSpan(span)
-      window.api.trace.openWindow(message.topicId, message.traceId, false, model?.name)
-    }
-    return span
-  }
-
-  async appendTrace(message: Message, model: Model) {
-    if (!message.traceId) {
-      return
-    }
-    const blocks = await Promise.all(
-      message.blocks.map(async (blockId) => {
-        return await db.message_blocks.get(blockId)
-      })
-    )
-    const content = blocks.find((data) => data?.type === MessageBlockType.MAIN_TEXT)?.content
-
-    const input = {
-      messageId: message.id,
-      content,
-      askId: message.askId,
-      topicId: message.topicId,
-      traceId: message.traceId
-    }
-
-    window.api.trace.cleanHistory(message.topicId, message.traceId, model.name)
-
-    window.api.trace.bindTopic(message.topicId, message.traceId)
-    const span = webTracer.startSpan(`${model.name}.handleMessage`, {
-      attributes: {
-        inputs: JSON.stringify(input),
-        tags: 'resendMessage',
-        modelName: model.name
+      inputs: {
+        messageId: message.id,
+        content: _content,
+        askId: message.askId,
+        traceId: message.traceId,
+        tag: 'resendMessage'
       }
-    })
-
-    this._updateContext(span, message.topicId, message.traceId)
-    const entity = this.getModelSpanEntity(message.topicId, model.name)
-    entity.addSpan(span)
-    window.api.trace.openWindow(message.topicId, message.traceId, false, model.name)
+    }
   }
 
   private _updateContext(span: Span, topicId: string, traceId?: string) {
@@ -181,7 +148,7 @@ class SpanManagerService {
     return ctx
   }
 
-  private _addModelRootSpan(params: StartSpanParams, ctx: Context) {
+  private _addModelRootSpan(params: StartSpanParams, ctx?: Context) {
     const entity = this.getModelSpanEntity(params.topicId, params.modelName)
     const rootSpan = webTracer.startSpan(
       `${params.name}`,
@@ -195,6 +162,8 @@ class SpanManagerService {
       ctx
     )
     entity.addSpan(rootSpan, true)
+    const traceId = params.inputs?.traceId || rootSpan.spanContext().traceId
+    return this._updateContext(rootSpan, params.topicId, traceId)
   }
 
   endTrace(params: EndSpanParams) {
@@ -220,6 +189,10 @@ class SpanManagerService {
   }
 
   addSpan(params: StartSpanParams) {
+    if (!defaultConfig.isDevModel) {
+      console.warn('Trace is enabled in developer mode.')
+      return
+    }
     const entity = this.getModelSpanEntity(params.topicId, params.modelName)
     let parentSpan = entity.getSpanById(params.parentSpanId)
     if (!parentSpan) {

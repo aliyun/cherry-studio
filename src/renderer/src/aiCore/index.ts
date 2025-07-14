@@ -1,6 +1,8 @@
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { isDedicatedImageGenerationModel, isFunctionCallingModel } from '@renderer/config/models'
+import { withSpanResult } from '@renderer/services/SpanManagerService'
+import { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
@@ -109,6 +111,21 @@ export default class AiProvider {
     // 4. Execute the wrapped method with the original params
     const result = wrappedCompletionMethod(params, options)
     return result
+  }
+
+  public async completionsForTrace(params: CompletionsParams, options?: RequestOptions): Promise<CompletionsResult> {
+    const traceName = params.assistant.model?.name
+      ? `${params.assistant.model?.name}.${params.callType}`
+      : `LLM.${params.callType}`
+
+    const traceParams: StartSpanParams = {
+      name: traceName,
+      tag: 'LLM',
+      topicId: params.topicId || '',
+      modelName: params.assistant.model?.name
+    }
+
+    return await withSpanResult(this.completions.bind(this), traceParams, params, options)
   }
 
   public async models(): Promise<SdkModel[]> {

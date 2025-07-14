@@ -29,16 +29,12 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
       setIsJson(true)
       return
     }
-    if (showInput) {
-      data = node.attributes.inputs
-    } else if ('outputs' in node.attributes) {
-      data = node.attributes.outputs
-    } else {
+    data = showInput ? node.attributes.inputs : node.attributes.outputs
+
+    if (!showInput && node.status === 'ERROR') {
       data = node.events && Array.isArray(node.events) ? node.events?.find((e) => e.name === 'exception') : undefined
-      setIsJson(!!data)
-      setJsonData(data || '')
-      return
     }
+
     if (typeof data === 'string' && (data.startsWith('{') || data.startsWith('['))) {
       try {
         setJsonData(JSON.parse(data))
@@ -54,7 +50,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
     }
     setIsJson(false)
     setJsonData(data as unknown as object)
-  }, [node.attributes, node.events, showInput])
+  }, [node.attributes, node.status, node.events, showInput])
 
   useEffect(() => {
     setUsedTime(convertTime((node.endTime || Date.now()) - node.startTime))

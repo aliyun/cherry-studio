@@ -1,4 +1,11 @@
-import { Attributes, convertSpanToSpanEntity, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
+import {
+  Attributes,
+  convertSpanToSpanEntity,
+  defaultConfig,
+  SpanEntity,
+  TokenUsage,
+  TraceCache
+} from '@mcp-trace/trace-core'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 import fs from 'fs/promises'
@@ -9,12 +16,16 @@ class SpanCacheService implements TraceCache {
   private topicMap: Map<string, string> = new Map<string, string>()
   private fileDir: string
   private cache: Map<string, SpanEntity> = new Map<string, SpanEntity>()
+  pri
 
   constructor() {
-    this.fileDir = path.join(os.homedir(), '.cherrystudio')
+    this.fileDir = path.join(os.homedir(), '.cherrystudio', 'trace')
   }
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
+    if (!defaultConfig.isDevModel) {
+      return
+    }
     const spanEntity = convertSpanToSpanEntity(span)
     spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
     this.cache.set(span.spanContext().spanId, spanEntity)
@@ -22,6 +33,9 @@ class SpanCacheService implements TraceCache {
   }
 
   endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
+    if (!defaultConfig.isDevModel) {
+      return
+    }
     const spanId = span.spanContext().spanId
     const spanEntity = this.cache.get(spanId)
     if (!spanEntity) {
@@ -41,13 +55,16 @@ class SpanCacheService implements TraceCache {
     this.cache.clear()
   }
 
-  async cleanTopic(topicId: string, traceId?: string) {
+  async cleanTopic(topicId: string, traceId?: string, modelName?: string) {
     const spans = Array.from(this.cache.values().filter((e) => e.topicId === topicId))
     spans.map((e) => e.id).forEach((id) => this.cache.delete(id))
 
     await this._checkFolder(path.join(this.fileDir, topicId))
 
-    if (traceId) {
+    if (modelName) {
+      this.cleanHistoryTrace(topicId, traceId || '', modelName)
+      this.saveSpans(topicId)
+    } else if (traceId) {
       fs.rm(path.join(this.fileDir, topicId, traceId))
     } else {
       fs.readdir(path.join(this.fileDir, topicId)).then((files) =>
@@ -58,7 +75,23 @@ class SpanCacheService implements TraceCache {
     }
   }
 
+  async cleanLocalData() {
+    this.cache.clear()
+    fs.readdir(this.fileDir)
+      .then((files) =>
+        files.forEach((topicId) => {
+          fs.rm(path.join(this.fileDir, topicId), { recursive: true, force: true })
+        })
+      )
+      .catch((err) => {
+        console.error('Error cleaning local data:', err)
+      })
+  }
+
   async saveSpans(topicId: string) {
+    if (!defaultConfig.isDevModel) {
+      return
+    }
     let traceId: string | undefined
     for (const [key, value] of this.topicMap.entries()) {
       if (value === topicId) {
@@ -72,9 +105,7 @@ class SpanCacheService implements TraceCache {
     const spans = Array.from(this.cache.values().filter((e) => e.traceId === traceId || !e.modelName))
     await this._saveToFile(spans, traceId, topicId)
     this.topicMap.delete(traceId)
-    spans.forEach((span) => {
-      this.cache.delete(span.id)
-    })
+    this._cleanCache(traceId)
   }
 
   async getSpans(topicId: string, traceId: string, modelName?: string) {
@@ -95,54 +126,6 @@ class SpanCacheService implements TraceCache {
     }
   }
 
-  private _addEntity(entity: SpanEntity): void {
-    entity.topicId = this.topicMap.get(entity.traceId)
-    this.cache.set(entity.id, entity)
-  }
-
-  private _updateModelName(entity: SpanEntity) {
-    let modelName = entity.modelName || entity.attributes?.modelName?.toString()
-    if (!modelName && entity.parentId) {
-      modelName = this.cache.get(entity.parentId)?.modelName
-    }
-    entity.modelName = modelName
-  }
-  private _updateEntity(entity: SpanEntity): void {
-    entity.topicId = this.topicMap.get(entity.traceId)
-    const savedEntity = this.cache.get(entity.id)
-    if (savedEntity) {
-      Object.keys(entity).forEach((key) => {
-        const value = entity[key]
-        if (value === undefined) {
-          savedEntity[key] = value
-          return
-        }
-        if (key === 'attributes') {
-          const savedAttrs = savedEntity.attributes || {}
-          Object.keys(value).forEach((attrKey) => {
-            const jsonData =
-              typeof value[attrKey] === 'string' && value[attrKey].startsWith('{')
-                ? JSON.parse(value[attrKey])
-                : value[attrKey]
-            if (
-              savedAttrs[attrKey] !== undefined &&
-              typeof jsonData === 'object' &&
-              typeof savedAttrs[attrKey] === 'object'
-            ) {
-              savedAttrs[attrKey] = { ...savedAttrs[attrKey], ...jsonData }
-            } else {
-              savedAttrs[attrKey] = value[attrKey]
-            }
-          })
-          savedEntity.attributes = savedAttrs
-        } else {
-          savedEntity[key] = value
-        }
-      })
-      this.cache.set(entity.id, savedEntity)
-    }
-  }
-
   /**
    * binding topic id to trace
    * @param traceId traceId
@@ -157,6 +140,9 @@ class SpanCacheService implements TraceCache {
   }
 
   saveEntity(entity: SpanEntity) {
+    if (!defaultConfig.isDevModel) {
+      return
+    }
     if (this.cache.has(entity.id)) {
       this._updateEntity(entity)
     } else {
@@ -209,16 +195,7 @@ class SpanCacheService implements TraceCache {
   }
 
   async cleanHistoryTrace(topicId: string, traceId: string, modelName?: string) {
-    Array.from(this.cache.values())
-      .filter((span) => span.topicId === topicId)
-      .forEach((span) => this.cache.delete(span.id))
-
-    const ids = this.cache
-      .values()
-      .filter((span) => span.traceId === traceId && span.modelName === modelName)
-      .map((span) => span.id)
-
-    ids.forEach((id) => this.cache.delete(id))
+    this._cleanCache(traceId, modelName)
 
     const filePath = path.join(this.fileDir, topicId, traceId)
     const fileExists = await this._existFile(filePath)
@@ -242,6 +219,63 @@ class SpanCacheService implements TraceCache {
         console.error(error)
       }
     }
+  }
+
+  private _addEntity(entity: SpanEntity): void {
+    entity.topicId = this.topicMap.get(entity.traceId)
+    this.cache.set(entity.id, entity)
+  }
+
+  private _updateModelName(entity: SpanEntity) {
+    let modelName = entity.modelName || entity.attributes?.modelName?.toString()
+    if (!modelName && entity.parentId) {
+      modelName = this.cache.get(entity.parentId)?.modelName
+    }
+    entity.modelName = modelName
+  }
+  private _updateEntity(entity: SpanEntity): void {
+    entity.topicId = this.topicMap.get(entity.traceId)
+    const savedEntity = this.cache.get(entity.id)
+    if (savedEntity) {
+      Object.keys(entity).forEach((key) => {
+        const value = entity[key]
+        if (value === undefined) {
+          savedEntity[key] = value
+          return
+        }
+        if (key === 'attributes') {
+          const savedAttrs = savedEntity.attributes || {}
+          Object.keys(value).forEach((attrKey) => {
+            const jsonData =
+              typeof value[attrKey] === 'string' && value[attrKey].startsWith('{')
+                ? JSON.parse(value[attrKey])
+                : value[attrKey]
+            if (
+              savedAttrs[attrKey] !== undefined &&
+              typeof jsonData === 'object' &&
+              typeof savedAttrs[attrKey] === 'object'
+            ) {
+              savedAttrs[attrKey] = { ...savedAttrs[attrKey], ...jsonData }
+            } else {
+              savedAttrs[attrKey] = value[attrKey]
+            }
+          })
+          savedEntity.attributes = savedAttrs
+        } else {
+          savedEntity[key] = value
+        }
+      })
+      this.cache.set(entity.id, savedEntity)
+    }
+  }
+
+  private _cleanCache(traceId: string, modelName?: string) {
+    this.cache
+      .values()
+      .filter((span) => {
+        return span && span.traceId === traceId && (!modelName || span.modelName === modelName)
+      })
+      .forEach((span) => this.cache.delete(span.id))
   }
 
   private _updateParentOutputs(spanId: string, modelName: string, context: string) {
@@ -372,3 +406,4 @@ export const addEndMessage = spanCacheService.setEndMessage.bind(spanCacheServic
 export const bindTopic = spanCacheService.setTopicId.bind(spanCacheService)
 export const addStreamMessage = spanCacheService.addStreamMessage.bind(spanCacheService)
 export const cleanHistoryTrace = spanCacheService.cleanHistoryTrace.bind(spanCacheService)
+export const cleanLocalData = spanCacheService.cleanLocalData.bind(spanCacheService)
