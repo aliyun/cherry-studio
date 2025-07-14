@@ -530,8 +530,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     async (event: ClipboardEvent) => {
       return await PasteService.handlePaste(
         event,
-        isVisionModel(model),
-        isGenerateImageModel(model),
         supportedExts,
         setFiles,
         setText,
@@ -542,7 +540,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         t
       )
     },
-    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportedExts, t, text]
+    [pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportedExts, t, text]
   )
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
