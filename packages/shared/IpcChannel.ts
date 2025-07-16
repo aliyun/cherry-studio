@@ -74,6 +74,7 @@ export enum IpcChannel {
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
+  Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_SetProgress = 'mcp:set-progress',
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
@@ -244,6 +245,18 @@ export enum IpcChannel {
   Selection_ActionWindowPin = 'selection:action-window-pin',
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
+
+  // Memory
+  Memory_Add = 'memory:add',
+  Memory_Search = 'memory:search',
+  Memory_List = 'memory:list',
+  Memory_Delete = 'memory:delete',
+  Memory_Update = 'memory:update',
+  Memory_Get = 'memory:get',
+  Memory_SetConfig = 'memory:set-config',
+  Memory_DeleteUser = 'memory:delete-user',
+  Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
+  Memory_GetUsersList = 'memory:get-users-list',
 
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',

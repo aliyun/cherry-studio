@@ -15,14 +15,18 @@ import {
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
   SEARCH_SUMMARY_PROMPT_WEB_ONLY
 } from '@renderer/config/prompts'
+import { getModel } from '@renderer/hooks/useModel'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import store from '@renderer/store'
+import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import { currentSpan, withSpanResult } from '@renderer/services/SpanManagerService'
 import {
   Assistant,
   ExternalToolResult,
   KnowledgeReference,
   MCPTool,
+  MemoryItem,
   Model,
   Provider,
   WebSearchResponse,
@@ -38,17 +42,17 @@ import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
-import store from '../store'
 import {
   getAssistantProvider,
   getAssistantSettings,
+  getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
   getTopNamingModel,
   getTranslateModel
 } from './AssistantService'
-import { getDefaultAssistant } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
+import { MemoryProcessor } from './MemoryProcessor'
 import {
   filterContextMessages,
   filterEmptyMessages,
@@ -73,6 +77,8 @@ async function fetchExternalTool(
   // 使用外部搜索工具
   const shouldWebSearch = !!assistant.webSearchProviderId && webSearchProvider !== null
   const shouldKnowledgeSearch = hasKnowledgeBase
+  const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
+  const shouldSearchMemory = globalMemoryEnabled && assistant.enableMemory
 
   // 在工具链开始时发送进度通知
   const willUseTools = shouldWebSearch || shouldKnowledgeSearch
@@ -199,6 +205,45 @@ async function fetchExternalTool(
     }
   }
 
+  const searchMemory = async (): Promise<MemoryItem[] | undefined> => {
+    if (!shouldSearchMemory) return []
+    try {
+      const memoryConfig = selectMemoryConfig(store.getState())
+      const content = getMainTextContent(lastUserMessage)
+      if (!content) {
+        console.warn('searchMemory called without valid content in lastUserMessage')
+        return []
+      }
+
+      if (memoryConfig.llmApiClient && memoryConfig.embedderApiClient) {
+        const currentUserId = selectCurrentUserId(store.getState())
+        // Search for relevant memories
+        const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, assistant.id, currentUserId)
+        console.log('Searching for relevant memories with content:', content)
+        const memoryProcessor = new MemoryProcessor()
+        const relevantMemories = await memoryProcessor.searchRelevantMemories(
+          content,
+          processorConfig,
+          5 // Limit to top 5 most relevant memories
+        )
+
+        if (relevantMemories?.length > 0) {
+          console.log('Found relevant memories:', relevantMemories)
+
+          return relevantMemories
+        }
+        return []
+      } else {
+        console.warn('Memory is enabled but embedding or LLM model is not configured')
+        return []
+      }
+    } catch (error) {
+      console.error('Error processing memory search:', error)
+      // Continue with conversation even if memory processing fails
+      return []
+    }
+  }
+
   // --- Knowledge Base Search Function ---
   const searchKnowledgeBase = async (
     extractResults: ExtractResults | undefined,
@@ -259,13 +304,15 @@ async function fetchExternalTool(
 
     let webSearchResponseFromSearch: WebSearchResponse | undefined
     let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
+    let memorySearchReferences: MemoryItem[] | undefined
 
     const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
     // 并行执行搜索
-    if (shouldWebSearch || shouldKnowledgeSearch) {
-      ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([
+    if (shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory) {
+      ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch, memorySearchReferences] = await Promise.all([
         searchTheWeb(extractResults, parentSpanId),
-        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
+        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name),
+        searchMemory()
       ])
     }
 
@@ -277,15 +324,20 @@ async function fetchExternalTool(
       if (knowledgeReferencesFromSearch) {
         window.keyv.set(`knowledge-search-${lastUserMessage.id}`, knowledgeReferencesFromSearch)
       }
+      if (memorySearchReferences) {
+        window.keyv.set(`memory-search-${lastUserMessage.id}`, memorySearchReferences)
+      }
     }
 
     // 发送工具执行完成通知
-    if (willUseTools) {
+    const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
+    if (wasAnyToolEnabled) {
       onChunkReceived({
         type: ChunkType.EXTERNEL_TOOL_COMPLETE,
         external_tool: {
           webSearch: webSearchResponseFromSearch,
-          knowledge: knowledgeReferencesFromSearch
+          knowledge: knowledgeReferencesFromSearch,
+          memories: memorySearchReferences
         }
       })
     }
@@ -326,7 +378,8 @@ async function fetchExternalTool(
     console.error('Tool execution failed:', error)
 
     // 发送错误状态
-    if (willUseTools) {
+    const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
+    if (wasAnyToolEnabled) {
       onChunkReceived({
         type: ChunkType.EXTERNEL_TOOL_COMPLETE,
         external_tool: {
@@ -390,6 +443,8 @@ export async function fetchChatCompletion({
     model.id.includes('sonar') ||
     false
 
+  const enableUrlContext = assistant.enableUrlContext || false
+
   const enableGenerateImage =
     isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
 
@@ -406,6 +461,7 @@ export async function fetchChatCompletion({
     streamOutput: assistant.settings?.streamOutput || false,
     enableReasoning,
     enableWebSearch,
+    enableUrlContext,
     enableGenerateImage,
     topicId: lastUserMessage.topicId
   }
@@ -415,6 +471,104 @@ export async function fetchChatCompletion({
   }
 
   return await AI.completionsForTrace(completionsParams, requestOptions)
+
+  // Post-conversation memory processing
+  const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
+  if (globalMemoryEnabled && assistant.enableMemory) {
+    await processConversationMemory(messages, assistant)
+  }
+}
+
+/**
+ * Process conversation for memory extraction and storage
+ */
+async function processConversationMemory(messages: Message[], assistant: Assistant) {
+  try {
+    const memoryConfig = selectMemoryConfig(store.getState())
+
+    // Use assistant's model as fallback for memory processing if not configured
+    const llmModel =
+      getModel(memoryConfig.llmApiClient?.model, memoryConfig.llmApiClient?.provider) ||
+      assistant.model ||
+      getDefaultModel()
+    const embedderModel =
+      getModel(memoryConfig.embedderApiClient?.model, memoryConfig.embedderApiClient?.provider) ||
+      getFirstEmbeddingModel()
+
+    if (!embedderModel) {
+      console.warn(
+        'Memory processing skipped: no embedding model available. Please configure an embedding model in memory settings.'
+      )
+      return
+    }
+
+    if (!llmModel) {
+      console.warn('Memory processing skipped: LLM model not available')
+      return
+    }
+
+    // Convert messages to the format expected by memory processor
+    const conversationMessages = messages
+      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+      .map((msg) => ({
+        role: msg.role as 'user' | 'assistant',
+        content: getMainTextContent(msg) || ''
+      }))
+      .filter((msg) => msg.content.trim().length > 0)
+
+    // if (conversationMessages.length < 2) {
+    // Need at least a user message and assistant response
+    // return
+    // }
+
+    const currentUserId = selectCurrentUserId(store.getState())
+
+    // Create updated memory config with resolved models
+    const updatedMemoryConfig = {
+      ...memoryConfig,
+      llmApiClient: {
+        model: llmModel.id,
+        provider: llmModel.provider,
+        apiKey: getProviderByModel(llmModel).apiKey,
+        baseURL: new AiProvider(getProviderByModel(llmModel)).getBaseURL(),
+        apiVersion: getProviderByModel(llmModel).apiVersion
+      },
+      embedderApiClient: {
+        model: embedderModel.id,
+        provider: embedderModel.provider,
+        apiKey: getProviderByModel(embedderModel).apiKey,
+        baseURL: new AiProvider(getProviderByModel(embedderModel)).getBaseURL(),
+        apiVersion: getProviderByModel(embedderModel).apiVersion
+      }
+    }
+
+    const lastUserMessage = findLast(messages, (m) => m.role === 'user')
+    const processorConfig = MemoryProcessor.getProcessorConfig(
+      updatedMemoryConfig,
+      assistant.id,
+      currentUserId,
+      lastUserMessage?.id
+    )
+
+    // Process the conversation in the background (don't await to avoid blocking UI)
+    const memoryProcessor = new MemoryProcessor()
+    memoryProcessor
+      .processConversation(conversationMessages, processorConfig)
+      .then((result) => {
+        console.log('Memory processing completed:', result)
+        if (result.facts.length > 0) {
+          console.log('Extracted facts from conversation:', result.facts)
+          console.log('Memory operations performed:', result.operations)
+        } else {
+          console.log('No facts extracted from conversation')
+        }
+      })
+      .catch((error) => {
+        console.error('Background memory processing failed:', error)
+      })
+  } catch (error) {
+    console.error('Error in post-conversation memory processing:', error)
+  }
 }
 
 interface FetchTranslateProps {
@@ -557,8 +711,18 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
   return await AI.completionsForTrace(params)
 }
 
-export async function fetchGenerate({ prompt, content }: { prompt: string; content: string }): Promise<string> {
-  const model = getDefaultModel()
+export async function fetchGenerate({
+  prompt,
+  content,
+  model
+}: {
+  prompt: string
+  content: string
+  model?: Model
+}): Promise<string> {
+  if (!model) {
+    model = getDefaultModel()
+  }
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
@@ -590,6 +754,22 @@ function hasApiKey(provider: Provider) {
   if (!provider) return false
   if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
   return !isEmpty(provider.apiKey)
+}
+
+/**
+ * Get the first available embedding model from enabled providers
+ */
+function getFirstEmbeddingModel() {
+  const providers = store.getState().llm.providers.filter((p) => p.enabled)
+
+  for (const provider of providers) {
+    const embeddingModel = provider.models.find((model) => isEmbeddingModel(model))
+    if (embeddingModel) {
+      return embeddingModel
+    }
+  }
+
+  return undefined
 }
 
 export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
