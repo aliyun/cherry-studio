@@ -2453,7 +2453,7 @@
       "traceWindow": "调用链窗口",
       "backList": "返回列表",
       "spanDetail": "Span详情",
-      "name": "名字",
+      "name": "节点名称",
       "tag": "标签",
       "startTime": "开始时间",
       "endTime": "结束时间",

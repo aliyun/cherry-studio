@@ -1,8 +1,9 @@
 :root {
   --trace-bg: #fff;
-  --trace-header-bg: #f5f5f5;
+  --trace-header-bg: #e5e5e5;
   --trace-border: #eee;
   --trace-text: #222;
+  --trace-header: #eeeeee;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -11,7 +12,60 @@
     --trace-header-bg: #23272b;
     --trace-border: #333;
     --trace-text: #f1f1f1;
+    --trace-header: #202125;
   }
+}
+
+.header {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--trace-header);
+  user-select: none;
+  -webkit-app-region: drag;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 10;
+}
+
+.headerIcon {
+  display: flex;
+  align-items: center;
+  width: content;
+  height: content;
+  margin-left: 12px;
+}
+
+.headerTitle {
+  flex: 1;
+  font-weight: 400;
+  font-size: 16px;
+  color: var(--trace-text);
+  pointer-events: none;
+  margin-left: 5px;
+  -webkit-app-region: drag;
+}
+
+.traceItem {
+  height: 32px;
+  padding-right: 5px;
+  padding-left: 5px;
+}
+
+.traceItem:hover {
+  background-color: var(--trace-header-bg);
+  cursor: pointer;
+}
+
+.headerOption {
+  display: 'flex';
+  align-items: 'center';
+  gap: 8;
+  width: 120;
+  justify-content: 'flex-end';
 }
 
 .tab-container_trace {
@@ -38,13 +92,12 @@
 
 .floating {
   position: fixed;
-  top: 0px;
+  top: 40px;
   left: 0px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
   opacity: 0.9;
   z-index: 2;
-  height: 30px;
 }
 
 .default-text {
@@ -101,7 +154,7 @@
 .scroll-container {
   overflow-y: auto;
   overflow-x: hidden;
-  height: calc(100vh - 37px);
+  height: calc(100vh - 40px);
 }
 
 .scroll-container::-webkit-scrollbar {
@@ -142,20 +195,22 @@
 
 .trace-window {
   width: 100%;
-  height: calc(100vh - 37px);
+  height: calc(100vh - 77px);
   background-color: var(--trace-bg);
   color: var(--trace-text);
   opacity: 1;
   box-shadow: var(--trace-shadow);
+  margin-top: 40px;
 }
 
 .table-header {
   font-weight: bold;
   align-items: center;
   justify-content: center;
-  height: 26px;
+  height: 24px;
   font-size: 14px;
-  padding-top: 4px;
+  padding-top: 8px;
+  padding-bottom: 4px;
   background-color: var(--trace-header-bg);
 }
 

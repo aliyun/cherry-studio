@@ -35,7 +35,7 @@ export const convertTime = (time: number | null): string => {
   return time.toFixed(2) + 'ms'
 }
 
-const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddingLeft = 4 }) => {
+const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddingLeft = 0 }) => {
   const [isOpen, setIsOpen] = useState(true)
   const hasChildren = node.children && node.children.length > 0
   const [usedTime, setUsedTime] = useState('--')
@@ -51,28 +51,31 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
       style={{
         width: '100%'
       }}>
-      <SimpleGrid columns={20} style={{ height: '28px', paddingRight: '5px', paddingLeft: '5px' }}>
+      <SimpleGrid
+        columns={20}
+        className="traceItem"
+        onClick={(e) => {
+          e.preventDefault()
+          handleClick(node.id)
+        }}>
         <GridItem colSpan={8} style={{ paddingLeft: `${paddingLeft}px`, textAlign: 'left' }}>
           <HStack grap={2}>
             <IconButton
               aria-label="Toggle"
               aria-expanded={isOpen ? true : false}
               size="sm"
-              onClick={() => setIsOpen(!isOpen)}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setIsOpen(!isOpen)
+              }}
               fontSize="10px"
               style={{
                 margin: '0px',
                 visibility: hasChildren ? 'visible' : 'hidden'
               }}
             />
-            <Text
-              role="button"
-              tabIndex={0}
-              className={node.status === 'ERROR' ? 'error-text' : 'default-text'}
-              onClick={(e) => {
-                e.preventDefault()
-                handleClick(node.id)
-              }}>
+            <Text role="button" tabIndex={0} className={node.status === 'ERROR' ? 'error-text' : 'default-text'}>
               {node.name}
             </Text>
           </HStack>
@@ -95,14 +98,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
         <GridItem colSpan={3}>
           <Text /** ml={2} */>{usedTime}</Text>
         </GridItem>
-        <GridItem padding={4} colSpan={4}>
+        <GridItem padding={2} colSpan={4}>
           <ProgressBar progress={Math.max(node.percent, 5)} start={node.start} />
         </GridItem>
       </SimpleGrid>
       <Divider
         orientation="end"
         style={{
-          border: '1px solid #ccc',
+          borderTop: '1px solid #ccc',
           width: '100%',
           margin: '0px 5px 0px 0px'
         }}

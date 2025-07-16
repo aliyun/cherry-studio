@@ -2,6 +2,7 @@ import i18n from '@renderer/i18n'
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { TraceIcon } from './pages/Component'
 import { TracePage } from './pages/index'
 
 const App = () => {
@@ -45,6 +46,12 @@ const App = () => {
 
   return (
     <>
+      <header className="header">
+        <div className="headerIcon">
+          <TraceIcon color="#e74c3c" size={24} />
+        </div>
+        <div className="headerTitle">{title}</div>
+      </header>
       <TracePage traceId={traceId} topicId={topicId} reload={reload} modelName={modelName} />
       <footer>
         <span onClick={handleFooterClick} className="footer-link">

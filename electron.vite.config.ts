@@ -99,8 +99,7 @@ export default defineConfig({
           miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
           selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
-          traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html'),
-          traceIcon: resolve(__dirname, 'src/renderer/traceIcon.ico')
+          traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html')
         }
       }
     },

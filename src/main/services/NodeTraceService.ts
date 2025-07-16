@@ -3,7 +3,6 @@ import { CacheBatchSpanProcessor, defaultConfig, FunctionSpanExporter } from '@m
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
 import { context, SpanContext, trace } from '@opentelemetry/api'
 import { BrowserWindow, ipcMain } from 'electron'
-import { nativeImage } from 'electron'
 import * as path from 'path'
 
 import { ConfigKeys, configManager } from './ConfigManager'
@@ -60,12 +59,6 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
     return
   }
 
-  let iconPath = path.join(__dirname, '../renderer/traceIcon.ico')
-  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-    iconPath = path.join(__dirname, '../../src/renderer/traceIcon.ico')
-  }
-  const traceIcon = nativeImage.createFromPath(iconPath)
-
   traceWin = new BrowserWindow({
     width: 600,
     minWidth: 500,
@@ -78,11 +71,12 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
     hasShadow: true,
     roundedCorners: true,
     maximizable: true,
+    minimizable: true,
     resizable: true,
     title: 'Call Chain Window',
-    frame: true,
-    titleBarOverlay: { height: 36 },
-    icon: traceIcon,
+    frame: false,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { height: 40 },
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,

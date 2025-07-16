@@ -2453,7 +2453,7 @@
       "traceWindow": "呼び出しチェーンウィンドウ",
       "backList": "リストに戻る",
       "spanDetail": "スパンの詳細",
-      "name": "名前",
+      "name": "ノード名",
       "tag": "Tagラベル",
       "startTime": "開始時間",
       "endTime": "終了時間",
