@@ -18,9 +18,9 @@ import {
 import { getModel } from '@renderer/hooks/useModel'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { currentSpan, withSpanResult } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
-import { currentSpan, withSpanResult } from '@renderer/services/SpanManagerService'
 import {
   Assistant,
   ExternalToolResult,
