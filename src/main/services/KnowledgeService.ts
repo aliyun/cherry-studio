@@ -21,6 +21,7 @@ import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
 import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
+import { loggerService } from '@logger'
 import OcrProvider from '@main/knowledage/ocr/OcrProvider'
 import PreprocessProvider from '@main/knowledage/preprocess/PreprocessProvider'
 import Embeddings from '@main/knowledge/embeddings/Embeddings'
@@ -35,8 +36,9 @@ import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
-import Logger from 'electron-log'
 import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('KnowledgeService')
 
 export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBaseParams
@@ -138,7 +140,7 @@ class KnowledgeService {
         .setSearchResultCount(documentCount || 30)
         .build()
     } catch (e) {
-      Logger.error(e)
+      logger.error('Failed to create RAGApplication:', e)
       throw new Error(`Failed to create RAGApplication: ${e}`)
     }
 
@@ -155,7 +157,7 @@ class KnowledgeService {
   }
 
   public async delete(_: Electron.IpcMainInvokeEvent, id: string): Promise<void> {
-    console.log('id', id)
+    logger.debug('delete id', id)
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
       fs.rmSync(dbPath, { recursive: true })
@@ -191,7 +193,7 @@ class KnowledgeService {
                   return result
                 })
                 .catch((e) => {
-                  Logger.error(`Error in addFileLoader for ${file.name}: ${e}`)
+                  logger.error(`Error in addFileLoader for ${file.name}: ${e}`)
                   const errorResult: LoaderReturn = {
                     ...KnowledgeService.ERROR_LOADER_RETURN,
                     message: e.message,
@@ -201,7 +203,7 @@ class KnowledgeService {
                   return errorResult
                 })
             } catch (e: any) {
-              Logger.error(`Preprocessing failed for ${file.name}: ${e}`)
+              logger.error(`Preprocessing failed for ${file.name}: ${e}`)
               const errorResult: LoaderReturn = {
                 ...KnowledgeService.ERROR_LOADER_RETURN,
                 message: e.message,
@@ -257,7 +259,7 @@ class KnowledgeService {
               return result
             })
             .catch((err) => {
-              Logger.error(err)
+              logger.error('Failed to add dir loader:', err)
               return {
                 ...KnowledgeService.ERROR_LOADER_RETURN,
                 message: `Failed to add dir loader: ${err.message}`,
@@ -307,7 +309,7 @@ class KnowledgeService {
                 return result
               })
               .catch((err) => {
-                Logger.error(err)
+                logger.error('Failed to add url loader:', err)
                 return {
                   ...KnowledgeService.ERROR_LOADER_RETURN,
                   message: `Failed to add url loader: ${err.message}`,
@@ -351,7 +353,7 @@ class KnowledgeService {
                 return result
               })
               .catch((err) => {
-                Logger.error(err)
+                logger.error('Failed to add sitemap loader:', err)
                 return {
                   ...KnowledgeService.ERROR_LOADER_RETURN,
                   message: `Failed to add sitemap loader: ${err.message}`,
@@ -401,7 +403,7 @@ class KnowledgeService {
                 }
               })
               .catch((err) => {
-                Logger.error(err)
+                logger.error('Failed to add note loader:', err)
                 return {
                   ...KnowledgeService.ERROR_LOADER_RETURN,
                   message: `Failed to add note loader: ${err.message}`,
@@ -509,7 +511,7 @@ class KnowledgeService {
           }
         })
         .catch((err) => {
-          Logger.error(err)
+          logger.error('Failed to add item:', err)
           resolve({
             ...KnowledgeService.ERROR_LOADER_RETURN,
             message: `Failed to add item: ${err.message}`,
@@ -525,7 +527,7 @@ class KnowledgeService {
     { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }
   ): Promise<void> {
     const ragApplication = await this.getRagApplication(base)
-    Logger.log(`[ KnowledgeService Remove Item UniqueId: ${uniqueId}]`)
+    logger.debug(`Remove Item UniqueId: ${uniqueId}`)
     for (const id of uniqueIds) {
       await ragApplication.deleteLoader(id)
     }
@@ -536,7 +538,6 @@ class KnowledgeService {
     _: Electron.IpcMainInvokeEvent,
     { search, base }: { search: string; base: KnowledgeBaseParams }
   ): Promise<ExtractChunkData[]> {
-    console.log(`[ KnowledgeService Search: ${JSON.stringify(base)} ]`)
     const ragApplication = await this.getRagApplication(base)
     return await ragApplication.search(search)
   }
@@ -574,12 +575,12 @@ class KnowledgeService {
         // 首先检查文件是否已经被预处理过
         const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
         if (alreadyProcessed) {
-          Logger.info(`File already preprocess processed, using cached result: ${file.path}`)
+          logger.debug(`File already preprocess processed, using cached result: ${file.path}`)
           return alreadyProcessed
         }
 
         // 执行预处理
-        Logger.info(`Starting preprocess processing for scanned PDF: ${file.path}`)
+        logger.debug(`Starting preprocess processing for scanned PDF: ${file.path}`)
         const { processedFile, quota } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
         const mainWindow = windowService.getMainWindow()
@@ -588,7 +589,7 @@ class KnowledgeService {
           quota: quota
         })
       } catch (err) {
-        Logger.error(`Preprocess processing failed: ${err}`)
+        logger.error(`Preprocess processing failed: ${err}`)
         // 如果预处理失败，使用原始文件
         // fileToProcess = file
         throw new Error(`Preprocess processing failed: ${err}`)
@@ -610,7 +611,7 @@ class KnowledgeService {
       }
       throw new Error('No preprocess provider configured')
     } catch (err) {
-      Logger.error(`Failed to check quota: ${err}`)
+      logger.error(`Failed to check quota: ${err}`)
       throw new Error(`Failed to check quota: ${err}`)
     }
   }

@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
 import { UpgradeChannel } from '@shared/config/constant'
+import type { LogLevel, LogSourceWithContext } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   AddMemoryOptions,
@@ -69,6 +70,8 @@ const api = {
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
+  logToMain: (source: LogSourceWithContext, level: LogLevel, message: string, data: any[]) =>
+    ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
     requestProcessTrust: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacRequestProcessTrust)
@@ -397,6 +400,7 @@ if (process.contextIsolated) {
       getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
     })
   } catch (error) {
+    // eslint-disable-next-line no-restricted-syntax
     console.error(error)
   }
 } else {

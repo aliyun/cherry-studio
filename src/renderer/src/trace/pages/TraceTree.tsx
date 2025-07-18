@@ -35,7 +35,7 @@ export const convertTime = (time: number | null): string => {
   return time.toFixed(2) + 'ms'
 }
 
-const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddingLeft = 0 }) => {
+const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddingLeft = 2 }) => {
   const [isOpen, setIsOpen] = useState(true)
   const hasChildren = node.children && node.children.length > 0
   const [usedTime, setUsedTime] = useState('--')
