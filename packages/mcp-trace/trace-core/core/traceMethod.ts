@@ -25,7 +25,7 @@ export function TraceMethod(traced: SpanDecoratorOptions) {
     const traceName = traced.traceName || defaultConfig.defaultTracerName || 'default'
     const tracer = trace.getTracer(traceName)
 
-    descriptor.value = async function (...args: any[]) {
+    descriptor.value = function (...args: any[]) {
       const name = traced.spanName || propertyKey
       return tracer.startActiveSpan(name, async (span) => {
         try {

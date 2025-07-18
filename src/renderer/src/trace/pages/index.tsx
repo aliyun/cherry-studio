@@ -178,9 +178,8 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
                     <Divider
                       orientation="end"
                       style={{
-                        border: '1px solid #ccc',
                         width: '100%',
-                        marginTop: '30px',
+                        marginTop: '36px',
                         marginBottom: '0px'
                       }}
                     />

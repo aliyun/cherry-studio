@@ -46,14 +46,20 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   const popoverContent = (
     <PopoverContentContainer>
       {citations.map((citation) => (
-        <PopoverContentItem key={citation.url || citation.number}>
-          {citation.type === 'websearch' ? (
+        <PopoverContentItem key={citation.url || citation.number || citation.title}>
+          {citation.type === 'websearch' && (
             <PopoverContent>
               <WebSearchCitation citation={citation} />
             </PopoverContent>
-          ) : (
+          )}
+          {citation.type === 'memory' && (
             <KnowledgePopoverContent>
-              <KnowledgeCitation citation={citation} />
+              <KnowledgeCitation citation={{ ...citation }} />
+            </KnowledgePopoverContent>
+          )}
+          {citation.type === 'knowledge' && (
+            <KnowledgePopoverContent>
+              <KnowledgeCitation citation={{ ...citation }} />
             </KnowledgePopoverContent>
           )}
         </PopoverContentItem>
@@ -119,7 +125,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
       .writeText(content)
       .then(() => {
         setCopied(true)
-        message.success(t('common.copied'))
+        window.message.success(t('common.copied'))
         setTimeout(() => setCopied(false), 2000)
       })
       .catch(() => {

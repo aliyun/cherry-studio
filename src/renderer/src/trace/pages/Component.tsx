@@ -25,7 +25,8 @@ export const SimpleGrid: React.FC<{
   leftSpace?: number
   className?: string
   style?: React.CSSProperties
-}> = ({ columns, templateColumns, children, leftSpace = 0, style, className, ...props }) => (
+  onClick?: React.MouseEventHandler<HTMLDivElement>
+}> = ({ columns, templateColumns, children, leftSpace = 0, style, className, onClick, ...props }) => (
   <div
     className={className}
     style={{
@@ -35,6 +36,7 @@ export const SimpleGrid: React.FC<{
       paddingLeft: leftSpace,
       ...style
     }}
+    onClick={onClick}
     {...props}>
     {children}
   </div>
@@ -108,12 +110,13 @@ export const HStack: React.FC<{ grap?: number; children: React.ReactNode; style?
 // IconButton 组件
 export const IconButton: React.FC<
   React.ButtonHTMLAttributes<HTMLButtonElement> & { size?: 'sm' | 'md'; fontSize?: string }
-> = ({ size = 'md', fontSize = '12px', style, ...props }) => (
+> = ({ size = 'md', fontSize = '12px', style, onClick, ...props }) => (
   <button
     type="button"
+    onClick={onClick}
     style={{
-      width: size === 'sm' ? 16 : 24,
-      height: size === 'sm' ? 16 : 24,
+      width: size === 'sm' ? 12 : 20,
+      height: 24,
       border: 'none',
       background: 'transparent',
       cursor: 'pointer',

@@ -3,14 +3,16 @@ import { open, readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { isLinux, isPortable } from '@main/constant'
 import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
 import { FileMetadata, FileTypes } from '@types'
 import { app } from 'electron'
-import Logger from 'electron-log'
 import iconv from 'iconv-lite'
 import * as jschardet from 'jschardet'
 import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('Utils:File')
 
 export function initAppDataDir() {
   const appDataPath = getAppDataPathFromConfig()
@@ -207,6 +209,10 @@ export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
 }
 
+export function getMcpDir() {
+  return path.join(os.homedir(), '.cherrystudio', 'mcp')
+}
+
 /**
  * 读取文件内容并自动检测编码格式进行解码
  * @param filePath - 文件路径
@@ -230,7 +236,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
     .slice(0, 2)
 
   if (encodings.length === 0) {
-    Logger.error('Failed to detect encoding. Use utf-8 to decode.')
+    logger.error('Failed to detect encoding. Use utf-8 to decode.')
     const data = await readFile(filePath)
     return iconv.decode(data, 'UTF-8')
   }
@@ -241,7 +247,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
     const encoding = item.encoding
     const content = iconv.decode(data, encoding)
     if (content.includes('\uFFFD')) {
-      Logger.error(
+      logger.error(
         `File ${filePath} was auto-detected as ${encoding} encoding, but contains invalid characters. Trying other encodings`
       )
     } else {
@@ -249,6 +255,6 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
     }
   }
 
-  Logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
+  logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
   return iconv.decode(data, 'UTF-8')
 }
