@@ -4,6 +4,7 @@ import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { isDedicatedImageGenerationModel, isFunctionCallingModel } from '@renderer/config/models'
 import { withSpanResult } from '@renderer/services/SpanManagerService'
 import { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
@@ -79,34 +80,45 @@ export default class AiProvider {
         .add(MiddlewareRegistry[ImageGenerationMiddlewareName])
     } else {
       // Existing logic for other models
+      logger.silly('Builder Params', params)
       if (!params.enableReasoning) {
         // 这里注释掉不会影响正常的关闭思考,可忽略不计的性能下降
         // builder.remove(ThinkingTagExtractionMiddlewareName)
         builder.remove(ThinkChunkMiddlewareName)
+        logger.silly('ThinkChunkMiddleware is removed')
       }
       // 注意：用client判断会导致typescript类型收窄
       if (!(this.apiClient instanceof OpenAIAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
+        logger.silly('ThinkingTagExtractionMiddleware is removed')
         builder.remove(ThinkingTagExtractionMiddlewareName)
       }
       if (!(this.apiClient instanceof AnthropicAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
+        logger.silly('RawStreamListenerMiddleware is removed')
         builder.remove(RawStreamListenerMiddlewareName)
       }
       if (!params.enableWebSearch) {
+        logger.silly('WebSearchMiddleware is removed')
         builder.remove(WebSearchMiddlewareName)
       }
       if (!params.mcpTools?.length) {
         builder.remove(ToolUseExtractionMiddlewareName)
+        logger.silly('ToolUseExtractionMiddleware is removed')
         builder.remove(McpToolChunkMiddlewareName)
+        logger.silly('McpToolChunkMiddleware is removed')
       }
       if (isEnabledToolUse(params.assistant) && isFunctionCallingModel(model)) {
         builder.remove(ToolUseExtractionMiddlewareName)
+        logger.silly('ToolUseExtractionMiddleware is removed')
       }
       if (params.callType !== 'chat') {
+        logger.silly('AbortHandlerMiddleware is removed')
         builder.remove(AbortHandlerMiddlewareName)
       }
       if (params.callType === 'test') {
         builder.remove(ErrorHandlerMiddlewareName)
+        logger.silly('ErrorHandlerMiddleware is removed')
         builder.remove(FinalChunkConsumerMiddlewareName)
+        logger.silly('FinalChunkConsumerMiddleware is removed')
       }
     }
 
@@ -142,6 +154,9 @@ export default class AiProvider {
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     try {
       // Use the SDK instance to test embedding capabilities
+      if (this.apiClient instanceof OpenAIResponseAPIClient && getProviderByModel(model).type === 'azure-openai') {
+        this.apiClient = this.apiClient.getClient(model) as BaseApiClient
+      }
       const dimensions = await this.apiClient.getEmbeddingDimensions(model)
       return dimensions
     } catch (error) {
