@@ -48,7 +48,7 @@ const App = () => {
     <>
       <header className="header">
         <div className="headerIcon">
-          <TraceIcon color="#e74c3c" size={24} />
+          <TraceIcon color="#e74c3c" size={20} />
         </div>
         <div className="headerTitle">{title}</div>
       </header>

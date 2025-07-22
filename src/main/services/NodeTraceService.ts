@@ -1,8 +1,8 @@
-import { isDev } from '@main/constant'
+import { isDev, isMac } from '@main/constant'
 import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
 import { context, SpanContext, trace } from '@opentelemetry/api'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import * as path from 'path'
 
 import { ConfigKeys, configManager } from './ConfigManager'
@@ -58,9 +58,10 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
   if (!traceWin && !autoOpen) {
     return
   }
+  const width = 600
 
   traceWin = new BrowserWindow({
-    width: 600,
+    width: width,
     minWidth: 500,
     minHeight: 600,
     height: 800,
@@ -74,8 +75,15 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
     minimizable: true,
     resizable: true,
     title: 'Call Chain Window',
-    frame: true,
-    titleBarOverlay: { height: 40 },
+    frame: false,
+    titleBarOverlay: {
+      height: 40,
+      color: 'rgba(255,255,255,0)',
+      symbolColor: nativeTheme.shouldUseDarkColors ? '#fff' : '#000'
+    },
+    darkTheme: nativeTheme.shouldUseDarkColors,
+    trafficLightPosition: { x: width - 88, y: 25 },
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -107,6 +115,12 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
     })
     traceWin!.webContents.send('set-language', { lang: configManager.get(ConfigKeys.Language) })
     configManager.subscribe(ConfigKeys.Language, setLanguageCallback)
+  })
+
+  traceWin.on('resize', () => {
+    const [width] = traceWin!.getSize()
+    const trafficLightPosition = { x: width - 88, y: 25 }
+    traceWin?.setWindowButtonPosition && traceWin.setWindowButtonPosition(trafficLightPosition)
   })
 }
 
