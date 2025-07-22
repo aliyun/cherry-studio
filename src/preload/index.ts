@@ -31,15 +31,6 @@ import type { ActionItem } from '../renderer/src/types/selectionTypes'
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
   if (spanContext) {
     const data = { type: 'trace', context: spanContext }
-    console.log(`tracedInvoke data`, data)
-    return ipcRenderer.invoke(channel, ...args, data)
-  }
-  return ipcRenderer.invoke(channel, ...args)
-}
-
-export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
-  if (spanContext) {
-    const data = { type: 'trace', context: spanContext }
     return ipcRenderer.invoke(channel, ...args, data)
   }
   return ipcRenderer.invoke(channel, ...args)
