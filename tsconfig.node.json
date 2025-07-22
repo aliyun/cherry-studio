@@ -7,12 +7,14 @@
     "src/main/env.d.ts",
     "src/renderer/src/types/*",
     "packages/shared/**/*",
+    "scripts",
     "packages/mcp-trace/**/*",
     "src/renderer/src/services/traceApi.ts"  ],
   "compilerOptions": {
     "composite": true,
     "types": [
-      "electron-vite/node"
+      "electron-vite/node",
+      "vitest/globals"
     ],
     "baseUrl": ".",
     "paths": {

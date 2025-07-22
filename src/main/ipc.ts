@@ -3,7 +3,7 @@ import { arch } from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isLinux, isMac, isWin } from '@main/constant'
+import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
@@ -55,7 +55,8 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, updateAppDataConfig } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission } from './utils/file'
+import { updateAppDataConfig } from './utils/init'
 import { compress, decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
@@ -348,6 +349,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       options.execPath = process.env.APPIMAGE
       options.args = options.args || []
       options.args.unshift('--appimage-extract-and-run')
+    }
+
+    if (isWin && isPortable) {
+      options = options || {}
+      options.execPath = process.env.PORTABLE_EXECUTABLE_FILE
+      options.args = options.args || []
     }
 
     app.relaunch(options)
