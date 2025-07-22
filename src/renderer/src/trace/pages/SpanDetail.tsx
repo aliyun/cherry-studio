@@ -172,4 +172,5 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
     </Box>
   )
 }
+
 export default SpanDetail
