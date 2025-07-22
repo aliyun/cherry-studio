@@ -58,10 +58,9 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
   if (!traceWin && !autoOpen) {
     return
   }
-  const width = 600
 
   traceWin = new BrowserWindow({
-    width: width,
+    width: 600,
     minWidth: 500,
     minHeight: 600,
     height: 800,
@@ -82,7 +81,7 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
       symbolColor: nativeTheme.shouldUseDarkColors ? '#fff' : '#000'
     },
     darkTheme: nativeTheme.shouldUseDarkColors,
-    trafficLightPosition: { x: width - 88, y: 25 },
+    trafficLightPosition: { x: 30, y: 15 },
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -115,12 +114,6 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
     })
     traceWin!.webContents.send('set-language', { lang: configManager.get(ConfigKeys.Language) })
     configManager.subscribe(ConfigKeys.Language, setLanguageCallback)
-  })
-
-  traceWin.on('resize', () => {
-    const [width] = traceWin!.getSize()
-    const trafficLightPosition = { x: width - 88, y: 25 }
-    traceWin?.setWindowButtonPosition && traceWin.setWindowButtonPosition(trafficLightPosition)
   })
 }
 

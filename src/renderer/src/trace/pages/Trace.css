@@ -16,6 +16,10 @@
   }
 }
 
+header {
+  text-align: center;
+}
+
 .header {
   height: 40px;
   display: flex;
@@ -36,7 +40,7 @@
   align-items: center;
   width: content;
   height: content;
-  margin-left: 12px;
+  margin-left: 5px;
 }
 
 .headerTitle {
