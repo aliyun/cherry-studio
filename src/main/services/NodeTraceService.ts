@@ -1,4 +1,4 @@
-import { isDev, isMac } from '@main/constant'
+import { isDev } from '@main/constant'
 import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
 import { context, SpanContext, trace } from '@opentelemetry/api'
@@ -81,8 +81,6 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
       symbolColor: nativeTheme.shouldUseDarkColors ? '#fff' : '#000'
     },
     darkTheme: nativeTheme.shouldUseDarkColors,
-    trafficLightPosition: { x: 30, y: 15 },
-    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,

@@ -35,21 +35,15 @@ header {
   z-index: 10;
 }
 
-.headerIcon {
-  display: flex;
-  align-items: center;
-  width: content;
-  height: content;
-  margin-left: 5px;
-}
-
 .headerTitle {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 400;
   font-size: 12px;
   color: var(--trace-text);
   pointer-events: none;
-  margin-left: 10px;
   -webkit-app-region: drag;
 }
 
