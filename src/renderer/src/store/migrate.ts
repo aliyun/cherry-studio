@@ -1844,6 +1844,44 @@ const migrateConfig = {
       logger.error('migrate 122 error', error as Error)
       return state
     }
+  },
+  '123': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        provider.models.forEach((model) => {
+          if (model.type && Array.isArray(model.type)) {
+            model.capabilities = model.type.map((t) => ({
+              type: t,
+              isUserSelected: true
+            }))
+            delete model.type
+          }
+        })
+      })
+
+      const lanyunProvider = state.llm.providers.find((provider) => provider.id === 'lanyun')
+      if (lanyunProvider && lanyunProvider.models.length === 0) {
+        updateProvider(state, 'lanyun', { models: SYSTEM_MODELS.lanyun })
+      }
+
+      return state
+    } catch (error) {
+      logger.error('migrate 123 error', error as Error)
+      return state
+    }
+  }, // 1.5.4
+  '124': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && !assistant.settings.toolUseMode) {
+          assistant.settings.toolUseMode = 'prompt'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 124 error', error as Error)
+      return state
+    }
   }
 }
 
