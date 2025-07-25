@@ -166,6 +166,7 @@ header {
   scrollbar-width: none;
   border-top: '1px solid #eee';
   width: '100%';
+  margin-bottom: '30px';
 }
 
 .code-container::-webkit-scrollbar {
