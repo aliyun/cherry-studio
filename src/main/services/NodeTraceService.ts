@@ -73,7 +73,7 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
     maximizable: true,
     minimizable: true,
     resizable: true,
-    title: 'Call Chain Window',
+    titleBarStyle: 'hidden',
     frame: false,
     titleBarOverlay: {
       height: 40,
