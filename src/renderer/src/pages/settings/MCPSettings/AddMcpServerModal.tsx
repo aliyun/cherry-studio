@@ -236,7 +236,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           .catch((connError: any) => {
             logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
             window.message.error({
-              content: t(`${newServer.name} settings.mcp.addServer.importFrom.connectionFailed`),
+              content: newServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'),
               key: 'mcp-quick-add-failed'
             })
           })
@@ -261,7 +261,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   return (
     <Modal
       title={
-        importMethod === 'dxt' ? t('settings.mcp.addServer.importFrom.dxt') : t('settings.mcp.addServer.importFrom')
+        importMethod === 'dxt'
+          ? t('settings.mcp.addServer.importFrom.dxt')
+          : t('settings.mcp.addServer.importFrom.json')
       }
       open={visible}
       onOk={handleOk}
@@ -345,9 +347,9 @@ const parseAndExtractServer = (
     typeof parsedJson.mcpServers === 'object' &&
     Object.keys(parsedJson.mcpServers).length > 1
   ) {
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
   } else if (Array.isArray(parsedJson) && parsedJson.length > 1) {
-    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
   }
 
   if (
