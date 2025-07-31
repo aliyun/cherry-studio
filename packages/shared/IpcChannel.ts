@@ -21,6 +21,7 @@ export enum IpcChannel {
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
   App_ResolvePath = 'app:resolve-path',
+  App_IsPathInside = 'app:is-path-inside',
   App_Copy = 'app:copy',
   App_SetStopQuitApp = 'app:set-stop-quit-app',
   App_SetAppDataPath = 'app:set-app-data-path',
@@ -176,7 +177,6 @@ export enum IpcChannel {
   Backup_RestoreFromLocalBackup = 'backup:restoreFromLocalBackup',
   Backup_ListLocalBackupFiles = 'backup:listLocalBackupFiles',
   Backup_DeleteLocalBackupFile = 'backup:deleteLocalBackupFile',
-  Backup_SetLocalBackupDir = 'backup:setLocalBackupDir',
   Backup_BackupToS3 = 'backup:backupToS3',
   Backup_RestoreFromS3 = 'backup:restoreFromS3',
   Backup_ListS3Files = 'backup:listS3Files',
@@ -273,5 +273,11 @@ export enum IpcChannel {
   TRACE_SET_TITLE = 'trace:setTitle',
   TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage'
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
+  // API Server
+  ApiServer_Start = 'api-server:start',
+  ApiServer_Stop = 'api-server:stop',
+  ApiServer_Restart = 'api-server:restart',
+  ApiServer_GetStatus = 'api-server:get-status',
+  ApiServer_GetConfig = 'api-server:get-config'
 }

@@ -62,11 +62,13 @@ export const EFFORT_RATIO: EffortRatio = {
 }
 
 export type AssistantSettings = {
-  contextCount: number
+  maxTokens?: number
+  enableMaxTokens?: boolean
   temperature: number
+  enableTemperature?: boolean
   topP: number
-  maxTokens: number | undefined
-  enableMaxTokens: boolean
+  enableTopP?: boolean
+  contextCount: number
   streamOutput: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
@@ -185,6 +187,7 @@ export type ProviderType =
   | 'azure-openai'
   | 'vertexai'
   | 'mistral'
+  | 'aws-bedrock'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
 
@@ -510,6 +513,7 @@ export type GenerateImageResponse = {
 }
 
 export type LanguageCode =
+  | 'unknown'
   | 'en-us'
   | 'zh-cn'
   | 'zh-tw'
@@ -671,6 +675,7 @@ export interface MCPServer {
   timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
   dxtVersion?: string // Version of the DXT package
   dxtPath?: string // Path where the DXT package was extracted
+  reference?: string // Reference link for the server, e.g., documentation or homepage
 }
 
 export interface MCPToolInputSchema {
@@ -836,6 +841,13 @@ export type S3Config = {
 }
 
 export type { Message } from './newMessage'
+
+export interface ApiServerConfig {
+  enabled: boolean
+  host: string
+  port: number
+  apiKey: string
+}
 
 // Memory Service Types
 // ========================================================================

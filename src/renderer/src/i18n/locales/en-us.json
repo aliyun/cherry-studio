@@ -76,6 +76,62 @@
     },
     "title": "Agents"
   },
+  "apiServer": {
+    "actions": {
+      "copy": "Copy",
+      "regenerate": "Regenerate",
+      "restart": {
+        "button": "Restart",
+        "tooltip": "Restart Server"
+      },
+      "start": "Start",
+      "stop": "Stop"
+    },
+    "authHeader": {
+      "title": "Authorization Header"
+    },
+    "authHeaderText": "Use in Authorization header:",
+    "configuration": "Configuration",
+    "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "documentation": {
+      "title": "API Documentation"
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Copy API Key",
+        "description": "Secure authentication token for API access",
+        "label": "API Key",
+        "placeholder": "API key will be auto-generated"
+      },
+      "port": {
+        "description": "TCP port number for the HTTP server (1000-65535)",
+        "helpText": "Stop server to change port",
+        "label": "Port"
+      },
+      "url": {
+        "copyTooltip": "Copy URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API Key copied to clipboard",
+      "apiKeyRegenerated": "API Key regenerated",
+      "operationFailed": "API Server operation failed: ",
+      "restartError": "Failed to restart API Server: ",
+      "restartFailed": "API Server restart failed: ",
+      "restartSuccess": "API Server restarted successfully",
+      "startError": "Failed to start API Server: ",
+      "startSuccess": "API Server started successfully",
+      "stopError": "Failed to stop API Server: ",
+      "stopSuccess": "API Server stopped successfully",
+      "urlCopied": "Server URL copied to clipboard"
+    },
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "title": "API Server"
+  },
   "assistants": {
     "abbr": "Assistants",
     "clear": {
@@ -822,7 +878,8 @@
     "empty": "No knowledge base found",
     "error": {
       "failed_to_create": "Knowledge base creation failed",
-      "failed_to_edit": "Knowledge base editing failed"
+      "failed_to_edit": "Knowledge base editing failed",
+      "model_invalid": "No model selected or deleted"
     },
     "file_hint": "Support {{file_types}}",
     "index_all": "Index All",
@@ -912,6 +969,7 @@
     "thai": "Thai",
     "turkish": "Turkish",
     "ukrainian": "Ukrainian",
+    "unknown": "unknown",
     "urdu": "Urdu",
     "vietnamese": "Vietnamese"
   },
@@ -1592,6 +1650,7 @@
     "aihubmix": "AiHubMix",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
@@ -2600,8 +2659,8 @@
         "dify_knowledge": "Dify's MCP server implementation provides a simple API to interact with Dify. Requires configuring the Dify Key",
         "fetch": "MCP server for retrieving URL web content",
         "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for file system operations. Requires configuration of directories allowed for access.",
-        "mcp_auto_install": "Automatically install MCP service (beta) https://docs.cherry-ai.com/advanced-basic/mcp/auto-install",
-        "memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable. https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+        "mcp_auto_install": "Automatically install MCP service (beta)",
+        "memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable.",
         "no": "No description",
         "python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
         "sequentialthinking": "A MCP server implementation that provides tools for dynamic and reflective problem solving through structured thinking processes"
@@ -3033,6 +3092,16 @@
         "tip": "Multiple keys separated by commas or spaces"
       },
       "api_version": "API Version",
+      "aws-bedrock": {
+        "access_key_id": "AWS Access Key ID",
+        "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
+        "description": "AWS Bedrock is Amazon's fully managed foundation model service that supports various advanced large language models",
+        "region": "AWS Region",
+        "region_help": "Your AWS service region, e.g., us-east-1",
+        "secret_access_key": "AWS Secret Access Key",
+        "secret_access_key_help": "Your AWS Secret Access Key, please keep it secure",
+        "title": "AWS Bedrock Configuration"
+      },
       "azure": {
         "apiversion": {
           "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the preview version"
@@ -3393,6 +3462,7 @@
     },
     "close": "Close",
     "closed": "Translation closed",
+    "complete": "Translation completed",
     "confirm": {
       "content": "Translation will replace the original text, continue?",
       "title": "Translation Confirmation"
@@ -3404,13 +3474,17 @@
     "empty": "Translation content is empty",
     "error": {
       "failed": "Translation failed",
-      "not_configured": "Translation model is not configured"
+      "not_configured": "Translation model is not configured",
+      "unknown": "An unknown error occurred during translation"
     },
     "history": {
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
       "delete": "Delete",
       "empty": "No translation history",
+      "error": {
+        "save": "Failed to save translation history"
+      },
       "title": "Translation History"
     },
     "input": {
