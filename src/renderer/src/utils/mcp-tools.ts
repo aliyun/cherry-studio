@@ -288,7 +288,8 @@ export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MC
 export async function callMCPTool(
   toolResponse: MCPToolResponse,
   topicId?: string,
-  modelName?: string
+  modelName?: string,
+  assistantMsgId?: string
 ): Promise<MCPCallToolResponse> {
   logger.info(`Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
   try {
@@ -305,7 +306,7 @@ export async function callMCPTool(
         args: toolResponse.arguments,
         callId: toolResponse.id
       },
-      topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
+      topicId ? currentSpan(topicId, modelName, assistantMsgId)?.spanContext() : undefined
     )
     if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
       if (resp.data) {

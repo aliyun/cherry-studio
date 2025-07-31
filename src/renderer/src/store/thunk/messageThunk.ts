@@ -4,7 +4,7 @@ import { fetchChatCompletion } from '@renderer/services/ApiService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
-import { endSpan } from '@renderer/services/SpanManagerService'
+import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
@@ -283,8 +283,39 @@ const dispatchMultiModelResponses = async (
   const queue = getTopicQueue(topicId)
   for (const task of tasksToQueue) {
     queue.add(async () => {
-      await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, task.assistantConfig, task.messageStub)
+      await fetchAndProcessAssistantResponseImplWithTrace(
+        dispatch,
+        getState,
+        topicId,
+        task.assistantConfig,
+        task.messageStub
+      )
     })
+  }
+}
+
+const fetchAndProcessAssistantResponseImplWithTrace = async (
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  assistant: Assistant,
+  assistantMessage: Message
+) => {
+  const params = {
+    name: `${assistant.model?.name || 'LLM'}.handleMessage`,
+    tag: 'LLM',
+    topicId,
+    modelName: assistant.model?.name,
+    modelRoot: true,
+    assistantMsgId: assistantMessage.id
+  }
+
+  addSpan(params)
+  try {
+    const result = await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
+    endSpan({ ...params, outputs: result })
+  } catch (error) {
+    endSpan({ ...params, error: error as Error })
   }
 }
 
@@ -892,28 +923,19 @@ const fetchAndProcessAssistantResponseImpl = async (
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
     // const startTime = Date.now()
-    const result = await fetchChatCompletion({
+    return await fetchChatCompletion({
       messages: messagesForContext,
       assistant: assistant,
-      onChunkReceived: streamProcessorCallbacks
-    })
-    endSpan({
-      topicId,
-      outputs: result ? result.getText() : '',
-      modelName: assistant.model?.name,
-      modelEnded: true
+      onChunkReceived: streamProcessorCallbacks,
+      assistantMsgId
     })
   } catch (error: any) {
     logger.error('Error fetching chat completion:', error)
-    endSpan({
-      topicId,
-      error: error,
-      modelName: assistant.model?.name
-    })
     if (assistantMessage) {
       callbacks.onError?.(error)
       throw error
     }
+    return null
   }
 }
 
@@ -954,7 +976,7 @@ export const sendMessage =
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
         queue.add(async () => {
-          await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
+          await fetchAndProcessAssistantResponseImplWithTrace(dispatch, getState, topicId, assistant, assistantMessage)
         })
       }
     } catch (error) {
@@ -1211,7 +1233,13 @@ export const resendMessageThunk =
           ...(resetMsg.model ? { model: resetMsg.model } : {})
         }
         queue.add(async () => {
-          await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistantConfigForThisRegen, resetMsg)
+          await fetchAndProcessAssistantResponseImplWithTrace(
+            dispatch,
+            getState,
+            topicId,
+            assistantConfigForThisRegen,
+            resetMsg
+          )
         })
       }
     } catch (error) {
@@ -1336,7 +1364,7 @@ export const regenerateAssistantResponseThunk =
         ...(resetAssistantMsg.model ? { model: resetAssistantMsg.model } : {})
       }
       queue.add(async () => {
-        await fetchAndProcessAssistantResponseImpl(
+        await fetchAndProcessAssistantResponseImplWithTrace(
           dispatch,
           getState,
           topicId,
@@ -1515,7 +1543,7 @@ export const appendAssistantResponseThunk =
       }
       const queue = getTopicQueue(topicId)
       queue.add(async () => {
-        await fetchAndProcessAssistantResponseImpl(
+        await fetchAndProcessAssistantResponseImplWithTrace(
           dispatch,
           getState,
           topicId,

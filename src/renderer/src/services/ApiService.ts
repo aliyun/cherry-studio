@@ -71,7 +71,8 @@ async function fetchExternalTool(
   lastUserMessage: Message,
   assistant: Assistant,
   onChunkReceived: (chunk: Chunk) => void,
-  lastAnswer?: Message
+  lastAnswer?: Message,
+  assistantMsgId?: string
 ): Promise<ExternalToolResult> {
   // 可能会有重复？
   const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
@@ -114,7 +115,11 @@ async function fetchExternalTool(
     summaryAssistant.model = assistant.model || getDefaultModel()
     summaryAssistant.prompt = prompt
 
-    const callSearchSummary = async (params: { messages: Message[]; assistant: Assistant }) => {
+    const callSearchSummary = async (params: {
+      messages: Message[]
+      assistant: Assistant
+      assistantMsgId?: string
+    }) => {
       return await fetchSearchSummary(params)
     }
 
@@ -122,12 +127,14 @@ async function fetchExternalTool(
       name: `${summaryAssistant.model?.name}.Summary`,
       tag: 'LLM',
       topicId: lastUserMessage.topicId,
-      modelName: summaryAssistant.model.name
+      modelName: summaryAssistant.model.name,
+      assistantMsgId
     }
 
     const searchSummaryParams = {
       messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
-      assistant: summaryAssistant
+      assistant: summaryAssistant,
+      assistantMsgId
     }
 
     try {
@@ -191,7 +198,8 @@ async function fetchExternalTool(
           ...webSearchProvider,
           topicId: lastUserMessage.topicId,
           parentSpanId,
-          modelName: assistant.model.name
+          modelName: assistant.model.name,
+          assistantMsgId
         }
       }
       const webSearchResponse = await WebSearchService.processWebsearch(
@@ -289,7 +297,8 @@ async function fetchExternalTool(
         knowledgeBaseIds,
         lastUserMessage.topicId,
         parentSpanId,
-        modelName
+        modelName,
+        assistantMsgId
       )
     } catch (error) {
       logger.error('Knowledge base search failed:', error as Error)
@@ -311,7 +320,9 @@ async function fetchExternalTool(
     let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
     let memorySearchReferences: MemoryItem[] | undefined
 
-    const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
+    const parentContext = currentSpan(lastUserMessage.topicId, assistant.model?.name, assistantMsgId)?.spanContext()
+    const parentSpanId = parentContext?.spanId
+
     // 并行执行搜索
     if (shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory) {
       ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch, memorySearchReferences] = await Promise.all([
@@ -357,10 +368,9 @@ async function fetchExternalTool(
 
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
-        const spanContext = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext()
         const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
           try {
-            const tools = await window.api.mcp.listTools(mcpServer, spanContext)
+            const tools = await window.api.mcp.listTools(mcpServer, parentContext)
             return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
           } catch (error) {
             logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
@@ -414,11 +424,13 @@ async function fetchExternalTool(
 export async function fetchChatCompletion({
   messages,
   assistant,
-  onChunkReceived
+  onChunkReceived,
+  assistantMsgId
 }: {
   messages: Message[]
   assistant: Assistant
   onChunkReceived: (chunk: Chunk) => void
+  assistantMsgId?: string
   // TODO
   // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
@@ -439,7 +451,7 @@ export async function fetchChatCompletion({
   // try {
   // NOTE: The search results are NOT added to the messages sent to the AI here.
   // They will be retrieved and used by the messageThunk later to create CitationBlocks.
-  const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
+  const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer, assistantMsgId)
   const model = assistant.model || getDefaultModel()
 
   const { maxTokens, contextCount } = getAssistantSettings(assistant)
@@ -482,7 +494,8 @@ export async function fetchChatCompletion({
     enableWebSearch,
     enableUrlContext,
     enableGenerateImage,
-    topicId: lastUserMessage.topicId
+    topicId: lastUserMessage.topicId,
+    assistantMsgId
   }
 
   const requestOptions = {
@@ -707,7 +720,15 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   }
 }
 
-export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+export async function fetchSearchSummary({
+  messages,
+  assistant,
+  assistantMsgId
+}: {
+  messages: Message[]
+  assistant: Assistant
+  assistantMsgId?: string
+}) {
   const model = assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
@@ -724,7 +745,8 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
     messages: messages,
     assistant,
     streamOutput: false,
-    topicId
+    topicId,
+    assistantMsgId
   }
 
   return await AI.completionsForTrace(params)

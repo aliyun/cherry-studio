@@ -87,7 +87,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
   const shouldCollapse = (node: CollapsedFieldProps | null) => {
     // const before = { ...beforeNode }
     // setBeforeNode(node)
-    return !!node && node.namespace.length <= 1
+    return Array.isArray(jsonData) && !!node && node.namespace.length === 3
   }
 
   return (

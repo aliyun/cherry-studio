@@ -107,9 +107,11 @@ export const searchKnowledgeBase = async (
   rewrite?: string,
   topicId?: string,
   parentSpanId?: string,
-  modelName?: string
+  modelName?: string,
+  assistantMsgId?: string
 ): Promise<Array<ExtractChunkData & { file: FileMetadata | null }>> => {
   let currentSpan: Span | undefined = undefined
+
   try {
     const baseParams = getKnowledgeBaseParams(base)
     const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
@@ -126,7 +128,8 @@ export const searchKnowledgeBase = async (
         },
         tag: 'Knowledge',
         parentSpanId,
-        modelName
+        modelName,
+        assistantMsgId
       })
     }
 
@@ -171,7 +174,8 @@ export const searchKnowledgeBase = async (
         topicId,
         outputs: result,
         span: currentSpan,
-        modelName
+        modelName,
+        assistantMsgId
       })
     }
     return result
@@ -182,7 +186,8 @@ export const searchKnowledgeBase = async (
         topicId,
         error: error instanceof Error ? error : new Error(String(error)),
         span: currentSpan,
-        modelName
+        modelName,
+        assistantMsgId
       })
     }
     throw error
@@ -194,7 +199,8 @@ export const processKnowledgeSearch = async (
   knowledgeBaseIds: string[] | undefined,
   topicId: string,
   parentSpanId?: string,
-  modelName?: string
+  modelName?: string,
+  assistantMsgId?: string
 ): Promise<KnowledgeReference[]> => {
   if (
     !extractResults.knowledge?.question ||
@@ -224,7 +230,8 @@ export const processKnowledgeSearch = async (
     },
     tag: 'Knowledge',
     parentSpanId,
-    modelName
+    modelName,
+    assistantMsgId
   })
 
   // 为每个知识库执行多问题搜索
@@ -232,7 +239,7 @@ export const processKnowledgeSearch = async (
     // 为每个问题搜索并合并结果
     const allResults = await Promise.all(
       questions.map((question) =>
-        searchKnowledgeBase(question, base, rewrite, topicId, span?.spanContext().spanId, modelName)
+        searchKnowledgeBase(question, base, rewrite, topicId, span?.spanContext().spanId, modelName, assistantMsgId)
       )
     )
 
@@ -265,7 +272,8 @@ export const processKnowledgeSearch = async (
     topicId,
     outputs: resultsPerBase,
     span,
-    modelName
+    modelName,
+    assistantMsgId
   })
 
   // 重新为引用分配ID

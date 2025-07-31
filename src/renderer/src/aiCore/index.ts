@@ -145,7 +145,8 @@ export default class AiProvider {
       name: traceName,
       tag: 'LLM',
       topicId: params.topicId || '',
-      modelName: params.assistant.model?.name
+      modelName: params.assistant.model?.name,
+      assistantMsgId: params.assistantMsgId
     }
 
     return await withSpanResult(this.completions.bind(this), traceParams, params, options)

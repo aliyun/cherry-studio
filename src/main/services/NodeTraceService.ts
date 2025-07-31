@@ -48,10 +48,16 @@ export const nodeTraceService = new NodeTraceService()
 
 let traceWin: BrowserWindow | null = null
 
-export function openTraceWindow(topicId: string, traceId: string, autoOpen = true, modelName?: string) {
+export function openTraceWindow(
+  topicId: string,
+  traceId: string,
+  autoOpen = true,
+  modelName?: string,
+  assistantMsgId?: string
+) {
   if (traceWin && !traceWin.isDestroyed()) {
     traceWin.focus()
-    traceWin.webContents.send('set-trace', { traceId, topicId, modelName })
+    traceWin.webContents.send('set-trace', { traceId, topicId, modelName, assistantMsgId })
     return
   }
 
@@ -108,7 +114,8 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
     traceWin!.webContents.send('set-trace', {
       traceId,
       topicId,
-      modelName
+      modelName,
+      assistantMsgId
     })
     traceWin!.webContents.send('set-language', { lang: configManager.get(ConfigKeys.Language) })
     configManager.subscribe(ConfigKeys.Language, setLanguageCallback)
