@@ -24,7 +24,6 @@ class SpanManagerService {
   private spanMap: Map<string, ModelSpanEntity[]> = new Map()
 
   getModelSpanEntity(topicId: string, modelName?: string, assistantMsgId?: string): ModelSpanEntity {
-    console.log('getModelSpanEntity', modelName, assistantMsgId)
     const entities = this.spanMap.get(topicId)
     if (!entities) {
       const entity = new ModelSpanEntity(modelName, assistantMsgId)
@@ -178,7 +177,6 @@ class SpanManagerService {
   }
 
   addSpan(params: StartSpanParams) {
-    console.log('addSpan', params.name, params.assistantMsgId)
     if (!getEnableDeveloperMode()) {
       logger.warn('Trace is enabled in developer mode.')
       return
