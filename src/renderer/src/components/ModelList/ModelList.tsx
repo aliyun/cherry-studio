@@ -16,8 +16,8 @@ import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { Button, Flex, Spin, Tooltip } from 'antd'
-import { groupBy, sortBy, toPairs } from 'lodash'
+import { Button, Empty, Flex, Spin, Tooltip } from 'antd'
+import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -89,8 +89,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [displayedModelGroups])
 
   const onManageModel = useCallback(() => {
-    ManageModelsPopup.show({ provider })
-  }, [provider])
+    ManageModelsPopup.show({ providerId: provider.id })
+  }, [provider.id])
 
   const onAddModel = useCallback(() => {
     if (provider.id === 'new-api') {
@@ -134,6 +134,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     [provider, onUpdateModel]
   )
 
+  const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
+
   return (
     <>
       <SettingSubtitle style={{ marginBottom: 5 }}>
@@ -158,48 +160,54 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           </HStack>
         </HStack>
       </SettingSubtitle>
-      {displayedModelGroups === null ? (
-        <Flex align="center" justify="center" style={{ minHeight: '8rem' }}>
-          <Spin indicator={<SvgSpinners180Ring color="var(--color-text-2)" />} />
-        </Flex>
-      ) : (
-        <Flex gap={12} vertical>
-          {Object.keys(displayedModelGroups).map((group, i) => (
-            <ModelListGroup
-              key={group}
-              groupName={group}
-              models={displayedModelGroups[group]}
-              modelStatuses={modelStatuses}
-              defaultOpen={i <= 5}
-              disabled={isHealthChecking}
-              onEditModel={onEditModel}
-              onRemoveModel={removeModel}
-              onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
-            />
-          ))}
-          {docsWebsite || modelsWebsite ? (
-            <SettingHelpTextRow>
-              <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
-              {docsWebsite && (
-                <SettingHelpLink target="_blank" href={docsWebsite}>
-                  {getProviderLabel(provider.id) + ' '}
-                  {t('common.docs')}
-                </SettingHelpLink>
-              )}
-              {docsWebsite && modelsWebsite && <SettingHelpText>{t('common.and')}</SettingHelpText>}
-              {modelsWebsite && (
-                <SettingHelpLink target="_blank" href={modelsWebsite}>
-                  {t('common.models')}
-                </SettingHelpLink>
-              )}
-              <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
-            </SettingHelpTextRow>
-          ) : (
-            <div style={{ height: 5 }} />
-          )}
-        </Flex>
-      )}
-      <Flex gap={10} style={{ marginTop: 10 }}>
+      <Spin spinning={isLoading} indicator={<SvgSpinners180Ring color="var(--color-text-2)" />}>
+        {displayedModelGroups && !isEmpty(displayedModelGroups) ? (
+          <Flex gap={12} vertical>
+            {Object.keys(displayedModelGroups).map((group, i) => (
+              <ModelListGroup
+                key={group}
+                groupName={group}
+                models={displayedModelGroups[group]}
+                modelStatuses={modelStatuses}
+                defaultOpen={i <= 5}
+                disabled={isHealthChecking}
+                onEditModel={onEditModel}
+                onRemoveModel={removeModel}
+                onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
+              />
+            ))}
+          </Flex>
+        ) : (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={t('settings.models.empty')}
+            style={{ visibility: isLoading ? 'hidden' : 'visible' }}
+          />
+        )}
+      </Spin>
+      <Flex justify="space-between" align="center">
+        {docsWebsite || modelsWebsite ? (
+          <SettingHelpTextRow>
+            <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
+            {docsWebsite && (
+              <SettingHelpLink target="_blank" href={docsWebsite}>
+                {getProviderLabel(provider.id) + ' '}
+                {t('common.docs')}
+              </SettingHelpLink>
+            )}
+            {docsWebsite && modelsWebsite && <SettingHelpText>{t('common.and')}</SettingHelpText>}
+            {modelsWebsite && (
+              <SettingHelpLink target="_blank" href={modelsWebsite}>
+                {t('common.models')}
+              </SettingHelpLink>
+            )}
+            <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
+          </SettingHelpTextRow>
+        ) : (
+          <div style={{ height: 5 }} />
+        )}
+      </Flex>
+      <Flex gap={10} style={{ marginTop: 12 }}>
         <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
           {t('button.manage')}
         </Button>

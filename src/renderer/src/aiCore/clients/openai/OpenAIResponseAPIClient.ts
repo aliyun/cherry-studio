@@ -6,6 +6,7 @@ import {
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
 } from '@renderer/config/models'
+import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   FileMetadata,
@@ -369,7 +370,11 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           type: 'input_text'
         }
         if (isSupportedReasoningEffortOpenAIModel(model)) {
-          systemMessage.role = 'developer'
+          if (isSupportDeveloperRoleProvider(this.provider)) {
+            systemMessage.role = 'developer'
+          } else {
+            systemMessage.role = 'system'
+          }
         }
 
         // 2. 设置工具

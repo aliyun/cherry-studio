@@ -1,14 +1,16 @@
-import { MinusOutlined } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { Model } from '@renderer/types'
 import { ModelWithStatus } from '@renderer/types/healthCheck'
-import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button, Flex, Tooltip } from 'antd'
-import React, { memo, useEffect, useRef, useState } from 'react'
+import { Minus } from 'lucide-react'
+import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ModelListItem from './ModelListItem'
+
+const MAX_SCROLLER_HEIGHT = 390
 
 interface ModelListGroupProps {
   groupName: string
@@ -32,29 +34,15 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   onRemoveGroup
 }) => {
   const { t } = useTranslation()
-  const scrollerRef = useRef<HTMLDivElement>(null)
-  const [isExpanded, setIsExpanded] = useState(defaultOpen)
+  const listRef = useRef<DynamicVirtualListRef>(null)
 
-  const virtualizer = useVirtualizer({
-    count: models.length,
-    getScrollElement: () => scrollerRef.current,
-    estimateSize: () => 52,
-    overscan: 5
-  })
-
-  const virtualItems = virtualizer.getVirtualItems()
-
-  // 监听折叠面板状态变化，确保虚拟列表在展开时正确渲染
-  useEffect(() => {
-    if (isExpanded && scrollerRef.current) {
-      requestAnimationFrame(() => virtualizer.measure())
-    }
-  }, [isExpanded, virtualizer])
-
-  const handleCollapseChange = (activeKeys: string[] | string) => {
+  const handleCollapseChange = useCallback((activeKeys: string[] | string) => {
     const isNowExpanded = Array.isArray(activeKeys) ? activeKeys.length > 0 : !!activeKeys
-    setIsExpanded(isNowExpanded)
-  }
+    if (isNowExpanded) {
+      // 延迟到 DOM 可见后测量
+      requestAnimationFrame(() => listRef.current?.measure())
+    }
+  }, [])
 
   return (
     <CustomCollapseWrapper>
@@ -71,7 +59,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
             <Button
               type="text"
               className="toolbar-item"
-              icon={<MinusOutlined />}
+              icon={<Minus size={14} />}
               onClick={(e) => {
                 e.stopPropagation()
                 onRemoveGroup()
@@ -79,46 +67,35 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               disabled={disabled}
             />
           </Tooltip>
-        }>
-        <ScrollContainer ref={scrollerRef}>
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              width: '100%',
-              position: 'relative'
-            }}>
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualItems[0]?.start ?? 0}px)`
-              }}>
-              {virtualItems.map((virtualItem) => {
-                const model = models[virtualItem.index]
-                return (
-                  <div
-                    key={virtualItem.key}
-                    data-index={virtualItem.index}
-                    ref={virtualizer.measureElement}
-                    style={{
-                      /* 在这里调整 item 间距 */
-                      padding: '4px 0'
-                    }}>
-                    <ModelListItem
-                      model={model}
-                      modelStatus={modelStatuses.find((status) => status.model.id === model.id)}
-                      onEdit={onEditModel}
-                      onRemove={onRemoveModel}
-                      disabled={disabled}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </ScrollContainer>
+        }
+        styles={{
+          header: {
+            padding: '3px calc(6px + var(--scrollbar-width)) 3px 16px'
+          }
+        }}>
+        <DynamicVirtualList
+          ref={listRef}
+          list={models}
+          estimateSize={useCallback(() => 52, [])} // 44px item + 8px padding
+          overscan={5}
+          scrollerStyle={{
+            maxHeight: `${MAX_SCROLLER_HEIGHT}px`,
+            padding: '4px 6px 4px 12px',
+            scrollbarGutter: 'stable'
+          }}
+          itemContainerStyle={{
+            padding: '4px 0'
+          }}>
+          {(model) => (
+            <ModelListItem
+              model={model}
+              modelStatus={modelStatuses.find((status) => status.model.id === model.id)}
+              onEdit={onEditModel}
+              onRemove={onRemoveModel}
+              disabled={disabled}
+            />
+          )}
+        </DynamicVirtualList>
       </CustomCollapse>
     </CustomCollapseWrapper>
   )
@@ -139,12 +116,6 @@ const CustomCollapseWrapper = styled.div`
   .ant-collapse-content-box {
     padding: 0 !important;
   }
-`
-
-const ScrollContainer = styled.div`
-  overflow-y: auto;
-  max-height: 390px;
-  padding: 4px 16px;
 `
 
 export default memo(ModelListGroup)

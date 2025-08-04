@@ -1,16 +1,15 @@
-import { MinusOutlined, PlusOutlined } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import NewApiBatchAddModelPopup from '@renderer/components/ModelList/NewApiBatchAddModelPopup'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogo } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import { Model, Provider } from '@renderer/types'
-import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import { Button, Flex, Tooltip } from 'antd'
 import { Avatar } from 'antd'
-import { ChevronRight } from 'lucide-react'
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { ChevronRight, Minus, Plus } from 'lucide-react'
+import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -26,6 +25,7 @@ interface GroupRowData {
 interface ModelRowData {
   type: 'model'
   model: Model
+  last?: boolean
 }
 
 type RowData = GroupRowData | ModelRowData
@@ -39,8 +39,6 @@ interface ManageModelsListProps {
 
 const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provider, onAddModel, onRemoveModel }) => {
   const { t } = useTranslation()
-  const scrollerRef = useRef<HTMLDivElement>(null)
-  const activeStickyIndexRef = useRef(0)
   const [collapsedGroups, setCollapsedGroups] = useState(new Set<string>())
 
   const handleGroupToggle = useCallback((groupName: string) => {
@@ -64,42 +62,22 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
         // 只添加非空组
         rows.push({ type: 'group', groupName, models })
         if (!collapsedGroups.has(groupName)) {
-          models.forEach((model) => {
-            rows.push({ type: 'model', model })
-          })
+          rows.push(
+            ...models.map(
+              (model, index) =>
+                ({
+                  type: 'model',
+                  model,
+                  last: index === models.length - 1 ? true : undefined
+                }) as const
+            )
+          )
         }
       }
     })
 
     return rows
   }, [modelGroups, collapsedGroups])
-
-  // 找到所有组 header 的索引
-  const stickyIndexes = useMemo(() => {
-    return flatRows.map((row, index) => (row.type === 'group' ? index : -1)).filter((index) => index !== -1)
-  }, [flatRows])
-
-  const isSticky = useCallback((index: number) => stickyIndexes.includes(index), [stickyIndexes])
-
-  const isActiveSticky = useCallback((index: number) => activeStickyIndexRef.current === index, [])
-
-  // 自定义 range extractor 用于 sticky header
-  const rangeExtractor = useCallback(
-    (range: any) => {
-      activeStickyIndexRef.current = [...stickyIndexes].reverse().find((index) => range.startIndex >= index) ?? 0
-      const next = new Set([activeStickyIndexRef.current, ...defaultRangeExtractor(range)])
-      return [...next].sort((a, b) => a - b)
-    },
-    [stickyIndexes]
-  )
-
-  const virtualizer = useVirtualizer({
-    count: flatRows.length,
-    getScrollElement: () => scrollerRef.current,
-    estimateSize: () => 42,
-    rangeExtractor,
-    overscan: 5
-  })
 
   const renderGroupTools = useCallback(
     (models: Model[]) => {
@@ -141,7 +119,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
           placement="top">
           <Button
             type="text"
-            icon={isAllInProvider ? <MinusOutlined /> : <PlusOutlined />}
+            icon={isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}
             onClick={(e) => {
               e.stopPropagation()
               handleGroupAction()
@@ -153,79 +131,51 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
     [provider, onRemoveModel, onAddModel, t]
   )
 
-  const virtualItems = virtualizer.getVirtualItems()
-
   return (
-    <ListContainer ref={scrollerRef}>
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          width: '100%',
-          position: 'relative'
-        }}>
-        {virtualItems.map((virtualItem) => {
-          const row = flatRows[virtualItem.index]
-          const isRowSticky = isSticky(virtualItem.index)
-          const isRowActiveSticky = isActiveSticky(virtualItem.index)
-          const isCollapsed = row.type === 'group' && collapsedGroups.has(row.groupName)
-
-          if (!row) return null
-
+    <DynamicVirtualList
+      list={flatRows}
+      estimateSize={useCallback(() => 60, [])}
+      isSticky={useCallback((index: number) => flatRows[index].type === 'group', [flatRows])}
+      overscan={5}
+      scrollerStyle={{
+        paddingRight: '10px',
+        borderRadius: '8px'
+      }}>
+      {(row) => {
+        if (row.type === 'group') {
+          const isCollapsed = collapsedGroups.has(row.groupName)
           return (
-            <div
-              key={virtualItem.index}
-              data-index={virtualItem.index}
-              ref={virtualizer.measureElement}
-              style={{
-                ...(isRowSticky
-                  ? {
-                      background: 'var(--color-background)',
-                      zIndex: 1
-                    }
-                  : {}),
-                ...(isRowActiveSticky
-                  ? {
-                      position: 'sticky'
-                    }
-                  : {
-                      position: 'absolute',
-                      transform: `translateY(${virtualItem.start}px)`
-                    }),
-                top: 0,
-                left: 0,
-                width: '100%'
-              }}>
-              {row.type === 'group' ? (
-                <GroupHeader onClick={() => handleGroupToggle(row.groupName)}>
-                  <Flex align="center" gap={10} style={{ flex: 1 }}>
-                    <ChevronRight
-                      size={16}
-                      color="var(--color-text-3)"
-                      strokeWidth={1.5}
-                      style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
-                    />
-                    <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{row.groupName}</span>
-                    <CustomTag color="#02B96B" size={10}>
-                      {row.models.length}
-                    </CustomTag>
-                  </Flex>
-                  {renderGroupTools(row.models)}
-                </GroupHeader>
-              ) : (
-                <div style={{ padding: '4px 0' }}>
-                  <ModelListItem
-                    model={row.model}
-                    provider={provider}
-                    onAddModel={onAddModel}
-                    onRemoveModel={onRemoveModel}
+            <GroupHeaderContainer isCollapsed={isCollapsed}>
+              <GroupHeader isCollapsed={isCollapsed} onClick={() => handleGroupToggle(row.groupName)}>
+                <Flex align="center" gap={10} style={{ flex: 1 }}>
+                  <ChevronRight
+                    size={16}
+                    color="var(--color-text-3)"
+                    strokeWidth={1.5}
+                    style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
                   />
-                </div>
-              )}
-            </div>
+                  <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{row.groupName}</span>
+                  <CustomTag color="#02B96B" size={10}>
+                    {row.models.length}
+                  </CustomTag>
+                </Flex>
+                {renderGroupTools(row.models)}
+              </GroupHeader>
+            </GroupHeaderContainer>
           )
-        })}
-      </div>
-    </ListContainer>
+        }
+
+        return (
+          <ModelListItem
+            last={row.last}
+            model={row.model}
+            provider={provider}
+            onAddModel={onAddModel}
+            onRemoveModel={onRemoveModel}
+          />
+        )
+      }}
+    </DynamicVirtualList>
   )
 }
 
@@ -235,47 +185,58 @@ interface ModelListItemProps {
   provider: Provider
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
+  last?: boolean
 }
 
-const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onAddModel, onRemoveModel }) => {
+const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onAddModel, onRemoveModel, last }) => {
   const isAdded = useMemo(() => isModelInProvider(provider, model.id), [provider, model.id])
-
   return (
-    <FileItem
-      style={{
-        backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
-        border: 'none',
-        boxShadow: 'none'
-      }}
-      fileInfo={{
-        icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
-        name: <ModelIdWithTags model={model} />,
-        extra: model.description && <ExpandableText text={model.description} />,
-        ext: '.model',
-        actions: isAdded ? (
-          <Button type="text" onClick={() => onRemoveModel(model)} icon={<MinusOutlined />} />
-        ) : (
-          <Button type="text" onClick={() => onAddModel(model)} icon={<PlusOutlined />} />
-        )
-      }}
-    />
+    <ModelListItemContainer last={last}>
+      <FileItem
+        style={{
+          backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
+          border: 'none',
+          boxShadow: 'none'
+        }}
+        fileInfo={{
+          icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
+          name: <ModelIdWithTags model={model} />,
+          extra: model.description && <ExpandableText text={model.description} />,
+          ext: '.model',
+          actions: isAdded ? (
+            <Button type="text" onClick={() => onRemoveModel(model)} icon={<Minus size={16} />} />
+          ) : (
+            <Button type="text" onClick={() => onAddModel(model)} icon={<Plus size={16} />} />
+          )
+        }}
+      />
+    </ModelListItemContainer>
   )
 })
 
-const ListContainer = styled.div`
-  height: calc(100vh - 300px);
-  overflow: auto;
-  padding-right: 10px;
-`
-
-const GroupHeader = styled.div`
+const GroupHeader = styled.div<{ isCollapsed: boolean }>`
   display: flex;
+  background-color: var(--color-background-mute);
+  border-radius: ${(props) => (props.isCollapsed ? '8px' : '8px 8px 0 0')};
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px;
-  min-height: 48px;
+  padding: 0 13px;
+  min-height: 35px;
   color: var(--color-text);
   cursor: pointer;
+`
+
+const GroupHeaderContainer = styled.div<{ isCollapsed: boolean }>`
+  padding-bottom: ${(props) => (props.isCollapsed ? '8px' : '0')};
+`
+
+const ModelListItemContainer = styled.div<{ last?: boolean }>`
+  border: 1px solid var(--color-border);
+  padding: 4px;
+  border-top: none;
+  border-radius: ${(props) => (props.last ? '0 0 8px 8px' : '0')};
+  border-bottom: ${(props) => (props.last ? '1px solid var(--color-border)' : 'none')};
+  margin-bottom: ${(props) => (props.last ? '8px' : '0')};
 `
 
 export default memo(ManageModelsList)
