@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { CompletionsContext } from '@renderer/aiCore/middleware/types'
 import {
@@ -6,7 +7,7 @@ import {
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
 } from '@renderer/config/models'
-import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
+import { isSupportDeveloperRoleProvider, isSupportStreamOptionsProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   FileMetadata,
@@ -15,6 +16,7 @@ import {
   MCPTool,
   MCPToolResponse,
   Model,
+  OpenAIServiceTier,
   Provider,
   ToolCallResponse,
   WebSearchSource
@@ -38,6 +40,7 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { MB } from '@shared/config/constant'
+import { t } from 'i18next'
 import { isEmpty } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ResponseInput } from 'openai/resources/responses/responses'
@@ -46,6 +49,7 @@ import { RequestTransformer, ResponseChunkTransformer } from '../types'
 import { OpenAIAPIClient } from './OpenAIApiClient'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
 
+const logger = loggerService.withContext('OpenAIResponseAPIClient')
 export class OpenAIResponseAPIClient extends OpenAIBaseClient<
   OpenAI,
   OpenAIResponseSdkParams,
@@ -338,8 +342,8 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
   }
 
   public extractMessagesFromSdkPayload(sdkPayload: OpenAIResponseSdkParams): OpenAIResponseSdkMessageParam[] {
-    if (typeof sdkPayload.input === 'string') {
-      return [{ role: 'user', content: sdkPayload.input }]
+    if (!sdkPayload.input || typeof sdkPayload.input === 'string') {
+      return [{ role: 'user', content: sdkPayload.input ?? '' }]
     }
     return sdkPayload.input
   }
@@ -437,7 +441,10 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         }
 
         tools = tools.concat(extraTools)
-        const commonParams = {
+
+        const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
+
+        const commonParams: OpenAIResponseSdkParams = {
           model: model.id,
           input:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
@@ -447,23 +454,17 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           top_p: this.getTopP(assistant, model),
           max_output_tokens: maxTokens,
           stream: streamOutput,
+          ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {}),
           tools: !isEmpty(tools) ? tools : undefined,
-          service_tier: this.getServiceTier(model),
+          // groq 有不同的 service tier 配置，不符合 openai 接口类型
+          service_tier: this.getServiceTier(model) as OpenAIServiceTier,
           ...(this.getReasoningEffort(assistant, model) as OpenAI.Reasoning),
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          // 注意：用户自定义参数总是应该覆盖其他参数
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
-        const sdkParams: OpenAIResponseSdkParams = streamOutput
-          ? {
-              ...commonParams,
-              stream: true
-            }
-          : {
-              ...commonParams,
-              stream: false
-            }
         const timeout = this.getTimeout(model)
-        return { payload: sdkParams, messages: reqMessages, metadata: { timeout } }
+        return { payload: commonParams, messages: reqMessages, metadata: { timeout } }
       }
     }
   }
@@ -477,6 +478,14 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     let isFirstTextChunk = true
     return () => ({
       async transform(chunk: OpenAIResponseSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+        if (typeof chunk === 'string') {
+          try {
+            chunk = JSON.parse(chunk)
+          } catch (error) {
+            logger.error('invalid chunk', { chunk, error })
+            throw new Error(t('error.chat.chunk.non_json'))
+          }
+        }
         // 处理chunk
         if ('output' in chunk) {
           if (ctx._internal?.toolProcessingState) {

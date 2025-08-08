@@ -1,4 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -10,6 +11,7 @@ import {
   setEnableSpellCheck,
   setLanguage,
   setNotificationSettings,
+  setProxyBypassRules as _setProxyBypassRules,
   setProxyMode,
   setProxyUrl as _setProxyUrl,
   setSpellCheckLanguages
@@ -17,7 +19,7 @@ import {
 import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
-import { defaultLanguage } from '@shared/config/constant'
+import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import { Flex, Input, Switch, Tooltip } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +31,7 @@ const GeneralSettings: FC = () => {
   const {
     language,
     proxyUrl: storeProxyUrl,
+    proxyBypassRules: storeProxyBypassRules,
     setLaunch,
     setTray,
     launchOnBoot,
@@ -42,6 +45,7 @@ const GeneralSettings: FC = () => {
     setDisableHardwareAcceleration
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
+  const [proxyBypassRules, setProxyBypassRules] = useState<string | undefined>(storeProxyBypassRules)
   const { theme } = useTheme()
   const { enableDeveloperMode, setEnableDeveloperMode } = useEnableDeveloperMode()
 
@@ -97,6 +101,10 @@ const GeneralSettings: FC = () => {
     dispatch(_setProxyUrl(proxyUrl))
   }
 
+  const onSetProxyBypassRules = () => {
+    dispatch(_setProxyBypassRules(proxyBypassRules))
+  }
+
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
     { value: 'custom', label: t('settings.proxy.mode.custom') },
@@ -109,6 +117,7 @@ const GeneralSettings: FC = () => {
       dispatch(_setProxyUrl(undefined))
     } else if (mode === 'none') {
       dispatch(_setProxyUrl(undefined))
+      dispatch(_setProxyBypassRules(undefined))
     }
   }
 
@@ -210,12 +219,29 @@ const GeneralSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.proxy.address')}</SettingRowTitle>
               <Input
+                spellCheck={false}
                 placeholder="socks5://127.0.0.1:6153"
                 value={proxyUrl}
                 onChange={(e) => setProxyUrl(e.target.value)}
                 style={{ width: 180 }}
                 onBlur={() => onSetProxyUrl()}
                 type="url"
+              />
+            </SettingRow>
+          </>
+        )}
+        {storeProxyMode === 'custom' && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.proxy.bypass')}</SettingRowTitle>
+              <Input
+                spellCheck={false}
+                placeholder={defaultByPassRules}
+                value={proxyBypassRules}
+                onChange={(e) => setProxyBypassRules(e.target.value)}
+                style={{ width: 180 }}
+                onBlur={() => onSetProxyBypassRules()}
               />
             </SettingRow>
           </>
@@ -320,7 +346,10 @@ const GeneralSettings: FC = () => {
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
+          <Flex align="center" gap={4}>
+            <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
+            <InfoTooltip title={t('settings.developer.help')} />
+          </Flex>
           <Switch checked={enableDeveloperMode} onChange={setEnableDeveloperMode} />
         </SettingRow>
       </SettingGroup>

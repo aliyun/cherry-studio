@@ -1,13 +1,13 @@
-import { CheckOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/icons'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
+import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
-import { ModelList } from '@renderer/components/ModelList'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
+import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
@@ -16,7 +16,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -57,7 +57,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const isDmxapi = provider.id === 'dmxapi'
 
-  const providerConfig = PROVIDER_CONFIG[provider.id]
+  const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official
   const apiKeyWebsite = providerConfig?.websites?.apiKey
   const configedApiHost = providerConfig?.api?.url
@@ -214,7 +214,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
     return (
       <Tooltip title={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}>
-        <CloseCircleFilled style={{ color: 'var(--color-status-error)' }} />
+        <TriangleAlert size={16} color="var(--color-status-warning)" />
       </Tooltip>
     )
   }
@@ -285,9 +285,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               onClick={onCheckApi}
               disabled={!apiHost || apiKeyConnectivity.checking}>
               {apiKeyConnectivity.checking ? (
-                <LoadingOutlined spin />
+                <LoadingIcon />
               ) : apiKeyConnectivity.status === 'success' ? (
-                <CheckOutlined />
+                <Check size={16} className="lucide-custom" />
               ) : (
                 t('settings.provider.check')
               )}
