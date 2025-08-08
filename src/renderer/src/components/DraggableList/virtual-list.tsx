@@ -22,7 +22,7 @@ import { type Key, memo, useCallback, useRef } from 'react'
  * @property {React.CSSProperties} [itemStyle] 元素内容区域的附加样式
  * @property {React.CSSProperties} [itemContainerStyle] 元素拖拽容器的附加样式
  * @property {Partial<DroppableProps>} [droppableProps] 透传给 Droppable 的额外配置
- * @property {(list: T[]) => void} onUpdate 拖拽排序完成后的回调，返回新的列表顺序
+ * @property {(list: T[]) => void} [onUpdate] 拖拽排序完成后的回调，返回新的列表顺序（可被 useDraggableReorder 替代）
  * @property {OnDragStartResponder} [onDragStart] 开始拖拽时的回调
  * @property {OnDragEndResponder}   [onDragEnd] 结束拖拽时的回调
  * @property {T[]} list 渲染的数据源
@@ -35,17 +35,20 @@ interface DraggableVirtualListProps<T> {
   ref?: React.Ref<HTMLDivElement>
   className?: string
   style?: React.CSSProperties
+  scrollerStyle?: React.CSSProperties
   itemStyle?: React.CSSProperties
   itemContainerStyle?: React.CSSProperties
   droppableProps?: Partial<DroppableProps>
-  onUpdate: (list: T[]) => void
+  onUpdate?: (list: T[]) => void
   onDragStart?: OnDragStartResponder
   onDragEnd?: OnDragEndResponder
   list: T[]
   itemKey?: (index: number) => Key
+  estimateSize?: (index: number) => number
   overscan?: number
   header?: React.ReactNode
   children: (item: T, index: number) => React.ReactNode
+  disabled?: boolean
 }
 
 /**
@@ -59,6 +62,7 @@ function DraggableVirtualList<T>({
   ref,
   className,
   style,
+  scrollerStyle,
   itemStyle,
   itemContainerStyle,
   droppableProps,
@@ -67,13 +71,15 @@ function DraggableVirtualList<T>({
   onDragEnd,
   list,
   itemKey,
+  estimateSize: _estimateSize,
   overscan = 5,
   header,
-  children
+  children,
+  disabled
 }: DraggableVirtualListProps<T>): React.ReactElement {
   const _onDragEnd = (result: DropResult, provided: ResponderProvided) => {
     onDragEnd?.(result, provided)
-    if (result.destination) {
+    if (onUpdate && result.destination) {
       const sourceIndex = result.source.index
       const destIndex = result.destination.index
       const reorderAgents = droppableReorder(list, sourceIndex, destIndex)
@@ -88,12 +94,15 @@ function DraggableVirtualList<T>({
     count: list?.length ?? 0,
     getScrollElement: useCallback(() => parentRef.current, []),
     getItemKey: itemKey,
-    estimateSize: useCallback(() => 50, []),
+    estimateSize: useCallback((index) => _estimateSize?.(index) ?? 50, [_estimateSize]),
     overscan
   })
 
   return (
-    <div ref={ref} className={`${className} draggable-virtual-list`} style={{ height: '100%', ...style }}>
+    <div
+      ref={ref}
+      className={`${className} draggable-virtual-list`}
+      style={{ height: '100%', display: 'flex', flexDirection: 'column', ...style }}>
       <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
         {header}
         <Droppable
@@ -128,6 +137,7 @@ function DraggableVirtualList<T>({
                 {...provided.droppableProps}
                 className="virtual-scroller"
                 style={{
+                  ...scrollerStyle,
                   height: '100%',
                   width: '100%',
                   overflowY: 'auto',
@@ -149,6 +159,7 @@ function DraggableVirtualList<T>({
                       itemContainerStyle={itemContainerStyle}
                       virtualizer={virtualizer}
                       children={children}
+                      disabled={disabled}
                     />
                   ))}
                 </div>
@@ -164,53 +175,56 @@ function DraggableVirtualList<T>({
 /**
  * 渲染单个可拖拽的虚拟列表项，高度为动态测量
  */
-const VirtualRow = memo(({ virtualItem, list, children, itemStyle, itemContainerStyle, virtualizer }: any) => {
-  const item = list[virtualItem.index]
-  const draggableId = String(virtualItem.key)
-  return (
-    <Draggable
-      key={`draggable_${draggableId}_${virtualItem.index}`}
-      draggableId={draggableId}
-      index={virtualItem.index}>
-      {(provided) => {
-        const setDragRefs = (el: HTMLElement | null) => {
-          provided.innerRef(el)
-          virtualizer.measureElement(el)
-        }
+const VirtualRow = memo(
+  ({ virtualItem, list, children, itemStyle, itemContainerStyle, virtualizer, disabled }: any) => {
+    const item = list[virtualItem.index]
+    const draggableId = String(virtualItem.key)
+    return (
+      <Draggable
+        key={`draggable_${draggableId}_${virtualItem.index}`}
+        draggableId={draggableId}
+        isDragDisabled={disabled}
+        index={virtualItem.index}>
+        {(provided) => {
+          const setDragRefs = (el: HTMLElement | null) => {
+            provided.innerRef(el)
+            virtualizer.measureElement(el)
+          }
 
-        const dndStyle = provided.draggableProps.style
-        const virtualizerTransform = `translateY(${virtualItem.start}px)`
+          const dndStyle = provided.draggableProps.style
+          const virtualizerTransform = `translateY(${virtualItem.start}px)`
 
-        // dnd 的 transform 负责拖拽时的位移和让位动画，
-        // virtualizer 的 translateY 负责将项定位到虚拟列表的正确位置，
-        // 它们拼接起来可以同时实现拖拽视觉效果和虚拟化定位。
-        const combinedTransform = dndStyle?.transform
-          ? `${dndStyle.transform} ${virtualizerTransform}`
-          : virtualizerTransform
+          // dnd 的 transform 负责拖拽时的位移和让位动画，
+          // virtualizer 的 translateY 负责将项定位到虚拟列表的正确位置，
+          // 它们拼接起来可以同时实现拖拽视觉效果和虚拟化定位。
+          const combinedTransform = dndStyle?.transform
+            ? `${dndStyle.transform} ${virtualizerTransform}`
+            : virtualizerTransform
 
-        return (
-          <div
-            {...provided.draggableProps}
-            ref={setDragRefs}
-            className="draggable-item"
-            data-index={virtualItem.index}
-            style={{
-              ...itemContainerStyle,
-              ...dndStyle,
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              transform: combinedTransform
-            }}>
-            <div {...provided.dragHandleProps} className="draggable-content" style={{ ...itemStyle }}>
-              {item && children(item, virtualItem.index)}
+          return (
+            <div
+              {...provided.draggableProps}
+              ref={setDragRefs}
+              className="draggable-item"
+              data-index={virtualItem.index}
+              style={{
+                ...itemContainerStyle,
+                ...dndStyle,
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: combinedTransform
+              }}>
+              <div {...provided.dragHandleProps} className="draggable-content" style={itemStyle}>
+                {item && children(item, virtualItem.index)}
+              </div>
             </div>
-          </div>
-        )
-      }}
-    </Draggable>
-  )
-})
+          )
+        }}
+      </Draggable>
+    )
+  }
+)
 
 export default DraggableVirtualList

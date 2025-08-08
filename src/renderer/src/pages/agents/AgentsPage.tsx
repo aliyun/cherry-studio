@@ -1,8 +1,9 @@
 import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import CustomTag from '@renderer/components/CustomTag'
+import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
@@ -44,27 +45,22 @@ const AgentsPage: FC = () => {
   }, [systemAgents, userAgents])
 
   const filteredAgents = useMemo(() => {
-    let agents: Agent[] = []
-
-    if (search.trim()) {
-      const uniqueAgents = new Map<string, Agent>()
-
-      Object.entries(agentGroups).forEach(([, agents]) => {
-        agents.forEach((agent) => {
-          if (
-            (agent.name.toLowerCase().includes(search.toLowerCase()) ||
-              agent.description?.toLowerCase().includes(search.toLowerCase())) &&
-            !uniqueAgents.has(agent.name)
-          ) {
-            uniqueAgents.set(agent.name, agent)
-          }
-        })
-      })
-      agents = Array.from(uniqueAgents.values())
-    } else {
-      agents = agentGroups[activeGroup] || []
+    // 搜索框为空直接返回「我的」分组下的 agent
+    if (!search.trim()) {
+      return agentGroups[activeGroup] || []
     }
-    return agents.filter((agent) => agent.name.toLowerCase().includes(search.toLowerCase()))
+    const uniqueAgents = new Map<string, Agent>()
+    Object.entries(agentGroups).forEach(([, agents]) => {
+      agents.forEach((agent) => {
+        if (
+          agent.name.toLowerCase().includes(search.toLowerCase()) ||
+          agent.description?.toLowerCase().includes(search.toLowerCase())
+        ) {
+          uniqueAgents.set(agent.id, agent)
+        }
+      })
+    })
+    return Array.from(uniqueAgents.values())
   }, [agentGroups, activeGroup, search])
 
   const { t, i18n } = useTranslation()
@@ -218,11 +214,11 @@ const AgentsPage: FC = () => {
                     {getLocalizedGroupName(group)}
                   </Flex>
                   {
-                    <div style={{ minWidth: 40, textAlign: 'center' }}>
+                    <HStack alignItems="center" justifyContent="center" style={{ minWidth: 40 }}>
                       <CustomTag color="#A0A0A0" size={8}>
                         {agentGroups[group].length}
                       </CustomTag>
-                    </div>
+                    </HStack>
                   }
                 </Flex>
               }

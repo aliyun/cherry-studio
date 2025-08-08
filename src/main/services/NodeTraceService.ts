@@ -1,12 +1,12 @@
+import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
 import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
 import { context, SpanContext, trace } from '@opentelemetry/api'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import * as path from 'path'
 
 import { ConfigKeys, configManager } from './ConfigManager'
-import { loggerService } from './LoggerService'
 import { spanCacheService } from './SpanCacheService'
 
 export const TRACER_NAME = 'CherryStudio'
@@ -48,10 +48,16 @@ export const nodeTraceService = new NodeTraceService()
 
 let traceWin: BrowserWindow | null = null
 
-export function openTraceWindow(topicId: string, traceId: string, autoOpen = true, modelName?: string) {
+export function openTraceWindow(
+  topicId: string,
+  traceId: string,
+  autoOpen = true,
+  modelName?: string,
+  assistantMsgId?: string
+) {
   if (traceWin && !traceWin.isDestroyed()) {
     traceWin.focus()
-    traceWin.webContents.send('set-trace', { traceId, topicId, modelName })
+    traceWin.webContents.send('set-trace', { traceId, topicId, modelName, assistantMsgId })
     return
   }
 
@@ -73,9 +79,14 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
     maximizable: true,
     minimizable: true,
     resizable: true,
-    title: 'Call Chain Window',
-    frame: true,
-    titleBarOverlay: { height: 40 },
+    titleBarStyle: 'hidden',
+    frame: false,
+    titleBarOverlay: {
+      height: 40,
+      color: 'rgba(255,255,255,0)',
+      symbolColor: nativeTheme.shouldUseDarkColors ? '#fff' : '#000'
+    },
+    darkTheme: nativeTheme.shouldUseDarkColors,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -103,7 +114,8 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
     traceWin!.webContents.send('set-trace', {
       traceId,
       topicId,
-      modelName
+      modelName,
+      assistantMsgId
     })
     traceWin!.webContents.send('set-language', { lang: configManager.get(ConfigKeys.Language) })
     configManager.subscribe(ConfigKeys.Language, setLanguageCallback)

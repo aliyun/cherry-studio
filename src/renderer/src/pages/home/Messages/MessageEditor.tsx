@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import CustomTag from '@renderer/components/CustomTag'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -97,11 +97,13 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   }, [couldAddImageFile, couldAddTextFile])
 
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus({ cursor: 'end' })
       }
     }, 0)
+
+    return () => clearTimeout(timer)
   }, [])
 
   // 仅在打开时执行一次
@@ -287,7 +289,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
                 // 阻止事件冒泡，避免触发全局的 Electron contextMenu
                 e.stopPropagation()
               }}
-              autoSize={{ minRows: 3, maxRows: 15 }}
+              autoSize={{ minRows: 1, maxRows: 15 }}
               style={{
                 fontSize
               }}>
@@ -390,7 +392,7 @@ const EditorContainer = styled(Space)`
     background-color: var(--color-background-opacity);
     border: 0.5px solid var(--color-border);
     border-radius: 15px;
-    padding: 0.5em 1em;
+    padding: 1em;
     flex: 1;
     font-family: Ubuntu;
     resize: none !important;

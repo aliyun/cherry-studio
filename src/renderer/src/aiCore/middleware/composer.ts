@@ -265,7 +265,8 @@ export function applyCompletionsMiddlewares<
         name: `${params.assistant?.model?.name}.client`,
         tag: 'LLM',
         topicId: params.topicId || '',
-        modelName: params.assistant?.model?.name
+        modelName: params.assistant?.model?.name,
+        assistantMsgId: params.assistantMsgId
       }
 
       // Call the original SDK method with transformed parameters

@@ -4,11 +4,14 @@ import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
   getOpenAIWebSearchParams,
+  getThinkModelType,
   isDoubaoThinkingAutoModel,
   isGrokReasoningModel,
+  isNotSupportSystemMessageModel,
+  isQwenAlwaysThinkModel,
+  isQwenMTModel,
   isQwenReasoningModel,
   isReasoningModel,
-  isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
   isSupportedThinkingTokenClaudeModel,
@@ -17,8 +20,16 @@ import {
   isSupportedThinkingTokenHunyuanModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
-  isVisionModel
+  isSupportedThinkingTokenZhipuModel,
+  isVisionModel,
+  MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
+import {
+  isSupportArrayContentProvider,
+  isSupportDeveloperRoleProvider,
+  isSupportQwen3EnableThinkingProvider,
+  isSupportStreamOptionsProvider
+} from '@renderer/config/providers'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 // For Copilot token
@@ -30,8 +41,10 @@ import {
   MCPTool,
   MCPToolResponse,
   Model,
+  OpenAIServiceTier,
   Provider,
   ToolCallResponse,
+  TranslateAssistant,
   WebSearchSource
 } from '@renderer/types'
 import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
@@ -44,6 +57,7 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
+import { mapLanguageToQwenMTModel } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isEnabledToolUse,
@@ -52,6 +66,7 @@ import {
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { t } from 'i18next'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
 
@@ -116,6 +131,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       return {}
     }
 
+    if (isSupportedThinkingTokenZhipuModel(model)) {
+      if (!reasoningEffort) {
+        return { thinking: { type: 'disabled' } }
+      }
+      return { thinking: { type: 'enabled' } }
+    }
+
     if (!reasoningEffort) {
       if (model.provider === 'openrouter') {
         // Don't disable reasoning for Gemini models that support thinking tokens
@@ -128,6 +150,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
         return { reasoning: { enabled: false, exclude: true } }
       }
+
       if (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model)) {
         return { enable_thinking: false }
       }
@@ -157,6 +180,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
       return {}
     }
+
+    // reasoningEffort有效的情况
     const effortRatio = EFFORT_RATIO[reasoningEffort]
     const budgetTokens = Math.floor(
       (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
@@ -174,9 +199,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // Qwen models
-    if (isSupportedThinkingTokenQwenModel(model)) {
+    if (isQwenReasoningModel(model)) {
       const thinkConfig = {
-        enable_thinking: true,
+        enable_thinking: isQwenAlwaysThinkModel(model) ? undefined : true,
         thinking_budget: budgetTokens
       }
       if (this.provider.id === 'dashscope') {
@@ -195,17 +220,20 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
     }
 
-    // Grok models
-    if (isSupportedReasoningEffortGrokModel(model)) {
-      return {
-        reasoning_effort: reasoningEffort
-      }
-    }
-
-    // OpenAI models
-    if (isSupportedReasoningEffortOpenAIModel(model)) {
-      return {
-        reasoning_effort: reasoningEffort
+    // Grok models/Perplexity models/OpenAI models
+    if (isSupportedReasoningEffortModel(model)) {
+      // 检查模型是否支持所选选项
+      const modelType = getThinkModelType(model)
+      const supportedOptions = MODEL_SUPPORTED_REASONING_EFFORT[modelType]
+      if (supportedOptions.includes(reasoningEffort)) {
+        return {
+          reasoning_effort: reasoningEffort
+        }
+      } else {
+        // 如果不支持，fallback到第一个支持的值
+        return {
+          reasoning_effort: supportedOptions[0]
+        }
       }
     }
 
@@ -271,9 +299,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       return true
     }
 
-    const providers = ['deepseek', 'baichuan', 'minimax', 'xirang']
-
-    return providers.includes(this.provider.id)
+    return !isSupportArrayContentProvider(this.provider)
   }
 
   /**
@@ -472,12 +498,22 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           streamOutput = true
         }
 
+        const extra_body: Record<string, any> = {}
+
+        if (isQwenMTModel(model)) {
+          const targetLanguage = (assistant as TranslateAssistant).targetLanguage
+          extra_body.translation_options = {
+            source_lang: 'auto',
+            target_lang: mapLanguageToQwenMTModel(targetLanguage!)
+          }
+        }
+
         // 1. 处理系统消息
         let systemMessage = { role: 'system', content: assistant.prompt || '' }
 
         if (isSupportedReasoningEffortOpenAIModel(model)) {
           systemMessage = {
-            role: 'developer',
+            role: isSupportDeveloperRoleProvider(this.provider) ? 'developer' : 'system',
             content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
           }
         }
@@ -505,7 +541,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
 
         const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-        if (lastUserMsg && isSupportedThinkingTokenQwenModel(model)) {
+        if (
+          lastUserMsg &&
+          isSupportedThinkingTokenQwenModel(model) &&
+          !isSupportQwen3EnableThinkingProvider(this.provider)
+        ) {
           const postsuffix = '/no_think'
           const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
           const currentContent = lastUserMsg.content
@@ -515,7 +555,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
         // 4. 最终请求消息
         let reqMessages: OpenAISdkMessageParam[]
-        if (!systemMessage.content) {
+        if (!systemMessage.content || isNotSupportSystemMessageModel(model)) {
           reqMessages = [...userMessages]
         } else {
           reqMessages = [systemMessage, ...userMessages].filter(Boolean) as OpenAISdkMessageParam[]
@@ -524,7 +564,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         reqMessages = processReqMessages(model, reqMessages)
 
         // 5. 创建通用参数
-        const commonParams = {
+        // Create the appropriate parameters object based on whether streaming is enabled
+        // Note: Some providers like Mistral don't support stream_options
+        const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
+
+        const commonParams: OpenAISdkParams = {
           model: model.id,
           messages:
             isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
@@ -534,31 +578,24 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           top_p: this.getTopP(assistant, model),
           max_tokens: maxTokens,
           tools: tools.length > 0 ? tools : undefined,
-          service_tier: this.getServiceTier(model),
+          stream: streamOutput,
+          ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {}),
+          // groq 有不同的 service tier 配置，不符合 openai 接口类型
+          service_tier: this.getServiceTier(model) as OpenAIServiceTier,
           ...this.getProviderSpecificParameters(assistant, model),
           ...this.getReasoningEffort(assistant, model),
           ...getOpenAIWebSearchParams(model, enableWebSearch),
-          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
-          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {}),
           // OpenRouter usage tracking
-          ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {})
+          ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {}),
+          ...(isQwenMTModel(model) ? extra_body : {}),
+          // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          // 注意：用户自定义参数总是应该覆盖其他参数
+          ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
-
-        // Create the appropriate parameters object based on whether streaming is enabled
-        const sdkParams: OpenAISdkParams = streamOutput
-          ? {
-              ...commonParams,
-              stream: true,
-              stream_options: { include_usage: true }
-            }
-          : {
-              ...commonParams,
-              stream: false
-            }
 
         const timeout = this.getTimeout(model)
 
-        return { payload: sdkParams, messages: reqMessages, metadata: { timeout } }
+        return { payload: commonParams, messages: reqMessages, metadata: { timeout } }
       }
     }
   }
@@ -695,8 +732,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       isFinished = true
     }
 
-    let isFirstThinkingChunk = true
-    let isFirstTextChunk = true
+    let isThinking = false
+    let accumulatingText = false
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         const isOpenRouter = context.provider?.id === 'openrouter'
@@ -728,6 +765,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           return
         }
 
+        if (typeof chunk === 'string') {
+          try {
+            chunk = JSON.parse(chunk)
+          } catch (error) {
+            logger.error('invalid chunk', { chunk, error })
+            throw new Error(t('error.chat.chunk.non_json'))
+          }
+        }
+
         // 处理chunk
         if ('choices' in chunk && chunk.choices && chunk.choices.length > 0) {
           for (const choice of chunk.choices) {
@@ -751,6 +797,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               contentSource = choice.delta
             } else if ('message' in choice) {
               contentSource = choice.message
+            }
+
+            // 状态管理
+            if (!contentSource?.content) {
+              accumulatingText = false
+            }
+            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+            if (!contentSource?.reasoning_content && !contentSource?.reasoning) {
+              isThinking = false
             }
 
             if (!contentSource) {
@@ -790,30 +845,41 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
             const reasoningText = contentSource.reasoning_content || contentSource.reasoning
             if (reasoningText) {
-              if (isFirstThinkingChunk) {
+              // logger.silly('since reasoningText is trusy, try to enqueue THINKING_START AND THINKING_DELTA')
+              if (!isThinking) {
+                // logger.silly('since isThinking is falsy, try to enqueue THINKING_START')
                 controller.enqueue({
                   type: ChunkType.THINKING_START
                 } as ThinkingStartChunk)
-                isFirstThinkingChunk = false
+                isThinking = true
               }
+
+              // logger.silly('enqueue THINKING_DELTA')
               controller.enqueue({
                 type: ChunkType.THINKING_DELTA,
                 text: reasoningText
               })
+            } else {
+              isThinking = false
             }
 
             // 处理文本内容
             if (contentSource.content) {
-              if (isFirstTextChunk) {
+              // logger.silly('since contentSource.content is trusy, try to enqueue TEXT_START and TEXT_DELTA')
+              if (!accumulatingText) {
+                // logger.silly('enqueue TEXT_START')
                 controller.enqueue({
                   type: ChunkType.TEXT_START
                 } as TextStartChunk)
-                isFirstTextChunk = false
+                accumulatingText = true
               }
+              // logger.silly('enqueue TEXT_DELTA')
               controller.enqueue({
                 type: ChunkType.TEXT_DELTA,
                 text: contentSource.content
               })
+            } else {
+              accumulatingText = false
             }
 
             // 处理工具调用

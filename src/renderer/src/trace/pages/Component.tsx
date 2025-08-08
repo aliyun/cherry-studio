@@ -53,18 +53,19 @@ export const Text: React.FC<React.HTMLAttributes<HTMLSpanElement>> = ({ style, c
 )
 
 // VStack 组件
-export const VStack: React.FC<{ grap?: number; align?: string; children: React.ReactNode }> = ({
-  grap = 5,
-  align = 'stretch',
-  children,
-  ...props
-}) => (
+export const VStack: React.FC<{
+  style?: React.CSSProperties
+  grap?: number
+  align?: string
+  children: React.ReactNode
+}> = ({ style, grap = 5, align = 'stretch', children, ...props }) => (
   <div
     style={{
       display: 'flex',
       flexDirection: 'column',
       alignItems: align,
-      gap: `${grap}px`
+      gap: `${grap}px`,
+      ...style
     }}
     {...props}>
     {children}

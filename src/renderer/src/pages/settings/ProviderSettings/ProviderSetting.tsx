@@ -1,13 +1,13 @@
-import { CheckOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/icons'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
+import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
-import { ModelList } from '@renderer/components/ModelList'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
+import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
@@ -16,7 +16,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -29,13 +29,14 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
+import ApiOptionsSettings from './ApiOptionsSettings'
+import AwsBedrockSettings from './AwsBedrockSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import LMStudioSettings from './LMStudioSettings'
 import ProviderOAuth from './ProviderOAuth'
-import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
 
@@ -56,7 +57,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const isDmxapi = provider.id === 'dmxapi'
 
-  const providerConfig = PROVIDER_CONFIG[provider.id]
+  const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official
   const apiKeyWebsite = providerConfig?.websites?.apiKey
   const configedApiHost = providerConfig?.api?.url
@@ -213,7 +214,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
     return (
       <Tooltip title={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}>
-        <CloseCircleFilled style={{ color: 'var(--color-status-error)' }} />
+        <TriangleAlert size={16} color="var(--color-status-warning)" />
       </Tooltip>
     )
   }
@@ -235,14 +236,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
-          {!provider.isSystem && (
-            <Button
-              type="text"
-              size="small"
-              onClick={() => ProviderSettingsPopup.show({ provider })}
-              icon={<Settings2 size={14} />}
-            />
-          )}
         </Flex>
         <Switch
           value={provider.enabled}
@@ -259,7 +252,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
-      {provider.id !== 'vertexai' && (
+      {provider.id !== 'vertexai' && provider.id !== 'aws-bedrock' && (
         <>
           <SettingSubtitle
             style={{
@@ -268,17 +261,17 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
-            {t('settings.provider.api_key')}
+            {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
               <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                <Button type="text" size="small" onClick={openApiKeyList} icon={<Settings2 size={14} />} />
+                <Button type="text" onClick={openApiKeyList} icon={<Settings2 size={16} />} />
               </Tooltip>
             )}
           </SettingSubtitle>
           <Space.Compact style={{ width: '100%', marginTop: 5 }}>
             <Input.Password
               value={localApiKey}
-              placeholder={t('settings.provider.api_key')}
+              placeholder={t('settings.provider.api_key.label')}
               onChange={(e) => setLocalApiKey(e.target.value)}
               spellCheck={false}
               autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
@@ -292,9 +285,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               onClick={onCheckApi}
               disabled={!apiHost || apiKeyConnectivity.checking}>
               {apiKeyConnectivity.checking ? (
-                <LoadingOutlined spin />
+                <LoadingIcon />
               ) : apiKeyConnectivity.status === 'success' ? (
-                <CheckOutlined />
+                <Check size={16} className="lucide-custom" />
               ) : (
                 t('settings.provider.check')
               )}
@@ -318,9 +311,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                 {t('settings.provider.api_host')}
                 <Button
                   type="text"
-                  size="small"
                   onClick={() => CustomHeaderPopup.show({ provider })}
-                  icon={<Settings2 size={14} />}
+                  icon={<Settings2 size={16} />}
                 />
               </SettingSubtitle>
               <Space.Compact style={{ width: '100%', marginTop: 5 }}>
@@ -372,7 +364,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
-      {provider.id === 'vertexai' && <VertexAISettings />}
+      {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
+      {provider.id === 'vertexai' && <VertexAISettings providerId={provider.id} />}
+      <ApiOptionsSettings providerId={provider.id} />
       <ModelList providerId={provider.id} />
     </SettingContainer>
   )

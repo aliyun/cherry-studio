@@ -385,7 +385,8 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  topicId?: CompletionsParams['topicId']
+  topicId?: CompletionsParams['topicId'],
+  assistantMsgId?: CompletionsParams['assistantMsgId']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
@@ -396,7 +397,8 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  topicId?: CompletionsParams['topicId']
+  topicId?: CompletionsParams['topicId'],
+  assistantMsgId?: CompletionsParams['assistantMsgId']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
@@ -407,7 +409,8 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  topicId?: CompletionsParams['topicId']
+  topicId?: CompletionsParams['topicId'],
+  assistantMsgId?: CompletionsParams['assistantMsgId']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }> {
   const toolResults: R[] = []
   let curToolResponses: MCPToolResponse[] = []
@@ -473,7 +476,7 @@ export async function parseAndCallTools<R>(
             // 根据工具类型选择不同的调用方式
             const toolCallResponse = toolResponse.tool.isBuiltIn
               ? await callBuiltInTool(toolResponse)
-              : await callMCPTool(toolResponse, topicId, model.name)
+              : await callMCPTool(toolResponse, topicId, model.name, assistantMsgId)
 
             // 立即更新为done状态
             upsertMCPToolResponse(

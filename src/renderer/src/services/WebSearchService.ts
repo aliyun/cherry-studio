@@ -452,7 +452,8 @@ class WebSearchService {
           },
           tag: `Web`,
           parentSpanId: webSearchProvider.parentSpanId,
-          modelName: webSearchProvider.modelName
+          modelName: webSearchProvider.modelName,
+          assistantMsgId: webSearchProvider.assistantMsgId
         })
       : undefined
     const questions = extractResults.websearch.question
@@ -466,7 +467,8 @@ class WebSearchService {
           topicId: webSearchProvider.topicId,
           outputs: contents,
           modelName: webSearchProvider.modelName,
-          span
+          span,
+          assistantMsgId: webSearchProvider.assistantMsgId
         })
       return { query: 'summaries', results: contents }
     }
@@ -509,7 +511,8 @@ class WebSearchService {
           topicId: webSearchProvider.topicId,
           outputs: finalResults,
           modelName: webSearchProvider.modelName,
-          span
+          span,
+          assistantMsgId: webSearchProvider.assistantMsgId
         })
       }
       return {
@@ -563,6 +566,7 @@ class WebSearchService {
         topicId: webSearchProvider.topicId,
         outputs: finalResults,
         modelName: webSearchProvider.modelName,
+        assistantMsgId: webSearchProvider.assistantMsgId,
         span
       })
     }

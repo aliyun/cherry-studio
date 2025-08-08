@@ -10,6 +10,7 @@ import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 
 import { AihubmixAPIClient } from './clients/AihubmixAPIClient'
+import { VertexAPIClient } from './clients/gemini/VertexAPIClient'
 import { NewAPIClient } from './clients/NewAPIClient'
 import { OpenAIResponseAPIClient } from './clients/openai/OpenAIResponseAPIClient'
 import { CompletionsMiddlewareBuilder } from './middleware/builder'
@@ -19,7 +20,6 @@ import { MIDDLEWARE_NAME as FinalChunkConsumerMiddlewareName } from './middlewar
 import { applyCompletionsMiddlewares } from './middleware/composer'
 import { MIDDLEWARE_NAME as McpToolChunkMiddlewareName } from './middleware/core/McpToolChunkMiddleware'
 import { MIDDLEWARE_NAME as RawStreamListenerMiddlewareName } from './middleware/core/RawStreamListenerMiddleware'
-import { MIDDLEWARE_NAME as ThinkChunkMiddlewareName } from './middleware/core/ThinkChunkMiddleware'
 import { MIDDLEWARE_NAME as WebSearchMiddlewareName } from './middleware/core/WebSearchMiddleware'
 import { MIDDLEWARE_NAME as ImageGenerationMiddlewareName } from './middleware/feat/ImageGenerationMiddleware'
 import { MIDDLEWARE_NAME as ThinkingTagExtractionMiddlewareName } from './middleware/feat/ThinkingTagExtractionMiddleware'
@@ -60,6 +60,8 @@ export default class AiProvider {
       }
     } else if (this.apiClient instanceof OpenAIResponseAPIClient) {
       // OpenAIResponseAPIClient: 根据模型特征选择API类型
+      client = this.apiClient.getClient(model) as BaseApiClient
+    } else if (this.apiClient instanceof VertexAPIClient) {
       client = this.apiClient.getClient(model) as BaseApiClient
     } else {
       // 其他client直接使用
@@ -117,8 +119,6 @@ export default class AiProvider {
         logger.silly('ErrorHandlerMiddleware is removed')
         builder.remove(FinalChunkConsumerMiddlewareName)
         logger.silly('FinalChunkConsumerMiddleware is removed')
-        builder.insertBefore(ThinkChunkMiddlewareName, MiddlewareRegistry[ThinkingTagExtractionMiddlewareName])
-        logger.silly('ThinkingTagExtractionMiddleware is inserted')
       }
     }
 
@@ -142,7 +142,8 @@ export default class AiProvider {
       name: traceName,
       tag: 'LLM',
       topicId: params.topicId || '',
-      modelName: params.assistant.model?.name
+      modelName: params.assistant.model?.name,
+      assistantMsgId: params.assistantMsgId
     }
 
     return await withSpanResult(this.completions.bind(this), traceParams, params, options)
@@ -167,6 +168,10 @@ export default class AiProvider {
   }
 
   public async generateImage(params: GenerateImageParams): Promise<string[]> {
+    if (this.apiClient instanceof AihubmixAPIClient) {
+      const client = this.apiClient.getClientForModel({ id: params.model } as Model)
+      return client.generateImage(params)
+    }
     return this.apiClient.generateImage(params)
   }
 
