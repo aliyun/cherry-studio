@@ -26,6 +26,7 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
+import process from 'node:process'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -55,8 +56,14 @@ if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
 }
 
-// Enable features for unresponsive renderer js call stacks
-app.commandLine.appendSwitch('enable-features', 'DocumentPolicyIncludeJSCallStacksInCrashReports')
+// DocumentPolicyIncludeJSCallStacksInCrashReports: Enable features for unresponsive renderer js call stacks
+// EarlyEstablishGpuChannel,EstablishGpuChannelAsync: Enable features for early establish gpu channel
+// speed up the startup time
+// https://github.com/microsoft/vscode/pull/241640/files
+app.commandLine.appendSwitch(
+  'enable-features',
+  'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync'
+)
 app.on('web-contents-created', (_, webContents) => {
   webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({

@@ -194,8 +194,7 @@ export const defaultLanguage = 'en-US'
 
 export enum FeedUrl {
   PRODUCTION = 'https://releases.cherry-ai.com',
-  GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download',
-  PRERELEASE_LOWEST = 'https://github.com/CherryHQ/cherry-studio/releases/download/v1.4.0'
+  GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
 }
 
 export enum UpgradeChannel {
@@ -207,3 +206,5 @@ export enum UpgradeChannel {
 export const defaultTimeout = 10 * 1000 * 60
 
 export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
+
+export const defaultByPassRules = 'localhost,127.0.0.1,::1'

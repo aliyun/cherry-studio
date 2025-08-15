@@ -19,6 +19,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 // Import notification schemas from MCP SDK
 import {
   CancelledNotificationSchema,
+  type GetPromptResult,
   LoggingMessageNotificationSchema,
   ProgressNotificationSchema,
   PromptListChangedNotificationSchema,
@@ -27,15 +28,7 @@ import {
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
-import type {
-  GetMCPPromptResponse,
-  GetResourceResponse,
-  MCPCallToolResponse,
-  MCPPrompt,
-  MCPResource,
-  MCPServer,
-  MCPTool
-} from '@types'
+import type { GetResourceResponse, MCPCallToolResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@types'
 import { app } from 'electron'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
@@ -46,6 +39,7 @@ import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
 import getLoginShellEnvironment from './mcp/shell-env'
+import { windowService } from './WindowService'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -191,6 +185,7 @@ class McpService {
                 },
                 authProvider
               }
+              logger.debug(`StreamableHTTPClientTransport options:`, options)
               return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
@@ -440,6 +435,10 @@ class McpService {
       // Set up progress notification handler
       client.setNotificationHandler(ProgressNotificationSchema, async (notification) => {
         logger.debug(`Progress notification received for server: ${server.name}`, notification.params)
+        const mainWindow = windowService.getMainWindow()
+        if (mainWindow) {
+          mainWindow.webContents.send('mcp-progress', notification.params.progress / (notification.params.total || 1))
+        }
       })
 
       // Set up cancelled notification handler
@@ -563,6 +562,7 @@ class McpService {
   private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
     logger.debug(`Listing tools for server: ${server.name}`)
     const client = await this.initClient(server)
+    logger.debug(`Client for server: ${server.name}`, client)
     try {
       const { tools } = await client.listTools()
       const serverTools: MCPTool[] = []
@@ -614,21 +614,27 @@ class McpService {
 
     const callToolFunc = async ({ server, name, args }: CallToolArgs) => {
       try {
-        logger.debug(`Calling: ${server.name} ${name} ${JSON.stringify(args)} callId: ${toolCallId}`)
+        logger.debug(`Calling: ${server.name} ${name} ${JSON.stringify(args)} callId: ${toolCallId}`, server)
         if (typeof args === 'string') {
           try {
             args = JSON.parse(args)
           } catch (e) {
             logger.error('args parse error', args)
           }
+          if (args === '') {
+            args = {}
+          }
         }
         const client = await this.initClient(server)
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             logger.debug(`Progress: ${process.progress / (process.total || 1)}`)
-            window.api.mcp.setProgress(process.progress / (process.total || 1))
           },
-          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute
+          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
+          // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
+          // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
+          resetTimeoutOnProgress: server.longRunning,
+          maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
           signal: this.activeToolCalls.get(toolCallId)?.signal
         })
         return result as MCPCallToolResponse
@@ -694,11 +700,7 @@ class McpService {
   /**
    * Get a specific prompt from an MCP server (implementation)
    */
-  private async getPromptImpl(
-    server: MCPServer,
-    name: string,
-    args?: Record<string, any>
-  ): Promise<GetMCPPromptResponse> {
+  private async getPromptImpl(server: MCPServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
     logger.debug(`Getting prompt ${name} from server: ${server.name}`)
     const client = await this.initClient(server)
     return await client.getPrompt({ name, arguments: args })
@@ -711,8 +713,8 @@ class McpService {
   public async getPrompt(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }
-  ): Promise<GetMCPPromptResponse> {
-    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetMCPPromptResponse>(
+  ): Promise<GetPromptResult> {
+    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetPromptResult>(
       this.getPromptImpl.bind(this),
       (server, name, args) => {
         const serverKey = this.getServerKey(server)

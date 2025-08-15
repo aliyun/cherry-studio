@@ -55,7 +55,7 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, isPathInside, untildify } from './utils/file'
 import { updateAppDataConfig } from './utils/init'
 import { compress, decompress } from './utils/zip'
 
@@ -90,13 +90,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     installPath: path.dirname(app.getPath('exe'))
   }))
 
-  ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string) => {
+  ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string, bypassRules?: string) => {
     let proxyConfig: ProxyConfig
 
     if (proxy === 'system') {
+      // system proxy will use the system filter by themselves
       proxyConfig = { mode: 'system' }
     } else if (proxy) {
-      proxyConfig = { mode: 'fixed_servers', proxyRules: proxy }
+      proxyConfig = { mode: 'fixed_servers', proxyRules: proxy, proxyBypassRules: bypassRules }
     } else {
       proxyConfig = { mode: 'direct' }
     }
@@ -286,7 +287,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_HasWritePermission, async (_, filePath: string) => {
-    return hasWritePermission(filePath)
+    const hasPermission = await hasWritePermission(filePath)
+    return hasPermission
+  })
+
+  ipcMain.handle(IpcChannel.App_ResolvePath, async (_, filePath: string) => {
+    return path.resolve(untildify(filePath))
+  })
+
+  // Check if a path is inside another path (proper parent-child relationship)
+  ipcMain.handle(IpcChannel.App_IsPathInside, async (_, childPath: string, parentPath: string) => {
+    return isPathInside(childPath, parentPath)
   })
 
   // Set app data path
@@ -399,7 +410,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_SetLocalBackupDir, backupManager.setLocalBackupDir.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
@@ -533,6 +543,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return vertexAIService.getAuthHeaders(params)
   })
 
+  ipcMain.handle(IpcChannel.VertexAI_GetAccessToken, async (_, params) => {
+    return vertexAIService.getAccessToken(params)
+  })
+
   ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
     vertexAIService.clearAuthCache(projectId, clientEmail)
   })
@@ -566,9 +580,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
   ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
   ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
-  ipcMain.handle(IpcChannel.Mcp_SetProgress, (_, progress: number) => {
-    mainWindow.webContents.send('mcp-progress', progress)
-  })
 
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
@@ -659,8 +670,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setDisableHardwareAcceleration(isDisable)
   })
   ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
-  ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
-    getSpans(topicId, traceId, modelName)
+  ipcMain.handle(
+    IpcChannel.TRACE_GET_DATA,
+    (_, topicId: string, traceId: string, modelName?: string, assistantMsgId?: string) =>
+      getSpans(topicId, traceId, modelName, assistantMsgId)
   )
   ipcMain.handle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => saveEntity(entity))
   ipcMain.handle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => getEntity(spanId))
@@ -672,8 +685,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   )
   ipcMain.handle(
     IpcChannel.TRACE_OPEN_WINDOW,
-    (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
-      openTraceWindow(topicId, traceId, autoOpen, modelName)
+    (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string, assistantMsgId?: string) =>
+      openTraceWindow(topicId, traceId, autoOpen, modelName, assistantMsgId)
   )
   ipcMain.handle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => setTraceWindowTitle(title))
   ipcMain.handle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>

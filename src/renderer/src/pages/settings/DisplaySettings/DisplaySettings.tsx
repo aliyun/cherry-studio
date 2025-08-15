@@ -1,5 +1,5 @@
-import { SyncOutlined } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
+import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
 import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
@@ -19,7 +19,7 @@ import {
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { Button, ColorPicker, Segmented, Switch } from 'antd'
-import { Minus, Plus, RotateCcw } from 'lucide-react'
+import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -108,7 +108,7 @@ const DisplaySettings: FC = () => {
         value: ThemeMode.light,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <i className="iconfont icon-theme icon-theme-light" />
+            <Sun size={16} />
             <span>{t('settings.theme.light')}</span>
           </div>
         )
@@ -117,7 +117,7 @@ const DisplaySettings: FC = () => {
         value: ThemeMode.dark,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <i className="iconfont icon-theme icon-dark1" />
+            <Moon size={16} />
             <span>{t('settings.theme.dark')}</span>
           </div>
         )
@@ -126,7 +126,7 @@ const DisplaySettings: FC = () => {
         value: ThemeMode.system,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <SyncOutlined />
+            <Monitor size={16} />
             <span>{t('settings.theme.system')}</span>
           </div>
         )
@@ -224,7 +224,7 @@ const DisplaySettings: FC = () => {
         </SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.display.navbar.position')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.display.navbar.position.label')}</SettingRowTitle>
           <Segmented
             value={navbarPosition}
             shape="round"
@@ -248,7 +248,7 @@ const DisplaySettings: FC = () => {
             <Button
               onClick={() => handleZoomFactor(0, true)}
               style={{ marginLeft: 8 }}
-              icon={<RotateCcw size="14" />}
+              icon={<ResetIcon size="14" />}
               color="default"
               variant="text"
             />
@@ -259,7 +259,7 @@ const DisplaySettings: FC = () => {
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.topic.position')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.topic.position.label')}</SettingRowTitle>
           <Segmented
             value={topicPosition || 'right'}
             shape="round"
@@ -297,7 +297,7 @@ const DisplaySettings: FC = () => {
         <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.assistant.icon.type')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.assistant.icon.type.label')}</SettingRowTitle>
           <Segmented
             value={assistantIconType}
             shape="round"
@@ -326,7 +326,7 @@ const DisplaySettings: FC = () => {
       )}
       <SettingGroup theme={theme}>
         <SettingTitle>
-          {t('settings.display.custom.css')}
+          {t('settings.display.custom.css.label')}
           <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
             {t('settings.display.custom.css.cherrycss')}
           </TitleExtra>
@@ -338,9 +338,9 @@ const DisplaySettings: FC = () => {
           placeholder={t('settings.display.custom.css.placeholder')}
           onChange={(value) => dispatch(setCustomCss(value))}
           height="60vh"
+          expanded
+          unwrapped={false}
           options={{
-            collapsible: false,
-            wrappable: true,
             autocompletion: true,
             lineNumbers: true,
             foldGutter: true,

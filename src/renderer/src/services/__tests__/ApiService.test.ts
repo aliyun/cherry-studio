@@ -9,10 +9,9 @@ import {
 import { FinishReason, MediaModality } from '@google/genai'
 import { FunctionCall } from '@google/genai'
 import AiProvider from '@renderer/aiCore'
-import { OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/clients'
+import { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/clients'
 import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
-import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
 import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
@@ -35,13 +34,12 @@ import {
   OpenAISdkRawChunk,
   OpenAISdkRawContentSource
 } from '@renderer/types/sdk'
-import * as McpToolsModule from '@renderer/utils/mcp-tools'
 import { mcpToolCallResponseToGeminiMessage } from '@renderer/utils/mcp-tools'
+import * as McpToolsModule from '@renderer/utils/mcp-tools'
 import { cloneDeep } from 'lodash'
 import OpenAI from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 // Mock the ApiClientFactory
 vi.mock('@renderer/aiCore/clients/ApiClientFactory', () => ({
   ApiClientFactory: {
@@ -50,24 +48,29 @@ vi.mock('@renderer/aiCore/clients/ApiClientFactory', () => ({
 }))
 
 // Mock the models config
-vi.mock('@renderer/config/models', () => ({
-  isDedicatedImageGenerationModel: vi.fn(() => false),
-  isTextToImageModel: vi.fn(() => false),
-  isEmbeddingModel: vi.fn(() => false),
-  isRerankModel: vi.fn(() => false),
-  isVisionModel: vi.fn(() => false),
-  isReasoningModel: vi.fn(() => false),
-  isWebSearchModel: vi.fn(() => false),
-  isOpenAIModel: vi.fn(() => false),
-  isFunctionCallingModel: vi.fn(() => true),
-  models: {
-    gemini: {
-      id: 'gemini-2.5-pro',
-      name: 'Gemini 2.5 Pro'
-    }
-  },
-  isAnthropicModel: vi.fn(() => false)
-}))
+vi.mock('@renderer/config/models', async () => {
+  const origin = await vi.importActual('@renderer/config/models')
+
+  return {
+    ...origin,
+    isDedicatedImageGenerationModel: vi.fn(() => false),
+    isTextToImageModel: vi.fn(() => false),
+    isEmbeddingModel: vi.fn(() => false),
+    isRerankModel: vi.fn(() => false),
+    isVisionModel: vi.fn(() => false),
+    isReasoningModel: vi.fn(() => false),
+    isWebSearchModel: vi.fn(() => false),
+    isOpenAIModel: vi.fn(() => false),
+    isFunctionCallingModel: vi.fn(() => true),
+    models: {
+      gemini: {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro'
+      }
+    },
+    isAnthropicModel: vi.fn(() => false)
+  }
+})
 
 // Mock uuid
 vi.mock('uuid', () => ({
@@ -174,7 +177,8 @@ vi.mock('@renderer/store/llm.ts', () => {
           {
             id: 'gemini-2.5-pro',
             name: 'Gemini 2.5 Pro',
-            provider: 'gemini'
+            provider: 'gemini',
+            supported_text_delta: true
           }
         ],
         isSystem: true,
@@ -184,17 +188,20 @@ vi.mock('@renderer/store/llm.ts', () => {
     defaultModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
-      provider: 'gemini'
+      provider: 'gemini',
+      supported_text_delta: true
     },
     topicNamingModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
-      provider: 'gemini'
+      provider: 'gemini',
+      supported_text_delta: true
     },
     translateModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
-      provider: 'gemini'
+      provider: 'gemini',
+      supported_text_delta: true
     },
     quickAssistantId: '',
     settings: {
@@ -1104,8 +1111,8 @@ const mockOpenaiApiClient = {
       isFinished = true
     }
 
-    let isFirstThinkingChunk = true
-    let isFirstTextChunk = true
+    let isThinking = false
+    let accumulatingText = false
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         // 持续更新usage信息
@@ -1142,6 +1149,15 @@ const mockOpenaiApiClient = {
               contentSource = choice.message
             }
 
+            // 状态管理
+            if (!contentSource?.content) {
+              accumulatingText = false
+            }
+            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+            if (!contentSource?.reasoning_content && !contentSource?.reasoning) {
+              isThinking = false
+            }
+
             if (!contentSource) {
               if ('finish_reason' in choice && choice.finish_reason) {
                 emitCompletionSignals(controller)
@@ -1161,30 +1177,34 @@ const mockOpenaiApiClient = {
             // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
             const reasoningText = contentSource.reasoning_content || contentSource.reasoning
             if (reasoningText) {
-              if (isFirstThinkingChunk) {
+              if (!isThinking) {
                 controller.enqueue({
                   type: ChunkType.THINKING_START
                 } as ThinkingStartChunk)
-                isFirstThinkingChunk = false
+                isThinking = true
               }
               controller.enqueue({
                 type: ChunkType.THINKING_DELTA,
                 text: reasoningText
               })
+            } else {
+              isThinking = false
             }
 
             // 处理文本内容
             if (contentSource.content) {
-              if (isFirstTextChunk) {
+              if (!accumulatingText) {
                 controller.enqueue({
                   type: ChunkType.TEXT_START
                 } as TextStartChunk)
-                isFirstTextChunk = false
+                accumulatingText = true
               }
               controller.enqueue({
                 type: ChunkType.TEXT_DELTA,
                 text: contentSource.content
               })
+            } else {
+              accumulatingText = false
             }
 
             // 处理工具调用
@@ -1690,7 +1710,8 @@ describe('ApiService', () => {
         prompt: 'test',
         model: {
           id: 'gemini-2.5-pro',
-          name: 'Gemini 2.5 Pro'
+          name: 'Gemini 2.5 Pro',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -1810,7 +1831,8 @@ describe('ApiService', () => {
         type: 'anthropic',
         model: {
           id: 'claude-3-7-sonnet-20250219',
-          name: 'Claude 3.7 Sonnet'
+          name: 'Claude 3.7 Sonnet',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -1886,7 +1908,8 @@ describe('ApiService', () => {
         type: 'anthropic',
         model: {
           id: 'claude-3-7-sonnet-20250219',
-          name: 'Claude 3.7 Sonnet'
+          name: 'Claude 3.7 Sonnet',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -1957,7 +1980,8 @@ describe('ApiService', () => {
         prompt: 'test',
         model: {
           id: 'gemini-2.5-pro',
-          name: 'Gemini 2.5 Pro'
+          name: 'Gemini 2.5 Pro',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -2125,7 +2149,8 @@ describe('ApiService', () => {
         prompt: 'test',
         model: {
           id: 'gpt-4o',
-          name: 'GPT-4o'
+          name: 'GPT-4o',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -2215,7 +2240,8 @@ describe('ApiService', () => {
         prompt: 'test',
         model: {
           id: 'gpt-4o',
-          name: 'GPT-4o'
+          name: 'GPT-4o',
+          supported_text_delta: true
         }
       } as Assistant,
       onChunk: mockOnChunk,
@@ -2559,5 +2585,240 @@ describe('ApiService', () => {
 
     expect(filteredFirstResponseChunks).toEqual(expectedFirstResponseChunks)
     expect(mcpChunks).toEqual(expectedMcpResponseChunks)
+  })
+
+  it('should handle multiple reasoning blocks and text blocks', async () => {
+    const rawChunks = [
+      {
+        choices: [
+          {
+            delta: { content: '', reasoning_content: '\n', role: 'assistant' },
+            index: 0,
+            finish_reason: null
+          }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [{ delta: { reasoning_content: '开始', role: 'assistant' }, index: 0, finish_reason: null }],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [{ delta: { reasoning_content: '思考', role: 'assistant' }, index: 0, finish_reason: null }],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          { delta: { content: '思考', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          { delta: { content: '完成', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [{ delta: { reasoning_content: '再次', role: 'assistant' }, index: 0, finish_reason: null }],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [{ delta: { reasoning_content: '思考', role: 'assistant' }, index: 0, finish_reason: null }],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          { delta: { content: '思考', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          { delta: { content: '完成', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          { delta: { content: '', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: 'stop' }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      }
+    ]
+
+    async function* mockChunksGenerator(): AsyncGenerator<OpenAISdkRawChunk> {
+      for (const chunk of rawChunks) {
+        // since no reasoning_content field
+        yield chunk as OpenAISdkRawChunk
+      }
+    }
+
+    const mockOpenaiApiClient_ = cloneDeep(mockOpenaiApiClient)
+
+    mockOpenaiApiClient_.createCompletions = vi.fn().mockImplementation(() => mockChunksGenerator())
+
+    const mockCreate = vi.mocked(ApiClientFactory.create)
+    // @ts-ignore mockOpenaiApiClient_ is a OpenAIAPIClient
+    mockCreate.mockReturnValue(mockOpenaiApiClient_ as unknown as OpenAIAPIClient)
+    const AI = new AiProvider(mockProvider as Provider)
+
+    const result = await AI.completions({
+      callType: 'test',
+      messages: [],
+      assistant: {
+        id: '1',
+        name: 'test',
+        prompt: 'test',
+        model: {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          supported_text_delta: true
+        }
+      } as Assistant,
+      onChunk: mockOnChunk,
+      enableReasoning: true,
+      streamOutput: true
+    })
+
+    const stream = result.stream! as ReadableStream<GenericChunk>
+    const reader = stream.getReader()
+
+    const chunks: GenericChunk[] = []
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    reader.releaseLock()
+
+    const filteredChunks = chunks.map((chunk) => {
+      if (chunk.type === ChunkType.THINKING_DELTA || chunk.type === ChunkType.THINKING_COMPLETE) {
+        delete (chunk as any).thinking_millsec
+        return chunk
+      }
+      return chunk
+    })
+
+    const expectedChunks = [
+      {
+        type: ChunkType.THINKING_START
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '\n'
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '\n开始'
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '\n开始思考'
+      },
+      {
+        type: ChunkType.THINKING_COMPLETE,
+        text: '\n开始思考'
+      },
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '思考'
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '思考完成'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '思考完成'
+      },
+      {
+        type: ChunkType.THINKING_START
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '再次'
+      },
+      {
+        type: ChunkType.THINKING_DELTA,
+        text: '再次思考'
+      },
+      {
+        type: ChunkType.THINKING_COMPLETE,
+        text: '再次思考'
+      },
+      {
+        type: ChunkType.TEXT_START
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '思考'
+      },
+      {
+        type: ChunkType.TEXT_DELTA,
+        text: '思考完成'
+      },
+      {
+        type: ChunkType.TEXT_COMPLETE,
+        text: '思考完成'
+      },
+      {
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: 0,
+            prompt_tokens: 0,
+            total_tokens: 0
+          }
+        }
+      }
+    ]
+
+    expect(filteredChunks).toEqual(expectedChunks)
   })
 })
