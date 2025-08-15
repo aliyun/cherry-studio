@@ -103,7 +103,7 @@ async function fetchAllMcpServers(token: string): Promise<BailianServer[]> {
     length = result.data.length
     total = result.total || 0
     pageNum++
-  } while ((pageNum - 1) * PAGE_SIZE <= total && length != 0)
+  } while ((pageNum - 1) * PAGE_SIZE < total && length != 0)
 
   return allServers
 }
