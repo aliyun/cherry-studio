@@ -103,7 +103,7 @@ async function fetchAllMcpServers(token: string): Promise<BailianServer[]> {
     length = result.data.length
     total = result.total || 0
     pageNum++
-  } while ((pageNum - 1) * PAGE_SIZE < total && length != 0)
+  } while ((pageNum - 1) * PAGE_SIZE < total && length > 0)
 
   return allServers
 }
@@ -148,10 +148,8 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
 
         if (existingServer) {
           updatedServers.push(mcpServer)
-          logger.debug(`Updated server: ${mcpServer.id}`)
         } else {
           addedServers.push(mcpServer)
-          logger.debug(`Added new server: ${mcpServer.id}`)
         }
       } catch (err) {
         logger.error(`Error processing Bailian server ${server.id}:`, err as Error)
@@ -159,7 +157,6 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
     }
 
     const totalServers = addedServers.length + updatedServers.length
-    logger.debug(`Sync completed. Added: ${addedServers.length}, Updated: ${updatedServers.length}`)
 
     return {
       success: true,
@@ -173,7 +170,7 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
 
     if (error instanceof Error && error.message === 'unauthorized') {
       clearBailianToken()
-      message = t('settings.mcp.sync.unauthorized', 'Sync Unauthorized') as string
+      message = t('settings.mcp.sync.unauthorized', 'Sync Unauthorized')
       logger.error('Unauthorized access during sync')
       return {
         success: false,
@@ -184,7 +181,7 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
     }
 
     if (error instanceof Error && error.message === 'server_error') {
-      message = t('settings.mcp.sync.error') as string
+      message = t('settings.mcp.sync.error')
       errorDetails = 'Status: 500'
       logger.error('Server error during sync')
       return {
@@ -198,7 +195,7 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
 
     // 其他情况
     logger.error('Bailian sync error:', error as Error)
-    message = t('settings.mcp.sync.error') as string
+    message = t('settings.mcp.sync.error')
     errorDetails = String(error)
     return {
       success: false,
