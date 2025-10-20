@@ -221,7 +221,7 @@
     "openai": "patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch",
     "p-queue": "^8.1.0",
     "pdf-lib": "^1.17.1",
-    "playwright": "^1.52.0",
+    "playwright": "^1.55.1",
     "prettier": "^3.5.3",
     "prettier-plugin-sort-json": "^4.1.1",
     "proxy-agent": "^6.5.0",
