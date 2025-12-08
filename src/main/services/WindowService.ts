@@ -5,6 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
@@ -47,8 +48,8 @@ export class WindowService {
     }
 
     const mainWindowState = windowStateKeeper({
-      defaultWidth: 960,
-      defaultHeight: 600,
+      defaultWidth: MIN_WINDOW_WIDTH,
+      defaultHeight: MIN_WINDOW_HEIGHT,
       fullScreen: false,
       maximize: false
     })
@@ -58,18 +59,26 @@ export class WindowService {
       y: mainWindowState.y,
       width: mainWindowState.width,
       height: mainWindowState.height,
-      minWidth: 960,
-      minHeight: 600,
+      minWidth: MIN_WINDOW_WIDTH,
+      minHeight: MIN_WINDOW_HEIGHT,
       show: false,
       autoHideMenuBar: true,
       transparent: false,
       vibrancy: 'sidebar',
       visualEffectState: 'active',
-      titleBarStyle: 'hidden',
-      titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+      // For Windows and Linux, we use frameless window with custom controls
+      // For Mac, we keep the native title bar style
+      ...(isMac
+        ? {
+            titleBarStyle: 'hidden',
+            titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+            trafficLightPosition: { x: 8, y: 13 }
+          }
+        : {
+            frame: false // Frameless window for Windows and Linux
+          }),
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
-      trafficLightPosition: { x: 8, y: 13 },
       ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -223,31 +232,31 @@ export class WindowService {
     })
 
     // 添加Escape键退出全屏的支持
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      // 当按下Escape键且窗口处于全屏状态时退出全屏
-      if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
-        if (mainWindow.isFullScreen()) {
-          // 获取 shortcuts 配置
-          const shortcuts = configManager.getShortcuts()
-          const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
-          if (exitFullscreenShortcut == undefined) {
-            mainWindow.setFullScreen(false)
-            return
-          }
-          if (exitFullscreenShortcut?.enabled) {
-            event.preventDefault()
-            mainWindow.setFullScreen(false)
-            return
-          }
-        }
-      }
-      return
-    })
+    // mainWindow.webContents.on('before-input-event', (event, input) => {
+    //   // 当按下Escape键且窗口处于全屏状态时退出全屏
+    //   if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
+    //     if (mainWindow.isFullScreen()) {
+    //       // 获取 shortcuts 配置
+    //       const shortcuts = configManager.getShortcuts()
+    //       const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
+    //       if (exitFullscreenShortcut == undefined) {
+    //         mainWindow.setFullScreen(false)
+    //         return
+    //       }
+    //       if (exitFullscreenShortcut?.enabled) {
+    //         event.preventDefault()
+    //         mainWindow.setFullScreen(false)
+    //         return
+    //       }
+    //     }
+    //   }
+    //   return
+    // })
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      if (url.includes('localhost:5173')) {
+      if (url.includes('localhost:517')) {
         return
       }
 
@@ -262,11 +271,12 @@ export class WindowService {
         'https://account.siliconflow.cn/oauth',
         'https://cloud.siliconflow.cn/bills',
         'https://cloud.siliconflow.cn/expensebill',
-        'https://aihubmix.com/token',
-        'https://aihubmix.com/topup',
-        'https://aihubmix.com/statistics',
+        'https://console.aihubmix.com/token',
+        'https://console.aihubmix.com/topup',
+        'https://console.aihubmix.com/statistics',
         'https://dash.302.ai/sso/login',
-        'https://dash.302.ai/charge'
+        'https://dash.302.ai/charge',
+        'https://www.aiionly.com/login'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
@@ -365,13 +375,16 @@ export class WindowService {
 
       mainWindow.hide()
 
-      // TODO: don't hide dock icon when close to tray
-      // will cause the cmd+h behavior not working
-      // after the electron fix the bug, we can restore this code
-      // //for mac users, should hide dock icon if close to tray
-      // if (isMac && isTrayOnClose) {
-      //   app.dock?.hide()
-      // }
+      //for mac users, should hide dock icon if close to tray
+      if (isMac && isTrayOnClose) {
+        app.dock?.hide()
+
+        mainWindow.once('show', () => {
+          //restore the window can hide by cmd+h when the window is shown again
+          // https://github.com/electron/electron/pull/47970
+          app.dock?.show()
+        })
+      }
     })
 
     mainWindow.on('closed', () => {
@@ -498,6 +511,8 @@ export class WindowService {
       }
     })
 
+    this.setupWebContentsHandlers(this.miniWindow)
+
     miniWindowState.manage(this.miniWindow)
 
     //miniWindow should show in current desktop
@@ -555,9 +570,9 @@ export class WindowService {
 
       // [Windows] hacky fix
       // the window is minimized only when in Windows platform
-      // because it's a workround for Windows, see `hideMiniWindow()`
+      // because it's a workaround for Windows, see `hideMiniWindow()`
       if (this.miniWindow?.isMinimized()) {
-        // don't let the window being seen before we finish adusting the position across screens
+        // don't let the window being seen before we finish adjusting the position across screens
         this.miniWindow?.setOpacity(0)
         // DO NOT use `restore()` here, Electron has the bug with screens of different scale factor
         // We have to use `show()` here, then set the position and bounds

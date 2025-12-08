@@ -16,26 +16,26 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import { RAGApplication, RAGApplicationBuilder } from '@cherrystudio/embedjs'
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import type { RAGApplication } from '@cherrystudio/embedjs'
+import { RAGApplicationBuilder } from '@cherrystudio/embedjs'
 import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
 import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
-import Embeddings from '@main/knowledge/embeddings/Embeddings'
-import { addFileLoader } from '@main/knowledge/loader'
-import { NoteLoader } from '@main/knowledge/loader/noteLoader'
+import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
+import { addFileLoader } from '@main/knowledge/embedjs/loader'
+import { NoteLoader } from '@main/knowledge/embedjs/loader/noteLoader'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
 import Reranker from '@main/knowledge/reranker/Reranker'
 import { fileStorage } from '@main/services/FileStorage'
 import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
-import { getAllFiles } from '@main/utils/file'
+import { getAllFiles, sanitizeFilename } from '@main/utils/file'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
+import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem, KnowledgeSearchResult } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('MainKnowledgeService')
@@ -148,11 +148,16 @@ class KnowledgeService {
     }
   }
 
+  private getDbPath = (id: string): string => {
+    // 消除网络搜索requestI d中的特殊字符
+    return path.join(this.storageDir, sanitizeFilename(id, '_'))
+  }
+
   /**
    * Delete knowledge base file
    */
   private deleteKnowledgeFile = (id: string): boolean => {
-    const dbPath = path.join(this.storageDir, id)
+    const dbPath = this.getDbPath(id)
     if (fs.existsSync(dbPath)) {
       try {
         fs.rmSync(dbPath, { recursive: true })
@@ -245,7 +250,8 @@ class KnowledgeService {
       dimensions
     })
     try {
-      const libSqlDb = new LibSqlDb({ path: path.join(this.storageDir, id) })
+      const dbPath = this.getDbPath(id)
+      const libSqlDb = new LibSqlDb({ path: dbPath })
       // Save database instance for later closing
       this.dbInstances.set(id, libSqlDb)
 
@@ -660,7 +666,7 @@ class KnowledgeService {
   public async search(
     _: Electron.IpcMainInvokeEvent,
     { search, base }: { search: string; base: KnowledgeBaseParams }
-  ): Promise<ExtractChunkData[]> {
+  ): Promise<KnowledgeSearchResult[]> {
     const ragApplication = await this.getRagApplication(base)
     return await ragApplication.search(search)
   }
@@ -668,8 +674,8 @@ class KnowledgeService {
   @TraceMethod({ spanName: 'rerank', tag: 'Knowledge' })
   public async rerank(
     _: Electron.IpcMainInvokeEvent,
-    { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }
-  ): Promise<ExtractChunkData[]> {
+    { search, base, results }: { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] }
+  ): Promise<KnowledgeSearchResult[]> {
     if (results.length === 0) {
       return results
     }

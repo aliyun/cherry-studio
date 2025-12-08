@@ -7,20 +7,17 @@ import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant } from '@renderer/types'
-import type { Response } from '@renderer/types/newMessage'
-import {
-  AssistantMessageStatus,
-  MessageBlockStatus,
-  MessageBlockType,
-  PlaceholderMessageBlock
-} from '@renderer/types/newMessage'
+import type { PlaceholderMessageBlock, Response } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
-import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
+import { isAbortError, serializeError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isFocused, isOnHomePage } from '@renderer/utils/window'
+import type { AISDKError } from 'ai'
+import { NoOutputGeneratedError } from 'ai'
 
-import { BlockManager } from '../BlockManager'
+import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('BaseCallbacks')
 interface BaseCallbacksDependencies {
@@ -69,21 +66,15 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       await blockManager.handleBlockTransition(baseBlock as PlaceholderMessageBlock, MessageBlockType.UNKNOWN)
     },
 
-    onError: async (error: any) => {
+    onError: async (error: AISDKError) => {
       logger.debug('onError', error)
-      const isErrorTypeAbort = isAbortError(error)
-      let pauseErrorLanguagePlaceholder = ''
-      if (isErrorTypeAbort) {
-        pauseErrorLanguagePlaceholder = 'pause_placeholder'
+      if (NoOutputGeneratedError.isInstance(error)) {
+        return
       }
-
-      const serializableError = {
-        name: error.name,
-        message: pauseErrorLanguagePlaceholder || error.message || formatErrorMessage(error),
-        originalMessage: error.message,
-        stack: error.stack,
-        status: error.status || error.code,
-        requestId: error.request_id
+      const isErrorTypeAbort = isAbortError(error)
+      const serializableError = serializeError(error)
+      if (isErrorTypeAbort) {
+        serializableError.message = 'pause_placeholder'
       }
 
       const duration = Date.now() - startTime
@@ -95,7 +86,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
             id: uuid(),
             type: 'error',
             title: i18n.t('notification.assistant'),
-            message: serializableError.message,
+            message: serializableError.message ?? '',
             silent: false,
             timestamp: Date.now(),
             source: 'assistant'

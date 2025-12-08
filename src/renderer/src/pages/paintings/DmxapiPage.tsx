@@ -8,17 +8,17 @@ import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileMetadata, PaintingsState } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
-import { DmxapiPainting } from '@types'
+import type { DmxapiPainting } from '@types'
 import { Avatar, Button, Input, InputNumber, Segmented, Select, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
-import React, { FC, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -29,6 +29,7 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import ImageUploader from './components/ImageUploader'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -37,29 +38,15 @@ import {
   STYLE_TYPE_OPTIONS,
   TOP_UP_URL
 } from './config/DmxapiConfig'
+import { checkProviderEnabled } from './utils'
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
 const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
-  const [mode] = useState<keyof PaintingsState>('DMXAPIPaintings')
-  const { DMXAPIPaintings, addPainting, removePainting, updatePainting } = usePaintings()
-  const [painting, setPainting] = useState<DmxapiPainting>(DMXAPIPaintings?.[0] || DEFAULT_PAINTING)
+  const { dmxapi_paintings, addPainting, removePainting, updatePainting } = usePaintings()
+  const [painting, setPainting] = useState<DmxapiPainting>(dmxapi_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
   const providers = useAllProviders()
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
 
   const dmxapiProvider = providers.find((p) => p.id === 'dmxapi')!
 
@@ -144,7 +131,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const updatePaintingState = (updates: Partial<DmxapiPainting>) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
-    updatePainting('DMXAPIPaintings', updatedPainting)
+    updatePainting('dmxapi_paintings', updatedPainting)
   }
 
   const getFirstModelInfo = (v: generationModeType) => {
@@ -197,7 +184,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       id: uuid()
     }
 
-    setPainting(addPainting('DMXAPIPaintings', copyPainting))
+    setPainting(addPainting('dmxapi_paintings', copyPainting))
   }
 
   const onSelectModel = (modelId: string) => {
@@ -316,7 +303,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         generationMode: v,
         model
       })
-      const addedPainting = addPainting('DMXAPIPaintings', newPainting)
+      const addedPainting = addPainting('dmxapi_paintings', newPainting)
       setPainting(addedPainting)
     } else {
       // 否则更新当前painting
@@ -333,7 +320,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (isLoading) {
       return
     }
-    setPainting(addPainting('DMXAPIPaintings', getNewPainting()))
+    setPainting(addPainting('dmxapi_paintings', getNewPainting()))
   }
 
   // 检查提供者状态函数
@@ -491,22 +478,21 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       urls.map(async (url) => {
         try {
           if (!url || url.trim() === '') {
-            window.message.warning({
-              content: t('message.empty_url'),
-              key: 'empty-url-warning'
-            })
+            window.toast.warning(t('message.empty_url'))
             return null
           }
+
+          if (url.startsWith('data:image')) {
+            return await window.api.file.saveBase64Image(url)
+          }
+
           return await window.api.file.download(url, true)
         } catch (error) {
           if (
             error instanceof Error &&
             (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
           ) {
-            window.message.warning({
-              content: t('message.empty_url'),
-              key: 'empty-url-warning'
-            })
+            window.toast.warning(t('message.empty_url'))
           }
           return null
         }
@@ -536,6 +522,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (isLoading) {
       return
     }
+
+    if (!dmxapiProvider.enabled) {
+      checkProviderEnabled(dmxapiProvider, t)
+      return
+    }
+
     try {
       // 获取提示词
       const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
@@ -585,10 +577,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             updatePaintingState({ files: validFiles, urls })
           }
         } else {
-          window.message.warning({
-            content: t('paintings.req_error_text'),
-            key: 'empty-url-warning'
-          })
+          window.toast.warning(t('paintings.req_error_text'))
         }
       }
     } catch (error) {
@@ -624,23 +613,23 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         return
       }
 
-      const currentIndex = DMXAPIPaintings.findIndex((p) => p.id === paintingToDelete.id)
+      const currentIndex = dmxapi_paintings.findIndex((p) => p.id === paintingToDelete.id)
 
       if (currentIndex > 0) {
-        setPainting(DMXAPIPaintings[currentIndex - 1])
-      } else if (DMXAPIPaintings.length > 1) {
-        setPainting(DMXAPIPaintings[1])
+        setPainting(dmxapi_paintings[currentIndex - 1])
+      } else if (dmxapi_paintings.length > 1) {
+        setPainting(dmxapi_paintings[1])
       }
     }
 
     // 删除绘画
-    await removePainting(mode, paintingToDelete)
+    await removePainting('dmxapi_paintings', paintingToDelete)
 
     // 检查是否删除空了
-    if (!DMXAPIPaintings || DMXAPIPaintings.length === 1) {
+    if (!dmxapi_paintings || dmxapi_paintings.length === 1) {
       // 如果删除后没有绘画了，创建一个新的
       const newPainting = getNewPainting()
-      const addedPainting = addPainting('DMXAPIPaintings', newPainting)
+      const addedPainting = addPainting('dmxapi_paintings', newPainting)
       setPainting(addedPainting)
     }
   }
@@ -692,7 +681,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    if (painting?.urls?.length > 0 || DMXAPIPaintings?.length > 1) {
+    if (painting?.urls?.length > 0 || dmxapi_paintings?.length > 1) {
       return null
     } else {
       return (
@@ -733,22 +722,22 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    if (!DMXAPIPaintings || DMXAPIPaintings.length === 0) {
+    if (!dmxapi_paintings || dmxapi_paintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting('DMXAPIPaintings', newPainting)
+      addPainting('dmxapi_paintings', newPainting)
       setPainting(newPainting)
     } else if (painting && !painting.generationMode) {
       // 如果当前painting没有generationMode，添加默认值
       const updatedPainting = { ...painting, generationMode: MODEOPTIONS[0].value }
       setPainting(updatedPainting)
-      updatePainting('DMXAPIPaintings', updatedPainting)
+      updatePainting('dmxapi_paintings', updatedPainting)
     }
 
     // 确保所有paintings都有generationMode属性
-    DMXAPIPaintings.forEach((p) => {
+    dmxapi_paintings.forEach((p) => {
       if (!p.generationMode) {
         const updatedPainting = { ...p, generationMode: MODEOPTIONS[0].value }
-        updatePainting('DMXAPIPaintings', updatedPainting)
+        updatePainting('dmxapi_paintings', updatedPainting)
       }
     })
 
@@ -788,9 +777,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   return (
     <Container>
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
+        <NavbarCenter className="border-r-0">{t('paintings.title')}</NavbarCenter>
         {isMac && (
-          <NavbarRight style={{ justifyContent: 'flex-end' }}>
+          <NavbarRight className="justify-end">
             <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={createNewPainting}>
               {t('paintings.button.new.image')}
             </Button>
@@ -800,7 +789,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       <ContentContainer id="content-container">
         <LeftContainer>
           <ProviderTitleContainer>
-            <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+            <SettingTitle className="mb-1">{t('common.provider')}</SettingTitle>
             <div>
               <SettingHelpLink target="_blank" href={COURSE_URL}>
                 {t('paintings.paint_course')}
@@ -808,28 +797,19 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               <SettingHelpLink target="_blank" href={TOP_UP_URL}>
                 {t('paintings.top_up')}
               </SettingHelpLink>
-              <ProviderLogo
-                shape="square"
-                src={getProviderLogo(dmxapiProvider.id)}
-                size={16}
-                style={{ marginLeft: 5 }}
-              />
+              <ProviderLogo shape="square" src={getProviderLogo(dmxapiProvider.id)} size={16} className="ml-1" />
             </div>
           </ProviderTitleContainer>
-          <Select value={providerOptions[2].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect
+            provider={dmxapiProvider}
+            options={Options}
+            onChange={handleProviderChange}
+            className="mb-4"
+          />
           {painting.generationMode &&
             [generationModeType.EDIT, generationModeType.MERGE].includes(painting.generationMode) && (
               <>
-                <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>参考图</SettingTitle>
+                <SettingTitle className="mt-4 mb-1">参考图</SettingTitle>
                 <ImageUploader
                   fileMap={fileMap}
                   maxImages={painting.generationMode === generationModeType.EDIT ? 1 : 3}
@@ -841,13 +821,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               </>
             )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SettingTitle className="mt-4 mb-1">
             {t('common.model')} <SettingPrice>{painting.priceModel !== '0' ? painting.priceModel : ''}</SettingPrice>
           </SettingTitle>
           <Select
             value={painting.model}
             onChange={onSelectModel}
-            style={{ width: '100%' }}
+            className="w-full"
             loading={isLoadingModels}
             placeholder={isLoadingModels ? t('common.loading') : t('paintings.select_model')}>
             {Object.entries(modelOptions).map(([provider, models]) => {
@@ -864,11 +844,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             })}
           </Select>
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
+          <SettingTitle className="mt-4 mb-1">{t('paintings.image.size')}</SettingTitle>
           <Select
             value={isCustomSize ? 'custom' : painting.image_size}
             onChange={(value) => onSelectImageSize(value)}
-            style={{ width: '100%' }}>
+            className="w-full">
             {(() => {
               const currentModel = allModels.find((m) => m.id === painting.model)
               const modelImageSizes = currentModel?.image_sizes || []
@@ -877,7 +857,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               return modelImageSizes.map((size) => {
                 return (
                   <Select.Option key={size.value} value={size.value}>
-                    <HStack style={{ alignItems: 'center', gap: 8 }}>
+                    <HStack className="items-center gap-2">
                       <span>{size.label}</span>
                     </HStack>
                   </Select.Option>
@@ -887,7 +867,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             {/* 检查当前模型是否支持自定义尺寸 */}
             {allModels.find((m) => m.id === painting.model)?.is_custom_size && (
               <Select.Option value="custom" key="custom">
-                <HStack style={{ alignItems: 'center', gap: 8 }}>
+                <HStack className="items-center gap-2">
                   <span>{t('paintings.custom_size')}</span>
                 </HStack>
               </Select.Option>
@@ -896,7 +876,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {/* 自定义尺寸输入框 */}
           {isCustomSize && allModels.find((m) => m.id === painting.model)?.is_custom_size && (
-            <div style={{ marginTop: 10 }}>
+            <div className="mt-2.5">
               <HStack style={{ gap: 8, alignItems: 'center' }}>
                 <InputNumber
                   placeholder="W"
@@ -924,7 +904,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {painting.generationMode === generationModeType.GENERATION && (
             <>
-              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+              <SettingTitle className="mt-4 mb-1">
                 {t('paintings.seed')}
                 <Tooltip title={t('paintings.seed_desc_tip')}>
                   <InfoIcon />
@@ -944,7 +924,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             </>
           )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.style_type')}</SettingTitle>
+          <SettingTitle className="mt-4 mb-1">{t('paintings.style_type')}</SettingTitle>
           <SliderContainer>
             <RadioTextBox>
               {STYLE_TYPE_OPTIONS.map((ele) => (
@@ -958,7 +938,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             </RadioTextBox>
           </SliderContainer>
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SettingTitle className="mt-4 mb-1">
             {t('paintings.auto_create_paint')}
             <Tooltip title={t('paintings.auto_create_paint_tip')}>
               <InfoIcon />
@@ -1005,8 +985,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           </InputContainer>
         </MainContainer>
         <PaintingsList
-          namespace="DMXAPIPaintings"
-          paintings={DMXAPIPaintings}
+          namespace="dmxapi_paintings"
+          paintings={dmxapi_paintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
@@ -1034,11 +1014,6 @@ const ProviderTitleContainer = styled.div`
 
 const ProviderLogo = styled(Avatar)`
   border: 0.5px solid var(--color-border);
-`
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
 `
 
 const ContentContainer = styled.div`

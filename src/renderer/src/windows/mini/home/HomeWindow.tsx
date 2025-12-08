@@ -6,31 +6,37 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { ConversationService } from '@renderer/services/ConversationService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store, { useAppSelector } from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
-import { ThemeMode, Topic } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import type { Topic } from '@renderer/types'
+import { ThemeMode } from '@renderer/types'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { replacePromptVariables } from '@renderer/utils/prompt'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
-import { isEmpty } from 'lodash'
+import { cloneDeep, isEmpty } from 'lodash'
 import { last } from 'lodash'
-import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ChatWindow from '../chat/ChatWindow'
 import TranslateWindow from '../translate/TranslateWindow'
 import ClipboardPreview from './components/ClipboardPreview'
-import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
+import type { FeatureMenusRef } from './components/FeatureMenus'
+import FeatureMenus from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
 
@@ -248,6 +254,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
         let blockId: string | null = null
         let thinkingBlockId: string | null = null
+        let thinkingStartTime: number | null = null
+
+        const resolveThinkingDuration = (duration?: number) => {
+          if (typeof duration === 'number' && Number.isFinite(duration)) {
+            return duration
+          }
+          if (thinkingStartTime !== null) {
+            return Math.max(0, performance.now() - thinkingStartTime)
+          }
+          return 0
+        }
 
         setIsLoading(true)
         setIsOutputted(false)
@@ -256,14 +273,36 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setIsFirstMessage(false)
         setUserInputText('')
 
+        const newAssistant = cloneDeep(currentAssistant)
+        if (!newAssistant.settings) {
+          newAssistant.settings = {}
+        }
+        newAssistant.settings.streamOutput = true
+        // 显式关闭这些功能
+        newAssistant.webSearchProviderId = undefined
+        newAssistant.mcpServers = undefined
+        newAssistant.knowledge_bases = undefined
+        // replace prompt vars
+        newAssistant.prompt = await replacePromptVariables(currentAssistant.prompt, currentAssistant?.model.name)
+        // logger.debug('newAssistant', newAssistant)
+
+        const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(
+          messagesForContext,
+          newAssistant
+        )
+
         await fetchChatCompletion({
-          messages: messagesForContext,
-          assistant: { ...currentAssistant, settings: { streamOutput: true } },
+          messages: modelMessages,
+          assistant: newAssistant,
+          requestOptions: {},
+          topicId,
+          uiMessages: uiMessages,
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {
               case ChunkType.THINKING_START:
                 {
                   setIsOutputted(true)
+                  thinkingStartTime = performance.now()
                   if (thinkingBlockId) {
                     store.dispatch(
                       updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
@@ -288,9 +327,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 {
                   setIsOutputted(true)
                   if (thinkingBlockId) {
+                    if (thinkingStartTime === null) {
+                      thinkingStartTime = performance.now()
+                    }
+                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
                     throttledBlockUpdate(thinkingBlockId, {
                       content: chunk.text,
-                      thinking_millsec: chunk.thinking_millsec
+                      thinking_millsec: thinkingDuration
                     })
                   }
                 }
@@ -298,14 +341,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               case ChunkType.THINKING_COMPLETE:
                 {
                   if (thinkingBlockId) {
+                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
                     cancelThrottledBlockUpdate(thinkingBlockId)
                     store.dispatch(
                       updateOneBlock({
                         id: thinkingBlockId,
-                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: chunk.thinking_millsec }
+                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: thinkingDuration }
                       })
                     )
                   }
+                  thinkingStartTime = null
+                  thinkingBlockId = null
                 }
                 break
               case ChunkType.TEXT_START:
@@ -377,6 +423,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 if (!isAborted) {
                   throw new Error(chunk.error.message)
                 }
+                thinkingStartTime = null
+                thinkingBlockId = null
               }
               //fall through
               case ChunkType.BLOCK_COMPLETE:
@@ -447,7 +495,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     if (lastMessage) {
       const content = getMainTextContent(lastMessage)
       navigator.clipboard.writeText(content)
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     }
   }, [currentTopic, t])
 

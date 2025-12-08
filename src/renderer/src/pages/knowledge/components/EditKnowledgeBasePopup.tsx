@@ -4,7 +4,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Flex } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
@@ -44,7 +44,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
     [base, newBase]
   )
 
-  const handleMigration = useCallback(async () => {
+  // 处理嵌入模型更改迁移
+  const handleEmbeddingModelChangeMigration = useCallback(async () => {
     const migratedBase = { ...newBase, id: nanoid() }
     try {
       await migrateBase(migratedBase)
@@ -52,7 +53,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
       resolve(migratedBase)
     } catch (error) {
       logger.error('KnowledgeBase migration failed:', error as Error)
-      window.message.error(t('knowledge.migrate.error.failed') + ': ' + formatErrorMessage(error))
+      window.toast.error(t('knowledge.migrate.error.failed') + ': ' + formatErrorMessage(error))
     }
   }, [newBase, migrateBase, resolve, t])
 
@@ -83,7 +84,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
         ),
         okText: t('knowledge.migrate.confirm.ok'),
         centered: true,
-        onOk: handleMigration
+        onOk: handleEmbeddingModelChangeMigration
       })
     } else {
       try {
@@ -93,34 +94,32 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
         resolve(newBase)
       } catch (error) {
         logger.error('KnowledgeBase edit failed:', error as Error)
-        window.message.error(t('knowledge.error.failed_to_edit') + formatErrorMessage(error))
+        window.toast.error(t('knowledge.error.failed_to_edit') + formatErrorMessage(error))
       }
     }
   }
 
   const onCancel = () => {
     setOpen(false)
-    resolve(null)
   }
 
   const panelConfigs: PanelConfig[] = [
     {
       key: 'general',
       label: t('settings.general.label'),
+      panel: <GeneralSettingsPanel newBase={newBase} setNewBase={setNewBase} handlers={handlers} />
+    },
+    {
+      key: 'advanced',
+      label: t('settings.advanced.title'),
       panel: (
-        <GeneralSettingsPanel
+        <AdvancedSettingsPanel
           newBase={newBase}
-          setNewBase={setNewBase}
           selectedDocPreprocessProvider={selectedDocPreprocessProvider}
           docPreprocessSelectOptions={docPreprocessSelectOptions}
           handlers={handlers}
         />
       )
-    },
-    {
-      key: 'advanced',
-      label: t('settings.advanced.title'),
-      panel: <AdvancedSettingsPanel newBase={newBase} handlers={handlers} />
     }
   ]
 
@@ -133,6 +132,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
       onCancel={onCancel}
       afterClose={() => resolve(null)}
       panels={panelConfigs}
+      defaultExpandAdvanced={true}
     />
   )
 }

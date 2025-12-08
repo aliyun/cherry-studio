@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { DraggableVirtualList } from '../'
 
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      llm: {
+        settings: {}
+      }
+    })
+  }
+}))
+
 // Mock 依赖项
 vi.mock('@hello-pangea/dnd', () => ({
   __esModule: true,
@@ -32,7 +42,7 @@ vi.mock('@hello-pangea/dnd', () => ({
 }))
 
 vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: ({ count }) => ({
+  useVirtualizer: ({ count, getScrollElement }) => ({
     getVirtualItems: () =>
       Array.from({ length: count }, (_, index) => ({
         index,
@@ -41,7 +51,13 @@ vi.mock('@tanstack/react-virtual', () => ({
         size: 50
       })),
     getTotalSize: () => count * 50,
-    measureElement: vi.fn()
+    measureElement: vi.fn(),
+    scrollToIndex: vi.fn(),
+    scrollToOffset: vi.fn(),
+    scrollElement: getScrollElement(),
+    measure: vi.fn(),
+    resizeItem: vi.fn(),
+    getVirtualIndexes: () => Array.from({ length: count }, (_, i) => i)
   })
 }))
 

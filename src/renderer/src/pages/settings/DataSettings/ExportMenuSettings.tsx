@@ -1,8 +1,9 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { setExportMenuOptions } from '@renderer/store/settings'
 import { Switch } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
@@ -84,7 +85,6 @@ const ExportMenuOptions: FC = () => {
         <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.docx} onChange={(checked) => handleToggleOption('docx', checked)} />
       </SettingRow>
-
       <SettingDivider />
 
       <SettingRow>

@@ -6,10 +6,13 @@ import {
   removeDirectory,
   resetCodeTools,
   setCurrentDirectory,
+  setEnvironmentVariables,
   setSelectedCliTool,
-  setSelectedModel
+  setSelectedModel,
+  setSelectedTerminal
 } from '@renderer/store/codeTools'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
+import { codeTools } from '@shared/config/constant'
 import { useCallback } from 'react'
 
 export const useCodeTools = () => {
@@ -19,7 +22,7 @@ export const useCodeTools = () => {
 
   // 设置选择的 CLI 工具
   const setCliTool = useCallback(
-    (tool: string) => {
+    (tool: codeTools) => {
       dispatch(setSelectedCliTool(tool))
     },
     [dispatch]
@@ -29,6 +32,22 @@ export const useCodeTools = () => {
   const setModel = useCallback(
     (model: Model | null) => {
       dispatch(setSelectedModel(model))
+    },
+    [dispatch]
+  )
+
+  // 设置选择的终端
+  const setTerminal = useCallback(
+    (terminal: string) => {
+      dispatch(setSelectedTerminal(terminal))
+    },
+    [dispatch]
+  )
+
+  // 设置环境变量
+  const setEnvVars = useCallback(
+    (envVars: string) => {
+      dispatch(setEnvironmentVariables(envVars))
     },
     [dispatch]
   )
@@ -85,13 +104,22 @@ export const useCodeTools = () => {
   // 获取当前CLI工具选择的模型
   const selectedModel = codeToolsState.selectedModels[codeToolsState.selectedCliTool] || null
 
+  // 获取当前CLI工具的环境变量
+  const environmentVariables = codeToolsState?.environmentVariables?.[codeToolsState.selectedCliTool] || ''
+
   // 检查是否可以启动（所有必需字段都已填写）
-  const canLaunch = Boolean(codeToolsState.selectedCliTool && selectedModel && codeToolsState.currentDirectory)
+  const canLaunch = Boolean(
+    codeToolsState.selectedCliTool &&
+      codeToolsState.currentDirectory &&
+      (codeToolsState.selectedCliTool === codeTools.githubCopilotCli || selectedModel)
+  )
 
   return {
     // 状态
     selectedCliTool: codeToolsState.selectedCliTool,
     selectedModel: selectedModel,
+    selectedTerminal: codeToolsState.selectedTerminal,
+    environmentVariables: environmentVariables,
     directories: codeToolsState.directories,
     currentDirectory: codeToolsState.currentDirectory,
     canLaunch,
@@ -99,6 +127,8 @@ export const useCodeTools = () => {
     // 操作函数
     setCliTool,
     setModel,
+    setTerminal,
+    setEnvVars,
     addDir,
     removeDir,
     setCurrentDir,

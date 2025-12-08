@@ -1,19 +1,28 @@
 import { loggerService } from '@logger'
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { PaintingAction, PaintingsState } from '@renderer/types'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
+import type { PaintingAction, PaintingsState } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:paintings')
 
 const initialState: PaintingsState = {
-  paintings: [],
-  generate: [],
-  remix: [],
-  edit: [],
-  upscale: [],
-  DMXAPIPaintings: [],
-  tokenFluxPaintings: [],
+  // SiliconFlow
+  siliconflow_paintings: [],
+  // DMXAPI
+  dmxapi_paintings: [],
+  // TokenFlux
+  tokenflux_paintings: [],
+  zhipu_paintings: [],
+  // Aihubmix
+  aihubmix_image_generate: [],
+  aihubmix_image_remix: [],
+  aihubmix_image_edit: [],
+  aihubmix_image_upscale: [],
+  // OpenAI
   openai_image_generate: [],
-  openai_image_edit: []
+  openai_image_edit: [],
+  // OVMS
+  ovms_paintings: []
 }
 
 const paintingsSlice = createSlice({

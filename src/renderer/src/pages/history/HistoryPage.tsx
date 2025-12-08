@@ -1,12 +1,14 @@
 import { HStack } from '@renderer/components/Layout'
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { Divider, Input, InputRef } from 'antd'
+import type { InputRef } from 'antd'
+import { Divider, Input } from 'antd'
 import { last } from 'lodash'
 import { ChevronLeft, CornerDownLeft, Search } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -22,7 +24,7 @@ let _stack: Route[] = ['topics']
 let _topic: Topic | undefined
 let _message: Message | undefined
 
-const TopicsPage: FC = () => {
+const HistoryPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState(_search)
   const [searchKeywords, setSearchKeywords] = useState(_search)
@@ -52,7 +54,12 @@ const TopicsPage: FC = () => {
     setTopic(undefined)
   }
 
-  const onTopicClick = (topic: Topic) => {
+  // topic 不包含 messages，用到的时候才会获取
+  const onTopicClick = (topic: Topic | null | undefined) => {
+    if (!topic) {
+      window.toast.error(t('history.error.topic_not_found'))
+      return
+    }
     setStack((prev) => [...prev, 'topic'])
     setTopic(topic)
   }
@@ -86,7 +93,7 @@ const TopicsPage: FC = () => {
               </SearchIcon>
             )
           }
-          suffix={search.length >= 2 ? <CornerDownLeft size={16} /> : null}
+          suffix={search.length ? <CornerDownLeft size={16} /> : null}
           ref={inputRef}
           placeholder={t('history.search.placeholder')}
           value={search}
@@ -146,4 +153,4 @@ const SearchIcon = styled.div`
   }
 `
 
-export default TopicsPage
+export default HistoryPage

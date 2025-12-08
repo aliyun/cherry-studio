@@ -1,9 +1,10 @@
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
-import { getCodeBlockId } from '@renderer/utils/markdown'
+import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 
@@ -16,8 +17,10 @@ interface Props {
 }
 
 const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
-  const match = /language-([\w-+]+)/.exec(className || '') || children?.includes('\n')
-  const language = match?.[1] ?? 'text'
+  const languageMatch = /language-([\w-+]+)/.exec(className || '')
+  const isMultiline = children?.includes('\n')
+  const language = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
+  const { codeFancyBlock } = useSettings()
 
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
@@ -39,11 +42,13 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
     [blockId, id]
   )
 
-  if (match) {
-    // HTML 代码块特殊处理
-    // FIXME: 感觉没有必要用 isHtmlCode 判断
-    if (language === 'html') {
-      return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isStreaming} />
+  if (language !== null) {
+    // Fancy code block
+    if (codeFancyBlock) {
+      if (language === 'html') {
+        const isOpenFence = isOpenFenceBlock(children?.length, languageMatch?.[1]?.length, node?.position)
+        return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isStreaming && isOpenFence} />
+      }
     }
 
     return (

@@ -1,6 +1,7 @@
 import { CloseOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
-import { CSSProperties, FC, memo, useMemo } from 'react'
+import type { CSSProperties, FC, MouseEventHandler } from 'react'
+import { memo, useMemo } from 'react'
 import styled from 'styled-components'
 
 export interface CustomTagProps {
@@ -12,7 +13,8 @@ export interface CustomTagProps {
   tooltip?: string
   closable?: boolean
   onClose?: () => void
-  onClick?: () => void
+  onClick?: MouseEventHandler<HTMLDivElement>
+  onContextMenu?: MouseEventHandler<HTMLDivElement>
   disabled?: boolean
   inactive?: boolean
 }
@@ -27,6 +29,7 @@ const CustomTag: FC<CustomTagProps> = ({
   closable = false,
   onClose,
   onClick,
+  onContextMenu,
   disabled,
   inactive
 }) => {
@@ -37,9 +40,14 @@ const CustomTag: FC<CustomTagProps> = ({
         $color={actualColor}
         $size={size}
         $closable={closable}
+        $clickable={!disabled && !!onClick}
         onClick={disabled ? undefined : onClick}
-        style={{ cursor: disabled ? 'not-allowed' : onClick ? 'pointer' : 'auto', ...style }}>
-        {icon && icon} {children}
+        onContextMenu={disabled ? undefined : onContextMenu}
+        style={{
+          ...(disabled && { cursor: 'not-allowed' }),
+          ...style
+        }}>
+        {icon} {children}
         {closable && (
           <CloseIcon
             $size={size}
@@ -52,7 +60,7 @@ const CustomTag: FC<CustomTagProps> = ({
         )}
       </Tag>
     ),
-    [actualColor, children, closable, disabled, icon, onClick, onClose, size, style]
+    [actualColor, children, closable, disabled, icon, onClick, onClose, onContextMenu, size, style]
   )
 
   return tooltip ? (
@@ -66,7 +74,7 @@ const CustomTag: FC<CustomTagProps> = ({
 
 export default memo(CustomTag)
 
-const Tag = styled.div<{ $color: string; $size: number; $closable: boolean }>`
+const Tag = styled.div<{ $color: string; $size: number; $closable: boolean; $clickable: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -79,9 +87,15 @@ const Tag = styled.div<{ $color: string; $size: number; $closable: boolean }>`
   line-height: 1;
   white-space: nowrap;
   position: relative;
+  cursor: ${({ $clickable }) => ($clickable ? 'pointer' : 'auto')};
   .iconfont {
     font-size: ${({ $size }) => $size}px;
     color: ${({ $color }) => $color};
+  }
+
+  transition: opacity 0.2s ease;
+  &:hover {
+    opacity: ${({ $clickable }) => ($clickable ? 0.8 : 1)};
   }
 `
 

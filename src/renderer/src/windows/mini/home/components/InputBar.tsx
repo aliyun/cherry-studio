@@ -1,7 +1,8 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { Assistant } from '@renderer/types'
+import { useTimer } from '@renderer/hooks/useTimer'
+import type { Assistant } from '@renderer/types'
 import { Input as AntdInput } from 'antd'
-import { InputRef } from 'rc-input/lib/interface'
+import type { InputRef } from 'rc-input/lib/interface'
 import React, { useRef } from 'react'
 import styled from 'styled-components'
 
@@ -25,8 +26,9 @@ const InputBar = ({
   handleChange
 }: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const inputRef = useRef<InputRef>(null)
+  const { setTimeoutTimer } = useTimer()
   if (!loading) {
-    setTimeout(() => inputRef.current?.input?.focus(), 0)
+    setTimeoutTimer('focus', () => inputRef.current?.input?.focus(), 0)
   }
   return (
     <InputWrapper ref={ref}>

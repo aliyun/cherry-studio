@@ -3,8 +3,8 @@ import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
-import { FileType } from '@renderer/types'
-import { Message } from '@renderer/types/newMessage'
+import type { FileType } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import dayjs from 'dayjs'
 
 // 排序相关
@@ -46,13 +46,17 @@ export async function handleDelete(fileId: string, t: (key: string) => string) {
   const file = await FileManager.getFile(fileId)
   if (!file) return
 
-  const paintings = await store.getState().paintings.paintings
-  const paintingsFiles = paintings.flatMap((p) => p.files)
+  const paintings = store.getState().paintings
+  const paintingsFiles = Object.values(paintings)
+    .flat()
+    .filter((painting) => painting?.files?.length > 0)
+    .flatMap((painting) => painting.files)
 
   if (paintingsFiles.some((p) => p.id === fileId)) {
     window.modal.warning({ content: t('files.delete.paintings.warning'), centered: true })
     return
   }
+
   await FileManager.deleteFile(fileId, true)
 
   const relatedBlocks = await db.message_blocks.where('file.id').equals(fileId).toArray()

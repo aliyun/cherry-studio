@@ -1,4 +1,5 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 
 export interface Tab {
   id: string
@@ -24,6 +25,9 @@ const tabsSlice = createSlice({
   name: 'tabs',
   initialState,
   reducers: {
+    setTabs: (state, action: PayloadAction<Tab[]>) => {
+      state.tabs = action.payload
+    },
     addTab: (state, action: PayloadAction<Tab>) => {
       const existingTab = state.tabs.find((tab) => tab.path === action.payload.path)
       if (!existingTab) {
@@ -53,5 +57,5 @@ const tabsSlice = createSlice({
   }
 })
 
-export const { addTab, removeTab, setActiveTab, updateTab } = tabsSlice.actions
+export const { setTabs, addTab, removeTab, setActiveTab, updateTab } = tabsSlice.actions
 export default tabsSlice.reducer

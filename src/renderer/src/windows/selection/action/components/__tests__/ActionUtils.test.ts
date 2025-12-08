@@ -1,7 +1,6 @@
 import type { Assistant, Topic } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
-import OpenAI from 'openai'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { processMessages } from '../ActionUtils'
@@ -9,6 +8,17 @@ import { processMessages } from '../ActionUtils'
 // Mock all dependencies
 vi.mock('@renderer/services/ApiService', () => ({
   fetchChatCompletion: vi.fn()
+}))
+
+vi.mock('@renderer/services/ConversationService', () => ({
+  ConversationService: class {
+    static async prepareMessagesForModel() {
+      return {
+        modelMessages: [{ role: 'user', content: 'test prompt' }],
+        uiMessages: [{ id: 'user-message-1', role: 'user', content: 'test prompt' }]
+      }
+    }
+  }
 }))
 
 vi.mock('@renderer/services/MessagesService', () => ({
@@ -49,6 +59,20 @@ vi.mock('@renderer/utils/messageUtils/create', () => ({
   createMainTextBlock: vi.fn(),
   createThinkingBlock: vi.fn(),
   createErrorBlock: vi.fn()
+}))
+
+vi.mock('@renderer/config/models', () => ({
+  SYSTEM_MODELS: {
+    defaultModel: [
+      { id: 'gpt-4', name: 'GPT-4' },
+      { id: 'gpt-4', name: 'GPT-4' },
+      { id: 'gpt-4', name: 'GPT-4' }
+    ],
+    silicon: [],
+    openai: [],
+    anthropic: [],
+    gemini: []
+  }
 }))
 
 // Import mocked modules
@@ -165,28 +189,6 @@ describe('processMessages', () => {
         for (const chunk of mockChunks) {
           await onChunkReceived(chunk)
         }
-        const rawOutput: OpenAI.ChatCompletion = {
-          id: 'test-id',
-          model: 'test-model',
-          object: 'chat.completion',
-          created: Date.now(),
-          choices: [
-            {
-              index: 0,
-              message: {
-                role: 'assistant',
-                content: 'Here is my answer to your question.',
-                refusal: ''
-              },
-              finish_reason: 'stop',
-              logprobs: null
-            }
-          ]
-        }
-        return {
-          rawOutput,
-          getText: () => 'Here is my answer to your question.'
-        }
       })
 
       await processMessages(
@@ -282,6 +284,54 @@ describe('processMessages', () => {
     })
   })
 
+  describe('thinking timer fallback', () => {
+    it('should use local timer when thinking_millsec is missing', async () => {
+      const nowValues = [1000, 1500, 2000]
+      let nowIndex = 0
+      const performanceSpy = vi.spyOn(performance, 'now').mockImplementation(() => {
+        const value = nowValues[Math.min(nowIndex, nowValues.length - 1)]
+        nowIndex += 1
+        return value
+      })
+
+      const mockChunks = [
+        { type: ChunkType.THINKING_START },
+        { type: ChunkType.THINKING_DELTA, text: 'Thinking...' },
+        { type: ChunkType.THINKING_COMPLETE, text: 'Done thinking' },
+        { type: ChunkType.TEXT_START },
+        { type: ChunkType.TEXT_COMPLETE, text: 'Final answer' },
+        { type: ChunkType.BLOCK_COMPLETE }
+      ]
+
+      vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {
+        for (const chunk of mockChunks) {
+          await onChunkReceived(chunk)
+        }
+      })
+
+      await processMessages(
+        mockAssistant,
+        mockTopic,
+        'test prompt',
+        mockSetAskId,
+        mockOnStream,
+        mockOnFinish,
+        mockOnError
+      )
+
+      const thinkingDeltaCall = vi.mocked(throttledBlockUpdate).mock.calls.find(([id]) => id === 'thinking-block-1')
+      const deltaPayload = thinkingDeltaCall?.[1] as { thinking_millsec?: number } | undefined
+      expect(deltaPayload?.thinking_millsec).toBe(500)
+
+      const thinkingCompleteUpdate = vi
+        .mocked(updateOneBlock)
+        .mock.calls.find(([payload]) => (payload as any)?.changes?.thinking_millsec !== undefined)
+      expect((thinkingCompleteUpdate?.[0] as any)?.changes?.thinking_millsec).toBe(1000)
+
+      performanceSpy.mockRestore()
+    })
+  })
+
   describe('stream with exceptions', () => {
     it('should handle error chunks properly', async () => {
       const mockError = new Error('Stream processing error')
@@ -294,28 +344,6 @@ describe('processMessages', () => {
       vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {
         for (const chunk of mockChunks) {
           await onChunkReceived(chunk)
-        }
-        const rawOutput: OpenAI.ChatCompletion = {
-          id: 'test-id',
-          model: 'test-model',
-          object: 'chat.completion',
-          created: Date.now(),
-          choices: [
-            {
-              index: 0,
-              message: {
-                role: 'assistant',
-                content: 'Partial response',
-                refusal: ''
-              },
-              finish_reason: 'stop',
-              logprobs: null
-            }
-          ]
-        }
-        return {
-          rawOutput,
-          getText: () => 'Partial response'
         }
       })
 
@@ -404,28 +432,6 @@ describe('processMessages', () => {
       vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {
         for (const chunk of mockChunks) {
           await onChunkReceived(chunk)
-        }
-        const rawOutput: OpenAI.ChatCompletion = {
-          id: 'test-id',
-          model: 'test-model',
-          object: 'chat.completion',
-          created: Date.now(),
-          choices: [
-            {
-              index: 0,
-              message: {
-                role: 'assistant',
-                content: 'Partial',
-                refusal: ''
-              },
-              finish_reason: 'stop',
-              logprobs: null
-            }
-          ]
-        }
-        return {
-          rawOutput,
-          getText: () => 'Partial'
         }
       })
 
@@ -566,28 +572,6 @@ describe('processMessages', () => {
       vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {
         for (const chunk of mockChunks) {
           await onChunkReceived(chunk)
-        }
-        const rawOutput: OpenAI.ChatCompletion = {
-          id: 'test-id',
-          model: 'test-model',
-          object: 'chat.completion',
-          created: Date.now(),
-          choices: [
-            {
-              index: 0,
-              message: {
-                role: 'assistant',
-                content: 'Second text',
-                refusal: ''
-              },
-              finish_reason: 'stop',
-              logprobs: null
-            }
-          ]
-        }
-        return {
-          rawOutput,
-          getText: () => 'Second text'
         }
       })
 

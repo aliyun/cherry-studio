@@ -4,18 +4,19 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { getTopicById } from '@renderer/hooks/useTopic'
 import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { isGenerating, locateToMessage } from '@renderer/services/MessagesService'
 import NavigationService from '@renderer/services/NavigationService'
-import { useAppDispatch } from '@renderer/store'
-import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import { Topic } from '@renderer/types'
-import { classNames } from '@renderer/utils'
+import type { Topic } from '@renderer/types'
+import { classNames, runAsyncFunction } from '@renderer/utils'
 import { Button, Divider, Empty } from 'antd'
 import { t } from 'i18next'
 import { Forward } from 'lucide-react'
-import { FC, useEffect } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 import { default as MessageItem } from '../../home/Messages/Message'
@@ -24,15 +25,22 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
   topic?: Topic
 }
 
-const TopicMessages: FC<Props> = ({ topic, ...props }) => {
+const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   const navigate = NavigationService.navigate!
   const { handleScroll, containerRef } = useScrollPosition('TopicMessages')
-  const dispatch = useAppDispatch()
   const { messageStyle } = useSettings()
+  const { setTimeoutTimer } = useTimer()
+
+  const [topic, setTopic] = useState<Topic | undefined>(_topic)
 
   useEffect(() => {
-    topic && dispatch(loadTopicMessagesThunk(topic.id))
-  }, [dispatch, topic])
+    if (!_topic) return
+
+    runAsyncFunction(async () => {
+      const topic = await getTopicById(_topic.id)
+      setTopic(topic)
+    })
+  }, [_topic, topic])
 
   const isEmpty = (topic?.messages || []).length === 0
 
@@ -45,7 +53,7 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
     SearchPopup.hide()
     const assistant = getAssistantById(topic.assistantId)
     navigate('/', { state: { assistant, topic } })
-    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 100)
+    setTimeoutTimer('onContinueChat', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 100)
   }
 
   return (

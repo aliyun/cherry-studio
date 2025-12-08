@@ -1,13 +1,17 @@
 import { linter } from '@codemirror/lint' // statically imported by @uiw/codemirror-extensions-basic-setup
 import { EditorView } from '@codemirror/view'
 import { loggerService } from '@logger'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { Extension, keymap } from '@uiw/react-codemirror'
-import { useEffect, useMemo, useState } from 'react'
+import type { Extension } from '@uiw/react-codemirror'
+import { keymap } from '@uiw/react-codemirror'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+
+import { getNormalizedExtension } from './utils'
 
 const logger = loggerService.withContext('CodeEditorHooks')
 
-// 语言对应的 linter 加载器
+/** 语言对应的 linter 加载器
+ * key: 语言文件扩展名（不包含 `.`）
+ */
 const linterLoaders: Record<string, () => Promise<any>> = {
   json: async () => {
     const jsonParseLinter = await import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter)
@@ -17,32 +21,33 @@ const linterLoaders: Record<string, () => Promise<any>> = {
 
 /**
  * 特殊语言加载器
+ * key: 语言文件扩展名（不包含 `.`）
  */
 const specialLanguageLoaders: Record<string, () => Promise<Extension>> = {
   dot: async () => {
     const mod = await import('@viz-js/lang-dot')
     return mod.dot()
+  },
+  // @uiw/codemirror-extensions-langs 4.25.1 移除了 mermaid 支持，这里加回来
+  mmd: async () => {
+    const mod = await import('codemirror-lang-mermaid')
+    return mod.mermaid()
   }
 }
 
 /**
  * 加载语言扩展
  */
-async function loadLanguageExtension(language: string, languageMap: Record<string, string>): Promise<Extension | null> {
-  let normalizedLang = languageMap[language as keyof typeof languageMap] || language.toLowerCase()
-
-  // 如果语言名包含 `-`，转换为驼峰命名法
-  if (normalizedLang.includes('-')) {
-    normalizedLang = normalizedLang.replace(/-([a-z])/g, (_, char) => char.toUpperCase())
-  }
+async function loadLanguageExtension(language: string): Promise<Extension | null> {
+  const fileExt = await getNormalizedExtension(language)
 
   // 尝试加载特殊语言
-  const specialLoader = specialLanguageLoaders[normalizedLang]
+  const specialLoader = specialLanguageLoaders[fileExt]
   if (specialLoader) {
     try {
       return await specialLoader()
     } catch (error) {
-      logger.debug(`Failed to load language ${normalizedLang}`, error as Error)
+      logger.debug(`Failed to load language ${language} (${fileExt})`, error as Error)
       return null
     }
   }
@@ -50,10 +55,10 @@ async function loadLanguageExtension(language: string, languageMap: Record<strin
   // 回退到 uiw/codemirror 包含的语言
   try {
     const { loadLanguage } = await import('@uiw/codemirror-extensions-langs')
-    const extension = loadLanguage(normalizedLang as any)
+    const extension = loadLanguage(fileExt as any)
     return extension || null
   } catch (error) {
-    logger.debug(`Failed to load language ${normalizedLang}`, error as Error)
+    logger.debug(`Failed to load language ${language} (${fileExt})`, error as Error)
     return null
   }
 }
@@ -62,13 +67,15 @@ async function loadLanguageExtension(language: string, languageMap: Record<strin
  * 加载 linter 扩展
  */
 async function loadLinterExtension(language: string): Promise<Extension | null> {
-  const loader = linterLoaders[language]
+  const fileExt = await getNormalizedExtension(language)
+
+  const loader = linterLoaders[fileExt]
   if (!loader) return null
 
   try {
     return await loader()
   } catch (error) {
-    logger.debug(`Failed to load linter for ${language}`, error as Error)
+    logger.debug(`Failed to load linter for ${language} (${fileExt})`, error as Error)
     return null
   }
 }
@@ -77,7 +84,6 @@ async function loadLinterExtension(language: string): Promise<Extension | null> 
  * 加载语言相关扩展
  */
 export const useLanguageExtensions = (language: string, lint?: boolean) => {
-  const { languageMap } = useCodeStyle()
   const [extensions, setExtensions] = useState<Extension[]>([])
 
   useEffect(() => {
@@ -87,7 +93,7 @@ export const useLanguageExtensions = (language: string, lint?: boolean) => {
       try {
         // 加载所有扩展
         const [languageResult, linterResult] = await Promise.allSettled([
-          loadLanguageExtension(language, languageMap),
+          loadLanguageExtension(language),
           lint ? loadLinterExtension(language) : Promise.resolve(null)
         ])
 
@@ -119,7 +125,7 @@ export const useLanguageExtensions = (language: string, lint?: boolean) => {
     return () => {
       cancelled = true
     }
-  }, [language, lint, languageMap])
+  }, [language, lint])
 
   return extensions
 }
@@ -197,4 +203,81 @@ export function useHeightListener({ onHeightChange }: UseHeightListenerProps) {
       }
     })
   }, [onHeightChange])
+}
+
+interface UseScrollToLineOptions {
+  highlight?: boolean
+}
+
+export function useScrollToLine(editorViewRef: React.MutableRefObject<EditorView | null>) {
+  const findLineElement = useCallback((view: EditorView, position: number): HTMLElement | null => {
+    const domAtPos = view.domAtPos(position)
+    let node: Node | null = domAtPos.node
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      node = node.parentElement
+    }
+
+    while (node) {
+      if (node instanceof HTMLElement && node.classList.contains('cm-line')) {
+        return node
+      }
+      node = node.parentElement
+    }
+
+    return null
+  }, [])
+
+  const highlightLine = useCallback((view: EditorView, element: HTMLElement) => {
+    const previousHighlight = view.dom.querySelector('.animation-locate-highlight') as HTMLElement | null
+    if (previousHighlight) {
+      previousHighlight.classList.remove('animation-locate-highlight')
+    }
+
+    element.classList.add('animation-locate-highlight')
+
+    const handleAnimationEnd = () => {
+      element.classList.remove('animation-locate-highlight')
+      element.removeEventListener('animationend', handleAnimationEnd)
+    }
+
+    element.addEventListener('animationend', handleAnimationEnd)
+  }, [])
+
+  return useCallback(
+    (lineNumber: number, options?: UseScrollToLineOptions) => {
+      const view = editorViewRef.current
+      if (!view) return
+
+      const targetLine = view.state.doc.line(Math.min(lineNumber, view.state.doc.lines))
+
+      const lineElement = findLineElement(view, targetLine.from)
+      if (lineElement) {
+        lineElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+
+        if (options?.highlight) {
+          requestAnimationFrame(() => highlightLine(view, lineElement))
+        }
+        return
+      }
+
+      view.dispatch({
+        effects: EditorView.scrollIntoView(targetLine.from, {
+          y: 'start'
+        })
+      })
+
+      if (!options?.highlight) {
+        return
+      }
+
+      setTimeout(() => {
+        const fallbackElement = findLineElement(view, targetLine.from)
+        if (fallbackElement) {
+          highlightLine(view, fallbackElement)
+        }
+      }, 200)
+    },
+    [editorViewRef, findLineElement, highlightLine]
+  )
 }

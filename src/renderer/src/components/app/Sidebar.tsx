@@ -1,6 +1,6 @@
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { isMac } from '@renderer/config/constant'
-import { AppLogo, UserAvatar } from '@renderer/config/env'
+import { UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
@@ -9,13 +9,12 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import i18n from '@renderer/i18n'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import {
-  CircleHelp,
+  Code,
   FileSearch,
   Folder,
   Languages,
@@ -23,12 +22,13 @@ import {
   MessageSquare,
   Monitor,
   Moon,
+  NotepadText,
   Palette,
   Settings,
   Sparkle,
   Sun
 } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -37,8 +37,8 @@ import UserPopup from '../Popups/UserPopup'
 import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 
 const Sidebar: FC = () => {
-  const { hideMinappPopup, openMinapp } = useMinappPopup()
-  const { minappShow, currentMinappId } = useRuntime()
+  const { hideMinappPopup } = useMinappPopup()
+  const { minappShow } = useRuntime()
   const { sidebarIcons } = useSettings()
   const { pinned } = useMinapps()
 
@@ -58,17 +58,6 @@ const Sidebar: FC = () => {
   const to = async (path: string) => {
     await modelGenerating()
     navigate(path)
-  }
-
-  const docsId = 'cherrystudio-docs'
-  const onOpenDocs = () => {
-    const isChinese = i18n.language.startsWith('zh')
-    openMinapp({
-      id: docsId,
-      name: t('docs.title'),
-      url: isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us',
-      logo: AppLogo
-    })
   }
 
   const isFullscreen = useFullscreen()
@@ -100,11 +89,6 @@ const Sidebar: FC = () => {
         )}
       </MainMenusContainer>
       <Menus>
-        <Tooltip title={t('docs.title')} mouseEnterDelay={0.8} placement="right">
-          <Icon theme={theme} onClick={onOpenDocs} className={minappShow && currentMinappId === docsId ? 'active' : ''}>
-            <CircleHelp size={20} className="icon" />
-          </Icon>
-        </Tooltip>
         <Tooltip
           title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
           mouseEnterDelay={0.8}
@@ -148,22 +132,26 @@ const MainMenus: FC = () => {
 
   const iconMap = {
     assistants: <MessageSquare size={18} className="icon" />,
-    agents: <Sparkle size={18} className="icon" />,
+    store: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
     minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
-    files: <Folder size={17} className="icon" />
+    files: <Folder size={18} className="icon" />,
+    notes: <NotepadText size={18} className="icon" />,
+    code_tools: <Code size={18} className="icon" />
   }
 
   const pathMap = {
     assistants: '/',
-    agents: '/agents',
+    store: '/store',
     paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
     minapp: '/apps',
     knowledge: '/knowledge',
-    files: '/files'
+    files: '/files',
+    code_tools: '/code',
+    notes: '/notes'
   }
 
   return sidebarIcons.visible.map((icon) => {
@@ -197,7 +185,7 @@ const Container = styled.div<{ $isFullscreen: boolean }>`
   min-width: var(--sidebar-width);
   height: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'calc(100vh - var(--navbar-height))' : '100vh')};
   -webkit-app-region: drag !important;
-  margin-top: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'var(--navbar-height)' : 0)};
+  margin-top: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'env(titlebar-area-height)' : 0)};
 
   .sidebar-avatar {
     margin-bottom: ${isMac ? '12px' : '12px'};

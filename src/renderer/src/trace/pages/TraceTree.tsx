@@ -1,4 +1,4 @@
-import { TraceModal } from '@renderer/trace/pages/TraceModel'
+import type { TraceModal } from '@renderer/trace/pages/TraceModel'
 import { Divider } from 'antd/lib'
 import * as React from 'react'
 import { useEffect, useState } from 'react'
@@ -59,7 +59,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
           handleClick(node.id)
         }}>
         <GridItem colSpan={8} style={{ paddingLeft: `${paddingLeft}px`, textAlign: 'left' }}>
-          <HStack grap={2}>
+          <HStack gap={2}>
             <IconButton
               aria-label="Toggle"
               aria-expanded={isOpen ? true : false}

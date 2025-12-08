@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
-import {
+import type Anthropic from '@anthropic-ai/sdk'
+import type {
   Message,
   MessageCreateParams,
   MessageParam,
@@ -7,11 +7,15 @@ import {
   ToolUnion,
   ToolUseBlock
 } from '@anthropic-ai/sdk/resources'
-import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
-import AnthropicVertex from '@anthropic-ai/vertex-sdk'
+import type { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import type AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import type { BedrockClient } from '@aws-sdk/client-bedrock'
 import type { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
-import {
+import type { AzureOpenAI } from '@cherrystudio/openai'
+import type OpenAI from '@cherrystudio/openai'
+import type { ChatCompletionContentPartImage } from '@cherrystudio/openai/resources'
+import type { Stream } from '@cherrystudio/openai/streaming'
+import type {
   Content,
   CreateChatParameters,
   FunctionCall,
@@ -21,10 +25,8 @@ import {
   SendMessageParameters,
   Tool
 } from '@google/genai'
-import OpenAI, { AzureOpenAI } from 'openai'
-import { Stream } from 'openai/streaming'
 
-import { EndpointType } from './index'
+import type { EndpointType } from './index'
 
 export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | AnthropicVertex | GoogleGenAI | AwsBedrockSdkInstance
 export type SdkParams =
@@ -71,16 +73,22 @@ export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | 
  * OpenAI
  */
 
-type OpenAIParamsWithoutReasoningEffort = Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'reasoning_effort'>
+type OpenAIParamsPurified = Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'reasoning_effort' | 'modalities'>
 
 export type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
+  reasoningEffort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'none' | 'auto'
+  // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
   reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'none' | 'auto'
   enable_thinking?: boolean
   thinking_budget?: number
   incremental_output?: boolean
   enable_reasoning?: boolean
+  // nvidia
+  chat_template_kwargs?: {
+    thinking: boolean
+  }
   extra_body?: {
     google?: {
       thinking_config: {
@@ -88,11 +96,17 @@ export type ReasoningEffortOptionalParams = {
         include_thoughts?: boolean
       }
     }
+    thinking?: {
+      type: 'enabled' | 'disabled'
+    }
+    thinking_budget?: number
+    reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'auto'
   }
+  disable_reasoning?: boolean
   // Add any other potential reasoning-related keys here if they exist
 }
 
-export type OpenAISdkParams = OpenAIParamsWithoutReasoningEffort & ReasoningEffortOptionalParams
+export type OpenAISdkParams = OpenAIParamsPurified & ReasoningEffortOptionalParams & OpenAIModalities & OpenAIExtraBody
 
 // OpenRouter may include additional fields like cost
 export type OpenAISdkRawChunk =
@@ -103,11 +117,26 @@ export type OpenAISdkRawChunk =
 
 export type OpenAISdkRawOutput = Stream<OpenAI.Chat.Completions.ChatCompletionChunk> | OpenAI.ChatCompletion
 export type OpenAISdkRawContentSource =
-  | OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta
-  | OpenAI.Chat.Completions.ChatCompletionMessage
+  | (OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta & {
+      images?: ChatCompletionContentPartImage[]
+    })
+  | (OpenAI.Chat.Completions.ChatCompletionMessage & {
+      images?: ChatCompletionContentPartImage[]
+    })
 
 export type OpenAISdkMessageParam = OpenAI.Chat.Completions.ChatCompletionMessageParam
-
+export type OpenAIExtraBody = {
+  // for qwen mt
+  translation_options?: {
+    source_lang: 'auto'
+    target_lang: string
+  }
+}
+// image is for openrouter. audio is ignored for now
+export type OpenAIModality = OpenAI.ChatCompletionModality | 'image'
+export type OpenAIModalities = {
+  modalities?: OpenAIModality[]
+}
 /**
  * OpenAI Response
  */

@@ -1,15 +1,20 @@
 import { PushpinOutlined } from '@ant-design/icons'
+import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
+import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/config/models'
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, Provider } from '@renderer/types'
+import type { Model, ModelType, Provider } from '@renderer/types'
+import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
-import { Avatar, Divider, Empty, Modal } from 'antd'
+import { getModelTags } from '@renderer/utils/model'
+import { Avatar, Divider, Empty, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
+import { Settings2 } from 'lucide-react'
 import React, {
   startTransition,
   useCallback,
@@ -23,23 +28,31 @@ import React, {
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { useModelTagFilter } from './filters'
 import SelectModelSearchBar from './searchbar'
-import { FlatListItem } from './types'
+import TagFilterSection from './TagFilterSection'
+import type { FlatListItem, FlatListModel } from './types'
 
-const PAGE_SIZE = 11
+const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
 
 interface PopupParams {
   model?: Model
-  modelFilter?: (model: Model) => boolean
+  /** Basic model filter */
+  filter?: (model: Model) => boolean
+  /** Show tag filter section */
+  showTagFilter?: boolean
 }
 
 interface Props extends PopupParams {
   resolve: (value: Model | undefined) => void
-  modelFilter?: (model: Model) => boolean
 }
 
-const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
+export type FilterType = Exclude<ModelType, 'text'> | 'free'
+
+// const logger = loggerService.withContext('SelectModelPopup')
+
+const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFilter = true, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
@@ -62,10 +75,20 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     })
   }, [])
 
+  const { tagSelection, selectedTags, tagFilter, toggleTag } = useModelTagFilter()
+
+  // 计算要显示的可用标签列表
+  const availableTags = useMemo(() => {
+    const models = providers.flatMap((p) => p.models).filter(baseFilter ?? (() => true))
+    return objectEntries(getModelTags(models))
+      .filter(([, state]) => state)
+      .map(([tag]) => tag)
+  }, [providers, baseFilter])
+
   // 根据输入的文本筛选模型
-  const getFilteredModels = useCallback(
+  const searchFilter = useCallback(
     (provider: Provider) => {
-      let models = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
+      let models = provider.models
 
       if (searchText.trim()) {
         models = filterModelsByKeywords(searchText, models, provider)
@@ -78,26 +101,30 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
   // 创建模型列表项
   const createModelItem = useCallback(
-    (model: Model, provider: Provider, isPinned: boolean): FlatListItem => {
+    (model: Model, provider: Provider, isPinned: boolean): FlatListModel => {
       const modelId = getModelUniqId(model)
       const groupName = getFancyProviderName(provider)
+      const isCherryAi = provider.id === 'cherryai'
 
       return {
         key: isPinned ? `${modelId}_pinned` : modelId,
         type: 'model',
         name: (
           <ModelName>
-            {model.name}
-            {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
+            <HStack alignItems="center">
+              {model.name}
+              {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
+            </HStack>
+            {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
         tags: (
           <TagsContainer>
-            <ModelTagsWithLabel model={model} size={11} showLabel={false} showTooltip={false} />
+            <ModelTagsWithLabel model={model} size={11} showLabel={true} />
           </TagsContainer>
         ),
         icon: (
-          <Avatar src={getModelLogo(model.id || '')} size={24}>
+          <Avatar src={getModelLogo(model)} size={24}>
             {first(model.name) || 'M'}
           </Avatar>
         ),
@@ -113,7 +140,11 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const { listItems, modelItems } = useMemo(() => {
     const items: FlatListItem[] = []
     const pinnedModelIds = new Set(pinnedModels)
-    const finalModelFilter = modelFilter || (() => true)
+    const finalModelFilter = (model: Model) => {
+      const _tagFilter = !showTagFilter || tagFilter(model)
+      const _baseFilter = baseFilter === undefined || baseFilter(model)
+      return _tagFilter && _baseFilter
+    }
 
     // 添加置顶模型分组（仅在无搜索文本时）
     if (searchText.length === 0 && pinnedModelIds.size > 0) {
@@ -139,7 +170,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
     // 添加常规模型分组
     providers.forEach((p) => {
-      const filteredModels = getFilteredModels(p)
+      const filteredModels = searchFilter(p)
         .filter((m) => searchText.length > 0 || !pinnedModelIds.has(getModelUniqId(m)))
         .filter(finalModelFilter)
 
@@ -150,6 +181,21 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         key: `provider-${p.id}`,
         type: 'group',
         name: getFancyProviderName(p),
+        actions: p.id !== 'cherryai' && (
+          <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+            <Settings2
+              size={12}
+              color="var(--color-text)"
+              className="action-icon"
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpen(false)
+                resolve(undefined)
+                window.navigate(`/settings/provider?id=${p.id}`)
+              }}
+            />
+          </Tooltip>
+        ),
         isSelected: false
       })
 
@@ -157,15 +203,26 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     })
 
     // 获取可选择的模型项（过滤掉分组标题）
-    const modelItems = items.filter((item) => item.type === 'model') as FlatListItem[]
+    const modelItems = items.filter((item) => item.type === 'model')
     return { listItems: items, modelItems }
-  }, [searchText.length, pinnedModels, providers, modelFilter, createModelItem, t, getFilteredModels])
+  }, [
+    pinnedModels,
+    searchText.length,
+    providers,
+    showTagFilter,
+    tagFilter,
+    baseFilter,
+    createModelItem,
+    t,
+    searchFilter,
+    resolve
+  ])
 
   const listHeight = useMemo(() => {
     return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
   }, [listItems.length])
 
-  // 处理程序化滚动（加载、搜索开始、搜索清空）
+  // 处理程序化滚动（加载、搜索开始、搜索清空、tag 筛选）
   useLayoutEffect(() => {
     if (loading) return
 
@@ -176,8 +233,8 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
     let targetItemKey: string | undefined
 
-    // 启动搜索时，滚动到第一个 item
-    if (searchText) {
+    // 启动搜索或 tag 筛选时，滚动到第一个 item
+    if (searchText || selectedTags.length > 0) {
       targetItemKey = modelItems[0]?.key
     }
     // 初始加载或清空搜索时，滚动到 selected item
@@ -198,7 +255,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         })
       }
     }
-  }, [searchText, listItems, modelItems, loading, setFocusedItemKey, listHeight])
+  }, [searchText, listItems, modelItems, loading, setFocusedItemKey, listHeight, selectedTags.length])
 
   const handleItemClick = useCallback(
     (item: FlatListItem) => {
@@ -256,6 +313,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
           break
         case 'Escape':
           e.preventDefault()
+          e.stopPropagation()
           setOpen(false)
           resolve(undefined)
           break
@@ -306,7 +364,12 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     (item: FlatListItem) => {
       const isFocused = item.key === focusedItemKey
       if (item.type === 'group') {
-        return <GroupItem>{item.name}</GroupItem>
+        return (
+          <GroupItem>
+            {item.name}
+            {item.actions}
+          </GroupItem>
+        )
       }
       return (
         <ModelItem
@@ -363,6 +426,12 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       {/* 搜索框 */}
       <SelectModelSearchBar onSearch={setSearchText} />
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
+      {showTagFilter && (
+        <>
+          <TagFilterSection availableTags={availableTags} tagSelection={tagSelection} onToggleTag={toggleTag} />
+          <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
+        </>
+      )}
 
       {listItems.length > 0 ? (
         <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
@@ -396,14 +465,29 @@ const ListContainer = styled.div`
 const GroupItem = styled.div`
   display: flex;
   align-items: center;
+  gap: 8px;
   position: relative;
+  line-height: 1;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: normal;
   height: ${ITEM_HEIGHT}px;
-  padding: 5px 10px 5px 18px;
+  padding: 5px 18px;
   color: var(--color-text-3);
   z-index: 1;
   background: var(--modal-background);
+
+  .action-icon {
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 1 !important;
+    }
+  }
+  &:hover .action-icon {
+    opacity: 0.3;
+  }
 `
 
 const ModelItem = styled.div`
@@ -459,13 +543,17 @@ const ModelItemLeft = styled.div`
   }
 `
 
-const ModelName = styled.span`
+const ModelName = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
   margin: 0 8px;
   min-width: 0;
+  gap: 5px;
 `
 
 const TagsContainer = styled.div`

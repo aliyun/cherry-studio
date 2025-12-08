@@ -1,15 +1,18 @@
 import { loggerService } from '@logger'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { ConversationService } from '@renderer/services/ConversationService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
-import { Assistant, Topic } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import type { Assistant, Topic } from '@renderer/types'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { createErrorBlock, createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
+import { cloneDeep } from 'lodash'
 
 const logger = loggerService.withContext('ActionUtils')
 
@@ -38,7 +41,18 @@ export const processMessages = async (
 
     let textBlockId: string | null = null
     let thinkingBlockId: string | null = null
+    let thinkingStartTime: number | null = null
     let textBlockContent: string = ''
+
+    const resolveThinkingDuration = (duration?: number) => {
+      if (typeof duration === 'number' && Number.isFinite(duration)) {
+        return duration
+      }
+      if (thinkingStartTime !== null) {
+        return Math.max(0, performance.now() - thinkingStartTime)
+      }
+      return 0
+    }
 
     const assistantMessage = getAssistantMessage({
       assistant,
@@ -53,9 +67,22 @@ export const processMessages = async (
 
     let finished = false
 
+    const newAssistant = cloneDeep(assistant)
+    if (!newAssistant.settings) {
+      newAssistant.settings = {}
+    }
+    newAssistant.settings.streamOutput = true
+    // 显式关闭这些功能
+    newAssistant.webSearchProviderId = undefined
+    newAssistant.mcpServers = undefined
+    newAssistant.knowledge_bases = undefined
+    const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel([userMessage], newAssistant)
+
     await fetchChatCompletion({
-      messages: [userMessage],
-      assistant: { ...assistant, settings: { streamOutput: true } },
+      messages: modelMessages,
+      assistant: newAssistant,
+      requestOptions: {},
+      uiMessages: uiMessages,
       onChunkReceived: (chunk: Chunk) => {
         if (finished) {
           return
@@ -63,6 +90,7 @@ export const processMessages = async (
         switch (chunk.type) {
           case ChunkType.THINKING_START:
             {
+              thinkingStartTime = performance.now()
               if (thinkingBlockId) {
                 store.dispatch(
                   updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
@@ -86,9 +114,13 @@ export const processMessages = async (
           case ChunkType.THINKING_DELTA:
             {
               if (thinkingBlockId) {
+                if (thinkingStartTime === null) {
+                  thinkingStartTime = performance.now()
+                }
+                const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
                 throttledBlockUpdate(thinkingBlockId, {
                   content: chunk.text,
-                  thinking_millsec: chunk.thinking_millsec
+                  thinking_millsec: thinkingDuration
                 })
               }
               onStream()
@@ -97,6 +129,7 @@ export const processMessages = async (
           case ChunkType.THINKING_COMPLETE:
             {
               if (thinkingBlockId) {
+                const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
                 cancelThrottledBlockUpdate(thinkingBlockId)
                 store.dispatch(
                   updateOneBlock({
@@ -104,12 +137,13 @@ export const processMessages = async (
                     changes: {
                       content: chunk.text,
                       status: MessageBlockStatus.SUCCESS,
-                      thinking_millsec: chunk.thinking_millsec
+                      thinking_millsec: thinkingDuration
                     }
                   })
                 )
                 thinkingBlockId = null
               }
+              thinkingStartTime = null
             }
             break
           case ChunkType.TEXT_START:
@@ -174,6 +208,7 @@ export const processMessages = async (
           case ChunkType.ERROR:
             {
               const blockId = textBlockId || thinkingBlockId
+              thinkingStartTime = null
               if (blockId) {
                 store.dispatch(
                   updateOneBlock({

@@ -1,9 +1,10 @@
+import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { HStack } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import { getModelLogo } from '@renderer/config/models'
-import { Model } from '@renderer/types'
-import { ModelWithStatus } from '@renderer/types/healthCheck'
+import type { Model } from '@renderer/types'
+import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Tooltip } from 'antd'
 import { Bolt, Minus } from 'lucide-react'
@@ -35,7 +36,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
   return (
     <ListItem ref={ref}>
       <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
-        <Avatar src={getModelLogo(model.id)} size={24}>
+        <Avatar src={getModelLogo(model)} size={24}>
           {model?.name?.[0]?.toUpperCase()}
         </Avatar>
         <ModelIdWithTags
@@ -46,6 +47,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
             overflow: 'hidden'
           }}
         />
+        <FreeTrialModelTag model={model} />
       </HStack>
       <HStack alignItems="center" gap={6}>
         <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />

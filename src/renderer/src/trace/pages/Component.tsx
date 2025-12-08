@@ -53,19 +53,18 @@ export const Text: React.FC<React.HTMLAttributes<HTMLSpanElement>> = ({ style, c
 )
 
 // VStack 组件
-export const VStack: React.FC<{
-  style?: React.CSSProperties
-  grap?: number
-  align?: string
-  children: React.ReactNode
-}> = ({ style, grap = 5, align = 'stretch', children, ...props }) => (
+export const VStack: React.FC<{ gap?: number; align?: string; children: React.ReactNode }> = ({
+  gap = 5,
+  align = 'stretch',
+  children,
+  ...props
+}) => (
   <div
     style={{
       display: 'flex',
       flexDirection: 'column',
       alignItems: align,
-      gap: `${grap}px`,
-      ...style
+      gap: `${gap}px`
     }}
     {...props}>
     {children}
@@ -89,8 +88,8 @@ export const GridItem: React.FC<
 )
 
 // HStack 组件
-export const HStack: React.FC<{ grap?: number; children: React.ReactNode; style?: React.CSSProperties }> = ({
-  grap,
+export const HStack: React.FC<{ gap?: number; children: React.ReactNode; style?: React.CSSProperties }> = ({
+  gap,
   children,
   style,
   ...props
@@ -100,7 +99,7 @@ export const HStack: React.FC<{ grap?: number; children: React.ReactNode; style?
       display: 'inline-flex',
       flexDirection: 'row',
       alignItems: 'center',
-      gap: grap ? `${grap}px` : '5px',
+      gap: gap ? `${gap}px` : '5px',
       ...style
     }}
     {...props}>

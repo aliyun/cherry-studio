@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { Model, ModelType, Provider } from '@renderer/types'
-import { ModalFuncProps } from 'antd'
+import type { Model, ModelType } from '@renderer/types'
+import type { ModalFuncProps } from 'antd'
 import { isEqual } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -56,10 +56,6 @@ export const waitAsyncFunction = (
 }
 
 export const uuid = () => uuidv4()
-
-export function isFreeModel(model: Model) {
-  return (model.id + model.name).toLocaleLowerCase().includes('free')
-}
 
 /**
  * 从错误对象中提取错误信息。
@@ -201,15 +197,6 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
 }
 
 /**
- * 判断是否为 OpenAI 兼容的提供商
- * @param {Provider} provider 提供商对象
- * @returns {boolean} 是否为 OpenAI 兼容提供商
- */
-export function isOpenAIProvider(provider: Provider): boolean {
-  return !['anthropic', 'gemini', 'vertexai'].includes(provider.type)
-}
-
-/**
  * 判断模型是否为用户手动选择
  * @param {Model} model 模型对象
  * @param {ModelType} type 模型类型
@@ -226,6 +213,8 @@ export function uniqueObjectArray<T>(array: T[]): T[] {
 
 export * from './api'
 export * from './collection'
+export * from './dataLimit'
+export * from './dom'
 export * from './file'
 export * from './image'
 export * from './json'

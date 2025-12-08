@@ -1,10 +1,15 @@
 import { loggerService } from '@logger'
+import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
-import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
+import type { TabsProps } from 'antd'
 import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
@@ -59,27 +64,13 @@ const PipRegistry: Registry[] = [
 
 type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
 
-const parseKeyValueString = (str: string): Record<string, string> => {
-  const result: Record<string, string> = {}
-  str.split('\n').forEach((line) => {
-    if (line.trim()) {
-      const [key, ...value] = line.split('=')
-      const formatValue = value.join('=').trim()
-      const formatKey = key.trim()
-      if (formatKey && formatValue) {
-        result[formatKey] = formatValue
-      }
-    }
-  })
-  return result
-}
-
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
   const { serverId } = useParams<{ serverId: string }>()
   const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
   const server = useMCPServer(decodedServerId).server as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
+  const { ensureServerTrusted } = useMCPServerTrust()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
   const [loading, setLoading] = useState(false)
@@ -265,6 +256,7 @@ const McpSettings: React.FC = () => {
 
       // set basic fields
       const mcpServer: MCPServer = {
+        ...server,
         id: server.id,
         name: values.name,
         type: values.serverType || server.type,
@@ -274,11 +266,11 @@ const McpSettings: React.FC = () => {
         searchKey: server.searchKey,
         timeout: values.timeout || server.timeout,
         longRunning: values.longRunning,
-        // Preserve existing advanced properties if not set in the form
-        provider: values.provider || server.provider,
-        providerUrl: values.providerUrl || server.providerUrl,
-        logoUrl: values.logoUrl || server.logoUrl,
-        tags: values.tags || server.tags
+        // Use nullish coalescing to allow empty strings (for deletion)
+        provider: values.provider ?? server.provider,
+        providerUrl: values.providerUrl ?? server.providerUrl,
+        logoUrl: values.logoUrl ?? server.logoUrl,
+        tags: values.tags ?? server.tags
       }
 
       // set stdio or sse server
@@ -302,7 +294,7 @@ const McpSettings: React.FC = () => {
         try {
           await window.api.mcp.restartServer(mcpServer)
           updateMCPServer({ ...mcpServer, isActive: true })
-          window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
+          window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
           updateMCPServer({ ...mcpServer, isActive: false })
@@ -314,7 +306,7 @@ const McpSettings: React.FC = () => {
         }
       } else {
         updateMCPServer({ ...mcpServer, isActive: false })
-        window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
+        window.toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }
       setLoading(false)
@@ -381,15 +373,12 @@ const McpSettings: React.FC = () => {
           onOk: async () => {
             await window.api.mcp.removeServer(server)
             deleteMCPServer(server.id)
-            window.message.success({ content: t('settings.mcp.deleteSuccess'), key: 'mcp-list' })
+            window.toast.success(t('settings.mcp.deleteSuccess'))
             navigate('/settings/mcp')
           }
         })
       } catch (error: any) {
-        window.message.error({
-          content: `${t('settings.mcp.deleteError')}: ${error.message}`,
-          key: 'mcp-list'
-        })
+        window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -403,34 +392,43 @@ const McpSettings: React.FC = () => {
     }
 
     await form.validateFields()
-    setLoadingServer(server.id)
-    const oldActiveState = server.isActive
+    let serverForUpdate = server
+    if (active) {
+      const trustedServer = await ensureServerTrusted(server)
+      if (!trustedServer) {
+        return
+      }
+      serverForUpdate = trustedServer
+    }
+
+    setLoadingServer(serverForUpdate.id)
+    const oldActiveState = serverForUpdate.isActive
 
     try {
       if (active) {
-        const localTools = await window.api.mcp.listTools(server)
+        const localTools = await window.api.mcp.listTools(serverForUpdate)
         setTools(localTools)
 
-        const localPrompts = await window.api.mcp.listPrompts(server)
+        const localPrompts = await window.api.mcp.listPrompts(serverForUpdate)
         setPrompts(localPrompts)
 
-        const localResources = await window.api.mcp.listResources(server)
+        const localResources = await window.api.mcp.listResources(serverForUpdate)
         setResources(localResources)
 
-        const version = await window.api.mcp.getServerVersion(server)
+        const version = await window.api.mcp.getServerVersion(serverForUpdate)
         setServerVersion(version)
       } else {
-        await window.api.mcp.stopServer(server)
+        await window.api.mcp.stopServer(serverForUpdate)
         setServerVersion(null)
       }
-      updateMCPServer({ ...server, isActive: active })
+      updateMCPServer({ ...serverForUpdate, isActive: active })
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
-        content: formatMcpError(error),
+        content: formatMcpError(error as McpError),
         centered: true
       })
-      updateMCPServer({ ...server, isActive: oldActiveState })
+      updateMCPServer({ ...serverForUpdate, isActive: oldActiveState })
     } finally {
       setLoadingServer(null)
     }
@@ -492,7 +490,7 @@ const McpSettings: React.FC = () => {
     [server, updateMCPServer]
   )
 
-  const tabs = [
+  const tabs: TabsProps['items'] = [
     {
       key: 'settings',
       label: t('settings.mcp.tabs.general'),
@@ -705,7 +703,7 @@ const McpSettings: React.FC = () => {
     tabs.push(
       {
         key: 'tools',
-        label: t('settings.mcp.tabs.tools'),
+        label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
         children: (
           <MCPToolsSection
             tools={tools}
@@ -717,62 +715,68 @@ const McpSettings: React.FC = () => {
       },
       {
         key: 'prompts',
-        label: t('settings.mcp.tabs.prompts'),
+        label: t('settings.mcp.tabs.prompts') + (prompts.length > 0 ? ` (${prompts.length})` : ''),
         children: <MCPPromptsSection prompts={prompts} />
       },
       {
         key: 'resources',
-        label: t('settings.mcp.tabs.resources'),
+        label: t('settings.mcp.tabs.resources') + (resources.length > 0 ? ` (${resources.length})` : ''),
         children: <MCPResourcesSection resources={resources} />
       }
     )
   }
 
   return (
-    <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-      <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
-        <SettingTitle>
-          <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-            <Flex align="center" gap={8}>
-              <ServerName className="text-nowrap">{server?.name}</ServerName>
-              {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+    <Container>
+      <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
+        <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
+          <SettingTitle>
+            <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
+              <Flex align="center" gap={8}>
+                <ServerName className="text-nowrap">{server?.name}</ServerName>
+                {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+              </Flex>
+              <Button
+                danger
+                icon={<DeleteIcon size={14} className="lucide-custom" />}
+                type="text"
+                onClick={() => onDeleteMcpServer(server)}
+              />
             </Flex>
-            <Button
-              danger
-              icon={<DeleteIcon size={14} className="lucide-custom" />}
-              type="text"
-              onClick={() => onDeleteMcpServer(server)}
-            />
-          </Flex>
-          <Flex align="center" gap={16}>
-            <Switch
-              value={server.isActive}
-              key={server.id}
-              loading={loadingServer === server.id}
-              onChange={onToggleActive}
-            />
-            <Button
-              type="primary"
-              icon={<SaveIcon size={14} />}
-              onClick={onSave}
-              loading={loading}
-              shape="round"
-              disabled={!isFormChanged || activeTab !== 'settings'}>
-              {t('common.save')}
-            </Button>
-          </Flex>
-        </SettingTitle>
-        <SettingDivider />
-        <Tabs
-          defaultActiveKey="settings"
-          items={tabs}
-          onChange={(key) => setActiveTab(key as TabKey)}
-          style={{ marginTop: 8, backgroundColor: 'transparent' }}
-        />
-      </SettingGroup>
-    </SettingContainer>
+            <Flex align="center" gap={16}>
+              <Switch
+                value={server.isActive}
+                key={server.id}
+                loading={loadingServer === server.id}
+                onChange={onToggleActive}
+              />
+              <Button
+                type="primary"
+                icon={<SaveIcon size={14} />}
+                onClick={onSave}
+                loading={loading}
+                shape="round"
+                disabled={!isFormChanged || activeTab !== 'settings'}>
+                {t('common.save')}
+              </Button>
+            </Flex>
+          </SettingTitle>
+          <SettingDivider />
+          <Tabs
+            defaultActiveKey="settings"
+            items={tabs}
+            onChange={(key) => setActiveTab(key as TabKey)}
+            style={{ marginTop: 8, backgroundColor: 'transparent' }}
+          />
+        </SettingGroup>
+      </SettingContainer>
+    </Container>
   )
 }
+
+const Container = styled(Scrollbar)`
+  height: calc(100vh - var(--navbar-height));
+`
 
 const ServerName = styled.span`
   font-size: 14px;

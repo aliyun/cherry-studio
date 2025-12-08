@@ -51,12 +51,12 @@ export type ConfigItem = {
   condition?: (painting: PaintingAction) => boolean
 }
 
-export type AihubmixMode = 'generate' | 'remix' | 'upscale'
+export type AihubmixMode = 'aihubmix_image_generate' | 'aihubmix_image_remix' | 'aihubmix_image_upscale'
 
 // 创建配置项函数
 export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
   return {
-    generate: [
+    aihubmix_image_generate: [
       {
         type: 'select',
         key: 'model',
@@ -72,6 +72,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
             label: 'Gemini',
             title: 'Gemini',
             options: [
+              { label: 'Nano Banana Pro', value: 'gemini-3-pro-image-preview' },
               { label: 'imagen-4.0-preview', value: 'imagen-4.0-generate-preview-06-06' },
               { label: 'imagen-4.0-ultra', value: 'imagen-4.0-ultra-generate-preview-06-06' }
             ]
@@ -224,7 +225,20 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
           { label: '16:9', value: 'ASPECT_16_9' }
         ],
         initialValue: 'ASPECT_1_1',
-        condition: (painting) => Boolean(painting.model?.startsWith('imagen-'))
+        condition: (painting) =>
+          Boolean(painting.model?.startsWith('imagen-') || painting.model === 'gemini-3-pro-image-preview')
+      },
+      {
+        type: 'select',
+        key: 'imageSize',
+        title: 'paintings.image.size',
+        options: [
+          { label: '1K', value: '1K' },
+          { label: '2K', value: '2K' },
+          { label: '4K', value: '4K' }
+        ],
+        initialValue: '1K',
+        condition: (painting) => painting.model === 'gemini-3-pro-image-preview'
       },
       {
         type: 'select',
@@ -266,7 +280,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         condition: (painting) => painting.model === 'FLUX.1-Kontext-pro'
       }
     ],
-    remix: [
+    aihubmix_image_remix: [
       {
         type: 'image',
         key: 'imageFile',
@@ -349,7 +363,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         tooltip: 'paintings.remix.magic_prompt_option_tip'
       }
     ],
-    upscale: [
+    aihubmix_image_upscale: [
       {
         type: 'image',
         key: 'imageFile',
@@ -398,7 +412,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
 // 几种默认的绘画配置
 export const DEFAULT_PAINTING: PaintingAction = {
   id: 'aihubmix_1',
-  model: 'gpt-image-1',
+  model: 'gemini-3-pro-image-preview',
   aspectRatio: 'ASPECT_1_1',
   numImages: 1,
   styleType: 'AUTO',
@@ -420,5 +434,6 @@ export const DEFAULT_PAINTING: PaintingAction = {
   moderation: 'auto',
   n: 1,
   numberOfImages: 4,
-  safetyTolerance: 6
+  safetyTolerance: 6,
+  imageSize: '1K'
 }

@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { appendTrace, pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
+import { appendMessageTrace, pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
@@ -20,11 +20,11 @@ import {
   updateMessageAndBlocksThunk,
   updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, Model, Topic, TranslateLanguageCode } from '@renderer/types'
+import { type Assistant, type Model, objectKeys, type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
-import { throttle } from 'lodash'
+import { difference, throttle } from 'lodash'
 import { useCallback } from 'react'
 
 const logger = loggerService.withContext('UseMessageOperations')
@@ -82,10 +82,12 @@ export function useMessageOperations(topic: Topic) {
         logger.error('[editMessage] Topic prop is not valid.')
         return
       }
-
+      const uiStates = ['multiModelMessageStyle', 'foldSelected'] as const satisfies (keyof Message)[]
+      const extraUpdate = difference(objectKeys(updates), uiStates)
+      const isUiUpdateOnly = extraUpdate.length === 0
       const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
         id: messageId,
-        updatedAt: new Date().toISOString(),
+        updatedAt: isUiUpdateOnly ? undefined : new Date().toISOString(),
         ...updates
       }
 
@@ -178,7 +180,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const appendAssistantResponse = useCallback(
     async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
-      await appendTrace(existingAssistantMessage, newModel)
+      await appendMessageTrace(existingAssistantMessage, newModel)
       if (existingAssistantMessage.role !== 'assistant') {
         logger.error('appendAssistantResponse should only be called for an existing assistant message.')
         return

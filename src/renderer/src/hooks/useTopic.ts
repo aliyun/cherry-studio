@@ -7,16 +7,16 @@ import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
 import { setNewlyRenamedTopics, setRenamingTopics } from '@renderer/store/runtime'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 import { find, isEmpty } from 'lodash'
-import { useEffect, useState } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
 import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
 
 let _activeTopic: Topic
-let _setActiveTopic: (topic: Topic) => void
+let _setActiveTopic: Dispatch<SetStateAction<Topic>>
 
 // const logger = loggerService.withContext('useTopic')
 
@@ -47,6 +47,17 @@ export function useActiveTopic(assistantId: string, topic?: Topic) {
       setActiveTopic(assistant.topics[0])
     }
   }, [activeTopic?.id, assistant])
+
+  useEffect(() => {
+    if (!assistant?.topics?.length || !activeTopic) {
+      return
+    }
+
+    const latestTopic = assistant.topics.find((item) => item.id === activeTopic.id)
+    if (latestTopic && latestTopic !== activeTopic) {
+      setActiveTopic(latestTopic)
+    }
+  }, [assistant?.topics, activeTopic])
 
   return { activeTopic, setActiveTopic }
 }
@@ -184,13 +195,8 @@ export const TopicManager = {
   },
 
   async removeTopic(id: string) {
-    const messages = await TopicManager.getTopicMessages(id)
-
-    for (const message of messages) {
-      await deleteMessageFiles(message)
-    }
-
-    db.topics.delete(id)
+    await TopicManager.clearTopicMessages(id)
+    await db.topics.delete(id)
   },
 
   async clearTopicMessages(id: string) {
@@ -199,6 +205,12 @@ export const TopicManager = {
     if (topic) {
       for (const message of topic?.messages ?? []) {
         await deleteMessageFiles(message)
+      }
+
+      // 删除关联的 message_blocks 记录
+      const blockIds = topic.messages.flatMap((message) => message.blocks || [])
+      if (blockIds.length > 0) {
+        await db.message_blocks.bulkDelete(blockIds)
       }
 
       topic.messages = []

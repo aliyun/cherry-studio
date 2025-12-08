@@ -2,7 +2,8 @@ import { loggerService } from '@logger'
 import type { AppDispatch, RootState } from '@renderer/store'
 import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
+import type { MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
 
 const logger = loggerService.withContext('BlockManager')
 
@@ -105,6 +106,7 @@ export class BlockManager {
    * 处理块转换
    */
   async handleBlockTransition(newBlock: MessageBlock, newBlockType: MessageBlockType) {
+    logger.debug('handleBlockTransition', { newBlock, newBlockType })
     this._lastBlockType = newBlockType
     this._activeBlockInfo = { id: newBlock.id, type: newBlockType } // 设置新的活跃块信息
 
@@ -120,7 +122,8 @@ export class BlockManager {
       newMessagesActions.upsertBlockReference({
         messageId: this.deps.assistantMsgId,
         blockId: newBlock.id,
-        status: newBlock.status
+        status: newBlock.status,
+        blockType: newBlock.type
       })
     )
 

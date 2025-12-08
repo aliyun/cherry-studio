@@ -1,9 +1,10 @@
+import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 const MentionModelsInput: FC<{
@@ -19,16 +20,18 @@ const MentionModelsInput: FC<{
 
   return (
     <Container>
-      {selectedModels.map((model) => (
-        <CustomTag
-          icon={<i className="iconfont icon-at" />}
-          color="#1677ff"
-          key={getModelUniqId(model)}
-          closable
-          onClose={() => onRemoveModel(model)}>
-          {model.name} ({getProviderName(model)})
-        </CustomTag>
-      ))}
+      <HorizontalScrollContainer dependencies={[selectedModels]} expandable>
+        {selectedModels.map((model) => (
+          <CustomTag
+            icon={<i className="iconfont icon-at" />}
+            color="#1677ff"
+            key={getModelUniqId(model)}
+            closable
+            onClose={() => onRemoveModel(model)}>
+            {model.name} ({getProviderName(model)})
+          </CustomTag>
+        ))}
+      </HorizontalScrollContainer>
     </Container>
   )
 }
@@ -36,9 +39,6 @@ const MentionModelsInput: FC<{
 const Container = styled.div`
   width: 100%;
   padding: 5px 15px 5px 15px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 4px;
 `
 
 export default MentionModelsInput

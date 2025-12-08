@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { Shortcut } from '@types'
-import { BrowserWindow, globalShortcut } from 'electron'
+import type { Shortcut } from '@types'
+import type { BrowserWindow } from 'electron'
+import { globalShortcut } from 'electron'
 
 import { configManager } from './ConfigManager'
 import selectionService from './SelectionService'
@@ -204,7 +205,7 @@ export function registerShortcuts(window: BrowserWindow) {
             selectionAssistantSelectTextAccelerator = formatShortcutKey(shortcut.shortcut)
             break
 
-          //the following ZOOMs will register shortcuts seperately, so will return
+          //the following ZOOMs will register shortcuts separately, so will return
           case 'zoom_in':
             globalShortcut.register('CommandOrControl+=', () => handler(window))
             globalShortcut.register('CommandOrControl+numadd', () => handler(window))

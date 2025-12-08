@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
 import dayjs from 'dayjs'
 
@@ -10,8 +10,7 @@ const logger = loggerService.withContext('FileManager')
 
 class FileManager {
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileMetadata[] | null> {
-    const files = await window.api.file.select(options)
-    return files
+    return await window.api.file.select(options)
   }
 
   static async addFile(file: FileMetadata): Promise<FileMetadata> {
@@ -132,7 +131,9 @@ class FileManager {
   }
 
   static getSafePath(file: FileMetadata) {
-    return this.isDangerFile(file) ? getFileDirectory(this.getFilePath(file)) : this.getFilePath(file)
+    // use the path from the file metadata instead
+    // this function is used to get path for files which are not in the filestorage
+    return this.isDangerFile(file) ? getFileDirectory(file.path) : file.path
   }
 
   static getFileUrl(file: FileMetadata) {

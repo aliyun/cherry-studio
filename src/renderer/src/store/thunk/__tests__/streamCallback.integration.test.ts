@@ -241,7 +241,13 @@ vi.mock('i18next', () => {
 
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
-  isAbortError: vi.fn((error) => error.name === 'AbortError')
+  isAbortError: vi.fn((error) => error.name === 'AbortError'),
+  serializeError: vi.fn((error) => ({
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+    cause: error.cause ? String(error.cause) : undefined
+  }))
 }))
 
 vi.mock('@renderer/utils', () => ({
@@ -404,7 +410,8 @@ describe('streamCallback Integration Tests', () => {
       { type: ChunkType.THINKING_START },
       { type: ChunkType.THINKING_DELTA, text: 'Let me think...', thinking_millsec: 1000 },
       { type: ChunkType.THINKING_DELTA, text: 'I need to consider...', thinking_millsec: 2000 },
-      { type: ChunkType.THINKING_COMPLETE, text: 'Final thoughts', thinking_millsec: 3000 },
+      { type: ChunkType.THINKING_DELTA, text: 'Final thoughts', thinking_millsec: 3000 },
+      { type: ChunkType.THINKING_COMPLETE, text: 'Final thoughts' },
       { type: ChunkType.BLOCK_COMPLETE }
     ]
 
@@ -418,7 +425,10 @@ describe('streamCallback Integration Tests', () => {
     expect(thinkingBlock).toBeDefined()
     expect(thinkingBlock?.content).toBe('Final thoughts')
     expect(thinkingBlock?.status).toBe(MessageBlockStatus.SUCCESS)
-    expect((thinkingBlock as any)?.thinking_millsec).toBe(3000)
+    // thinking_millsec 现在是本地计算的，只验证它存在且是一个合理的数字
+    expect((thinkingBlock as any)?.thinking_millsec).toBeDefined()
+    expect(typeof (thinkingBlock as any)?.thinking_millsec).toBe('number')
+    expect((thinkingBlock as any)?.thinking_millsec).toBeGreaterThanOrEqual(0)
   })
 
   it('should handle tool call flow', async () => {
@@ -434,7 +444,8 @@ describe('streamCallback Integration Tests', () => {
         type: 'object',
         title: 'Test Tool Input',
         properties: {}
-      }
+      },
+      type: 'mcp'
     }
 
     const chunks: Chunk[] = [
@@ -451,18 +462,18 @@ describe('streamCallback Integration Tests', () => {
           }
         ]
       },
-      {
-        type: ChunkType.MCP_TOOL_IN_PROGRESS,
-        responses: [
-          {
-            id: 'tool-call-1',
-            tool: mockTool,
-            arguments: { testArg: 'value' },
-            status: 'invoking' as const,
-            response: ''
-          }
-        ]
-      },
+      // {
+      //   type: ChunkType.MCP_TOOL_PENDING,
+      //   responses: [
+      //     {
+      //       id: 'tool-call-1',
+      //       tool: mockTool,
+      //       arguments: { testArg: 'value' },
+      //       status: 'invoking' as const,
+      //       response: ''
+      //     }
+      //   ]
+      // },
       {
         type: ChunkType.MCP_TOOL_COMPLETE,
         responses: [
@@ -570,7 +581,8 @@ describe('streamCallback Integration Tests', () => {
         type: 'object',
         title: 'Calculator Input',
         properties: {}
-      }
+      },
+      type: 'mcp'
     }
 
     const chunks: Chunk[] = [
@@ -603,18 +615,18 @@ describe('streamCallback Integration Tests', () => {
           }
         ]
       },
-      {
-        type: ChunkType.MCP_TOOL_IN_PROGRESS,
-        responses: [
-          {
-            id: 'tool-call-1',
-            tool: mockCalculatorTool,
-            arguments: { operation: 'add', a: 1, b: 2 },
-            status: 'invoking' as const,
-            response: ''
-          }
-        ]
-      },
+      // {
+      //   type: ChunkType.MCP_TOOL_PENDING,
+      //   responses: [
+      //     {
+      //       id: 'tool-call-1',
+      //       tool: mockCalculatorTool,
+      //       arguments: { operation: 'add', a: 1, b: 2 },
+      //       status: 'invoking' as const,
+      //       response: ''
+      //     }
+      //   ]
+      // },
       {
         type: ChunkType.MCP_TOOL_COMPLETE,
         responses: [

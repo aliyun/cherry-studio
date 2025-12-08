@@ -4,9 +4,9 @@
  * API_KEY=sk-xxxx BASE_URL=xxxx MODEL=xxxx ts-node scripts/update-i18n.ts
  */
 
+import OpenAI from '@cherrystudio/openai'
 import cliProgress from 'cli-progress'
 import fs from 'fs'
-import OpenAI from 'openai'
 
 type I18NValue = string | { [key: string]: I18NValue }
 type I18N = { [key: string]: I18NValue }
@@ -66,7 +66,7 @@ ${JSON.stringify({
   confirm: '确定要备份数据吗？',
   select_model: '选择模型',
   title: '文件',
-  deeply_thought: '已深度思考（用时 {{secounds}} 秒）'
+  deeply_thought: '已深度思考（用时 {{seconds}} 秒）'
 })}
 ######################################################
 MAKE SURE TO OUTPUT IN Russian. DO NOT OUTPUT IN UNSPECIFIED LANGUAGE.

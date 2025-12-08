@@ -10,7 +10,6 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -31,7 +30,9 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import { DynamicFormRender } from './components/DynamicFormRender'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
+import { checkProviderEnabled } from './utils'
 import TokenFluxService from './utils/TokenFluxService'
 
 const logger = loggerService.withContext('TokenFluxPage')
@@ -48,26 +49,11 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { t, i18n } = useTranslation()
   const providers = useAllProviders()
-  const { addPainting, removePainting, updatePainting, persistentData } = usePaintings()
-  const tokenFluxPaintings = useMemo(() => persistentData.tokenFluxPaintings || [], [persistentData.tokenFluxPaintings])
+  const { addPainting, removePainting, updatePainting, tokenflux_paintings } = usePaintings()
+  const tokenFluxPaintings = tokenflux_paintings
   const [painting, setPainting] = useState<TokenFluxPainting>(
     tokenFluxPaintings[0] || { ...DEFAULT_TOKENFLUX_PAINTING, id: uuid() }
   )
-
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
 
   const dispatch = useAppDispatch()
   const { generating } = useRuntime()
@@ -105,7 +91,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     (updates: Partial<TokenFluxPainting>) => {
       setPainting((prevPainting) => {
         const updatedPainting = { ...prevPainting, ...updates }
-        updatePainting('tokenFluxPaintings', updatedPainting)
+        updatePainting('tokenflux_paintings', updatedPainting)
         return updatedPainting
       })
     },
@@ -137,6 +123,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    await checkProviderEnabled(tokenfluxProvider, t)
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -148,22 +136,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
-
-    if (!tokenfluxProvider.enabled) {
-      window.modal.error({
-        content: t('error.provider_disabled'),
-        centered: true
-      })
-      return
-    }
-
-    if (!tokenfluxProvider.apiKey) {
-      window.modal.error({
-        content: t('error.no_api_key'),
-        centered: true
-      })
-      return
-    }
 
     if (!selectedModel || !prompt) {
       window.modal.error({
@@ -236,8 +208,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const handleAddPainting = () => {
-    const newPainting = addPainting('tokenFluxPaintings', getNewPainting())
-    updatePainting('tokenFluxPaintings', newPainting)
+    const newPainting = addPainting('tokenflux_paintings', getNewPainting())
+    updatePainting('tokenflux_paintings', newPainting)
     setPainting(newPainting as TokenFluxPainting)
     return newPainting
   }
@@ -253,7 +225,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting('tokenFluxPaintings', paintingToDelete)
+    removePainting('tokenflux_paintings', paintingToDelete)
   }
 
   const translate = async () => {
@@ -311,7 +283,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     // Set form data from painting's input params
     if (newPainting.inputParams) {
       // Filter out the prompt from inputParams since it's handled separately
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // oxlint-disable-next-line @typescript-eslint/no-unused-vars
       const { prompt, ...formInputParams } = newPainting.inputParams
       setFormData(formInputParams)
     } else {
@@ -338,7 +310,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   useEffect(() => {
     if (tokenFluxPaintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting('tokenFluxPaintings', newPainting)
+      addPainting('tokenflux_paintings', newPainting)
       setPainting(newPainting)
     }
   }, [tokenFluxPaintings, addPainting, getNewPainting])
@@ -400,19 +372,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             </SettingHelpLink>
           </ProviderTitleContainer>
 
-          <Select
-            value={providerOptions.find((p) => p.value === 'tokenflux')?.value}
-            onChange={handleProviderChange}
-            style={{ width: '100%' }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect provider={tokenfluxProvider} options={Options} onChange={handleProviderChange} />
 
           {/* Model & Pricing Section */}
           <SectionTitle
@@ -573,7 +533,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         </MainContainer>
 
         <PaintingsList
-          namespace="tokenFluxPaintings"
+          namespace="tokenflux_paintings"
           paintings={tokenFluxPaintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting as any}
@@ -788,11 +748,4 @@ const ProviderTitleContainer = styled.div`
   align-items: center;
   margin-bottom: 5px;
 `
-
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
-
 export default TokenFluxPage

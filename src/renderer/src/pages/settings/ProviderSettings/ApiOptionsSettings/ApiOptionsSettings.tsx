@@ -1,7 +1,7 @@
-import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { Flex, Switch } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -76,6 +76,17 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
           })
         },
         checked: !provider.apiOptions?.isNotSupportEnableThinking
+      },
+      {
+        key: 'openai_verbosity',
+        label: t('settings.provider.api.options.verbosity.label'),
+        tip: t('settings.provider.api.options.verbosity.help'),
+        onChange: (checked: boolean) => {
+          updateProviderTransition({
+            apiOptions: { ...provider.apiOptions, isNotSupportVerbosity: !checked }
+          })
+        },
+        checked: !provider.apiOptions?.isNotSupportVerbosity
       }
     ],
     [t, provider, updateProviderTransition]

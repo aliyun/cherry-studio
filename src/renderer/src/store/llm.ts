@@ -1,8 +1,9 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
-import { Model, Provider } from '@renderer/types'
+import type { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {
@@ -24,8 +25,10 @@ type LlmSettings = {
     location: string
   }
   awsBedrock: {
+    authType: AwsBedrockAuthType
     accessKeyId: string
     secretAccessKey: string
+    apiKey: string
     region: string
   }
 }
@@ -33,7 +36,9 @@ type LlmSettings = {
 export interface LlmState {
   providers: Provider[]
   defaultModel: Model
+  /** @deprecated */
   topicNamingModel: Model
+  quickModel: Model
   translateModel: Model
   quickAssistantId: string
   settings: LlmSettings
@@ -42,6 +47,7 @@ export interface LlmState {
 export const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.defaultModel[0],
   topicNamingModel: SYSTEM_MODELS.defaultModel[1],
+  quickModel: SYSTEM_MODELS.defaultModel[1],
   translateModel: SYSTEM_MODELS.defaultModel[2],
   quickAssistantId: '',
   providers: SYSTEM_PROVIDERS,
@@ -64,19 +70,23 @@ export const initialState: LlmState = {
       location: ''
     },
     awsBedrock: {
+      authType: 'iam',
       accessKeyId: '',
       secretAccessKey: '',
+      apiKey: '',
       region: ''
     }
   }
 }
 
+// 由于 isLocalAi 目前总是为false，该函数暂未被使用
+// 需要投入使用时，应当保证返回值类型满足 LlmState 要求，而不是使用类型断言
 const getIntegratedInitialState = () => {
   const model = JSON.parse(import.meta.env.VITE_RENDERER_INTEGRATED_MODEL)
 
   return {
     defaultModel: model,
-    topicNamingModel: model,
+    quickModel: model,
     translateModel: model,
     providers: [
       {
@@ -160,8 +170,8 @@ const llmSlice = createSlice({
     setDefaultModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.defaultModel = action.payload.model
     },
-    setTopicNamingModel: (state, action: PayloadAction<{ model: Model }>) => {
-      state.topicNamingModel = action.payload.model
+    setQuickModel: (state, action: PayloadAction<{ model: Model }>) => {
+      state.quickModel = action.payload.model
     },
     setTranslateModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.translateModel = action.payload.model
@@ -191,11 +201,17 @@ const llmSlice = createSlice({
     setVertexAIServiceAccountClientEmail: (state, action: PayloadAction<string>) => {
       state.settings.vertexai.serviceAccount.clientEmail = action.payload
     },
+    setAwsBedrockAuthType: (state, action: PayloadAction<AwsBedrockAuthType>) => {
+      state.settings.awsBedrock.authType = action.payload
+    },
     setAwsBedrockAccessKeyId: (state, action: PayloadAction<string>) => {
       state.settings.awsBedrock.accessKeyId = action.payload
     },
     setAwsBedrockSecretAccessKey: (state, action: PayloadAction<string>) => {
       state.settings.awsBedrock.secretAccessKey = action.payload
+    },
+    setAwsBedrockApiKey: (state, action: PayloadAction<string>) => {
+      state.settings.awsBedrock.apiKey = action.payload
     },
     setAwsBedrockRegion: (state, action: PayloadAction<string>) => {
       state.settings.awsBedrock.region = action.payload
@@ -226,7 +242,7 @@ export const {
   addModel,
   removeModel,
   setDefaultModel,
-  setTopicNamingModel,
+  setQuickModel,
   setTranslateModel,
   setQuickAssistantId,
   setOllamaKeepAliveTime,
@@ -236,8 +252,10 @@ export const {
   setVertexAILocation,
   setVertexAIServiceAccountPrivateKey,
   setVertexAIServiceAccountClientEmail,
+  setAwsBedrockAuthType,
   setAwsBedrockAccessKeyId,
   setAwsBedrockSecretAccessKey,
+  setAwsBedrockApiKey,
   setAwsBedrockRegion,
   updateModel
 } = llmSlice.actions

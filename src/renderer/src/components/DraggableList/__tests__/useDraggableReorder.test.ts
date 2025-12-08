@@ -1,4 +1,4 @@
-import { DropResult } from '@hello-pangea/dnd'
+import type { DropResult } from '@hello-pangea/dnd'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +33,7 @@ describe('useDraggableReorder', () => {
           originalList: mockOriginalList,
           filteredList: mockOriginalList, // 列表未过滤
           onUpdate,
-          idKey: 'id'
+          itemKey: 'id'
         })
       )
 
@@ -61,7 +61,7 @@ describe('useDraggableReorder', () => {
           originalList: mockOriginalList,
           filteredList,
           onUpdate,
-          idKey: 'id'
+          itemKey: 'id'
         })
       )
 
@@ -89,7 +89,7 @@ describe('useDraggableReorder', () => {
           originalList: mockOriginalList,
           filteredList: mockOriginalList,
           onUpdate,
-          idKey: 'id'
+          itemKey: 'id'
         })
       )
 
@@ -110,7 +110,7 @@ describe('useDraggableReorder', () => {
           originalList: mockOriginalList,
           filteredList: mockOriginalList,
           onUpdate,
-          idKey: 'id'
+          itemKey: 'id'
         })
       )
 
@@ -136,7 +136,7 @@ describe('useDraggableReorder', () => {
           originalList: mockOriginalList,
           filteredList,
           onUpdate,
-          idKey: 'id'
+          itemKey: 'id'
         })
       )
 

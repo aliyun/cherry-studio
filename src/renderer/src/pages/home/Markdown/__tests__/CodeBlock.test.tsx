@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
     emit: vi.fn()
   },
   getCodeBlockId: vi.fn(),
+  isOpenFenceBlock: vi.fn(),
   selectById: vi.fn(),
+  useSettings: vi.fn().mockReturnValue({ codeFancyBlock: true }),
   CodeBlockView: vi.fn(({ onSave, children }) => (
     <div>
       <code>{children}</code>
@@ -36,7 +38,8 @@ vi.mock('@renderer/services/EventService', () => ({
 }))
 
 vi.mock('@renderer/utils/markdown', () => ({
-  getCodeBlockId: mocks.getCodeBlockId
+  getCodeBlockId: mocks.getCodeBlockId,
+  isOpenFenceBlock: mocks.isOpenFenceBlock
 }))
 
 vi.mock('@renderer/store', () => ({
@@ -49,6 +52,10 @@ vi.mock('@renderer/store/messageBlock', () => ({
   messageBlocksSelectors: {
     selectById: mocks.selectById
   }
+}))
+
+vi.mock('@renderer/hooks/useSettings', () => ({
+  useSettings: () => mocks.useSettings()
 }))
 
 vi.mock('@renderer/components/CodeBlockView', () => ({
@@ -74,6 +81,7 @@ describe('CodeBlock', () => {
     vi.clearAllMocks()
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
+    mocks.isOpenFenceBlock.mockReturnValue(false)
     mocks.selectById.mockReturnValue({
       id: 'test-msg-block-id',
       status: MessageBlockStatus.SUCCESS

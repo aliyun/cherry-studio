@@ -8,17 +8,19 @@ import {
   Cloud,
   Command,
   FileCode,
+  Hammer,
   HardDrive,
   Info,
   MonitorCog,
+  NotebookPen,
   Package,
   PictureInPicture2,
+  Server,
   Settings2,
-  SquareTerminal,
   TextCursorInput,
   Zap
 } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
@@ -26,15 +28,17 @@ import styled from 'styled-components'
 import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings/DataSettings'
 import DisplaySettings from './DisplaySettings/DisplaySettings'
+import DocProcessSettings from './DocProcessSettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import MemorySettings from './MemorySettings'
-import PreprocessSettings from './PreprocessSettings'
-import ProvidersList from './ProviderSettings'
+import NotesSettings from './NotesSettings'
+import { ProviderList } from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
+import { ApiServerSettings } from './ToolSettings/ApiServerSettings'
 import WebSearchSettings from './WebSearchSettings'
 
 const SettingsPage: FC = () => {
@@ -84,8 +88,14 @@ const SettingsPage: FC = () => {
           <Divider />
           <MenuItemLink to="/settings/mcp">
             <MenuItem className={isRoute('/settings/mcp')}>
-              <SquareTerminal size={18} />
+              <Hammer size={18} />
               {t('settings.mcp.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/notes">
+            <MenuItem className={isRoute('/settings/notes')}>
+              <NotebookPen size={18} />
+              {t('notes.settings.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/websearch">
@@ -100,8 +110,14 @@ const SettingsPage: FC = () => {
               {t('memory.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/preprocess">
-            <MenuItem className={isRoute('/settings/preprocess')}>
+          <MenuItemLink to="/settings/api-server">
+            <MenuItem className={isRoute('/settings/api-server')}>
+              <Server size={18} />
+              {t('apiServer.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/docprocess">
+            <MenuItem className={isRoute('/settings/docprocess')}>
               <FileCode size={18} />
               {t('settings.tool.preprocess.title')}
             </MenuItem>
@@ -141,10 +157,11 @@ const SettingsPage: FC = () => {
         </SettingMenus>
         <SettingContent>
           <Routes>
-            <Route path="provider" element={<ProvidersList />} />
+            <Route path="provider" element={<ProviderList />} />
             <Route path="model" element={<ModelSettings />} />
             <Route path="websearch" element={<WebSearchSettings />} />
-            <Route path="preprocess" element={<PreprocessSettings />} />
+            <Route path="api-server" element={<ApiServerSettings />} />
+            <Route path="docprocess" element={<DocProcessSettings />} />
             <Route path="quickphrase" element={<QuickPhraseSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />
             <Route path="memory" element={<MemorySettings />} />
@@ -154,6 +171,7 @@ const SettingsPage: FC = () => {
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
             <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
             <Route path="data" element={<DataSettings />} />
+            <Route path="notes" element={<NotesSettings />} />
             <Route path="about" element={<AboutSettings />} />
           </Routes>
         </SettingContent>

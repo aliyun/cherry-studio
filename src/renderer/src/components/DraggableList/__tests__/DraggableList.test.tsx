@@ -5,6 +5,16 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { DraggableList } from '../'
 
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      llm: {
+        settings: {}
+      }
+    })
+  }
+}))
+
 // mock @hello-pangea/dnd 组件
 vi.mock('@hello-pangea/dnd', () => {
   return {
@@ -28,20 +38,6 @@ vi.mock('@hello-pangea/dnd', () => {
     )
   }
 })
-
-// mock antd list 只做简单渲染
-vi.mock('antd', () => ({
-  __esModule: true,
-  List: ({ dataSource, renderItem }: any) => (
-    <div data-testid="virtual-list">
-      {dataSource.map((item: any, idx: number) => (
-        <div key={item.id || item} data-testid="virtual-list-item">
-          {renderItem(item, idx)}
-        </div>
-      ))}
-    </div>
-  )
-}))
 
 declare global {
   interface Window {
@@ -73,19 +69,21 @@ describe('DraggableList', () => {
       const list = [{ id: 'a', name: 'A' }]
       const style = { background: 'red' }
       const listStyle = { color: 'blue' }
-      render(
+      const { container } = render(
         <DraggableList list={list} style={style} listStyle={listStyle} onUpdate={() => {}}>
           {(item) => <div data-testid="item">{item.name}</div>}
         </DraggableList>
       )
       // 检查 style 是否传递到外层容器
-      const virtualList = screen.getByTestId('virtual-list')
-      expect(virtualList.parentElement).toHaveStyle({ background: 'red' })
+      const listContainer = container.querySelector('.draggable-list-container')
+      expect(listContainer).not.toBeNull()
+      expect(listContainer?.parentElement).toHaveStyle({ background: 'red' })
     })
 
     it('should render nothing when list is empty', () => {
+      const emptyList: Array<{ id: string; name: string }> = []
       render(
-        <DraggableList list={[]} onUpdate={() => {}}>
+        <DraggableList list={emptyList} onUpdate={() => {}}>
           {(item) => <div data-testid="item">{item.name}</div>}
         </DraggableList>
       )

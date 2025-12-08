@@ -5,11 +5,12 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
-import { FC, useCallback, useMemo } from 'react'
+import type { FC } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,6 +22,7 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -43,7 +45,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     selectedBase.id || ''
   )
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
 
   const reversedItems = useMemo(() => [...directoryItems].reverse(), [directoryItems])
@@ -59,14 +61,14 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     }
 
     const path = await window.api.file.selectFolder()
-    logger.info('Selected directory:', path)
+    logger.info('Selected directory:', { path })
     path && addDirectory(path)
   }
 
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
+        <ResponsiveButton
           type="primary"
           icon={<PlusIcon size={16} />}
           onClick={(e) => {
@@ -75,7 +77,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
           }}
           disabled={disabled}>
           {t('knowledge.add_directory')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
       <ItemFlexColumn>
         {directoryItems.length === 0 && <KnowledgeEmptyView />}

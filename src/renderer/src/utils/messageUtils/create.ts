@@ -1,10 +1,12 @@
 import { loggerService } from '@logger'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
+import type { SerializedError } from '@renderer/types/error'
 import type {
   BaseMessageBlock,
   CitationMessageBlock,
   CodeMessageBlock,
+  CompactMessageBlock,
   ErrorMessageBlock,
   FileMessageBlock,
   ImageMessageBlock,
@@ -12,7 +14,8 @@ import type {
   Message,
   ThinkingMessageBlock,
   ToolMessageBlock,
-  TranslationMessageBlock
+  TranslationMessageBlock,
+  VideoMessageBlock
 } from '@renderer/types/newMessage'
 import {
   AssistantMessageStatus,
@@ -135,7 +138,7 @@ export function createThinkingBlock(
   return {
     ...baseBlock,
     content,
-    thinking_millsec: overrides.thinking_millsec
+    thinking_millsec: overrides.thinking_millsec || 0
   }
 }
 
@@ -197,7 +200,7 @@ export function createFileBlock(
  */
 export function createErrorBlock(
   messageId: string,
-  errorData: Record<string, any>,
+  errorData: SerializedError,
   overrides: Partial<Omit<ErrorMessageBlock, 'id' | 'messageId' | 'type' | 'error'>> = {}
 ): ErrorMessageBlock {
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.ERROR, {
@@ -273,6 +276,41 @@ export function createCitationBlock(
     response,
     knowledge,
     memories
+  }
+}
+
+export function createVideoBlock(
+  messageId: string,
+  overrides: Partial<Omit<VideoMessageBlock, 'id' | 'messageId' | 'type'>> = {}
+): VideoMessageBlock {
+  const { filePath, url, ...baseOverrides } = overrides
+  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.VIDEO, baseOverrides)
+  return {
+    ...baseBlock,
+    url: url,
+    filePath: filePath
+  }
+}
+
+/**
+ * Creates a Compact Message Block for /compact command responses.
+ * @param messageId - The ID of the parent message.
+ * @param content - The summary text.
+ * @param compactedContent - The compacted content extracted from XML tags.
+ * @param overrides - Optional properties to override the defaults.
+ * @returns A CompactMessageBlock object.
+ */
+export function createCompactBlock(
+  messageId: string,
+  content: string,
+  compactedContent: string,
+  overrides: Partial<Omit<CompactMessageBlock, 'id' | 'messageId' | 'type' | 'content' | 'compactedContent'>> = {}
+): CompactMessageBlock {
+  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.COMPACT, overrides)
+  return {
+    ...baseBlock,
+    content,
+    compactedContent
   }
 }
 
@@ -363,6 +401,7 @@ export function resetMessage(
     role: originalMessage.role,
     topicId: originalMessage.topicId,
     assistantId: originalMessage.assistantId,
+    agentSessionId: originalMessage.agentSessionId,
     type: originalMessage.type,
     createdAt: originalMessage.createdAt, // Keep original creation timestamp
 
@@ -411,6 +450,7 @@ export const resetAssistantMessage = (
     // --- Retain Identity ---
     role: 'assistant',
     assistantId: originalMessage.assistantId,
+    agentSessionId: originalMessage.agentSessionId,
     model: originalMessage.model, // Keep the model information
     modelId: originalMessage.modelId,
 

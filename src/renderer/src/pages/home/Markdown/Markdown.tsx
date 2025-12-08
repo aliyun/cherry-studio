@@ -7,13 +7,16 @@ import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
-import { parseJSON } from '@renderer/utils'
+import type {
+  CompactMessageBlock,
+  MainTextMessageBlock,
+  ThinkingMessageBlock,
+  TranslationMessageBlock
+} from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
-import { findCitationInChildren, processLatexBrackets } from '@renderer/utils/markdown'
+import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
-import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
-import { useRef } from 'react'
+import { type FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -24,7 +27,7 @@ import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import remarkAlert from 'remark-github-blockquote-alert'
 import remarkMath from 'remark-math'
-import { Pluggable } from 'unified'
+import type { Pluggable } from 'unified'
 
 import CodeBlock from './CodeBlock'
 import Link from './Link'
@@ -35,12 +38,12 @@ import remarkDisableConstructs from './plugins/remarkDisableConstructs'
 import Table from './Table'
 
 const ALLOWED_ELEMENTS =
-  /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
-const DISALLOWED_ELEMENTS = ['iframe']
+  /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup|details|summary)/i
+const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
 interface Props {
   // message: Message & { content: string }
-  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock
+  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock | CompactMessageBlock
   // 可选的后处理函数，用于在流式渲染过程中处理文本（如引用标签转换）
   postProcess?: (text: string) => string
 }
@@ -127,7 +130,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
 
   const components = useMemo(() => {
     return {
-      a: (props: any) => <Link {...props} citationData={parseJSON(findCitationInChildren(props.children))} />,
+      a: (props: any) => <Link {...props} />,
       code: (props: any) => <CodeBlock {...props} blockId={block.id} />,
       table: (props: any) => <Table {...props} blockId={block.id} />,
       img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
@@ -141,7 +144,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     } as Partial<Components>
   }, [block.id])
 
-  if (messageContent.includes('<style>')) {
+  if (/<style\b[^>]*>/i.test(messageContent)) {
     components.style = MarkdownShadowDOMRenderer as any
   }
 

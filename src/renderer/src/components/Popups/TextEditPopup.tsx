@@ -1,12 +1,13 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { useSettings } from '@renderer/hooks/useSettings'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
-import { getLanguageByLangcode } from '@renderer/utils/translate'
-import { Modal, ModalProps } from 'antd'
+import type { ModalProps } from 'antd'
+import { Modal } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { TextAreaProps } from 'antd/lib/input'
-import { TextAreaRef } from 'antd/lib/input/TextArea'
+import type { TextAreaProps } from 'antd/lib/input'
+import type { TextAreaRef } from 'antd/lib/input/TextArea'
 import { Languages } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,6 +39,7 @@ const PopupContainer: React.FC<Props> = ({
 }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
+  const { getLanguageByLangcode } = useTranslate()
   const [textValue, setTextValue] = useState(text)
   const [isTranslating, setIsTranslating] = useState(false)
   const textareaRef = useRef<TextAreaRef>(null)
@@ -111,10 +113,7 @@ const PopupContainer: React.FC<Props> = ({
       }
     } catch (error) {
       logger.error('Translation failed:', error as Error)
-      window.message.error({
-        content: t('translate.error.failed'),
-        key: 'translate-message'
-      })
+      window.toast.error(t('translate.error.failed'))
     } finally {
       if (isMounted.current) {
         setIsTranslating(false)

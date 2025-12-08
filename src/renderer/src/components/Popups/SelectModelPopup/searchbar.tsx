@@ -1,5 +1,6 @@
 import { HStack } from '@renderer/components/Layout'
-import { Input, InputRef } from 'antd'
+import type { InputRef } from 'antd'
+import { Input } from 'antd'
 import { Search } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +42,7 @@ const SelectModelSearchBar: React.FC<SelectModelSearchBarProps> = ({ onSearch })
           </SearchIcon>
         }
         ref={inputRef}
-        placeholder={t('models.search')}
+        placeholder={t('models.search.placeholder')}
         value={searchText}
         onChange={(e) => handleTextChange(e.target.value)}
         onClear={handleClear}

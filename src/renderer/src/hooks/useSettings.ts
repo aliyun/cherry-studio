@@ -1,7 +1,6 @@
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import type { AssistantIconType, SendMessageShortcut, SettingsState } from '@renderer/store/settings'
 import {
-  AssistantIconType,
-  SendMessageShortcut,
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
   setDisableHardwareAcceleration,
@@ -11,20 +10,18 @@ import {
   setNavbarPosition,
   setPinTopicsToTop,
   setSendMessageShortcut as _setSendMessageShortcut,
-  setShowTokens,
   setSidebarIcons,
   setTargetLanguage,
   setTestChannel as _setTestChannel,
   setTestPlan as _setTestPlan,
   setTheme,
-  SettingsState,
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
   setWindowStyle
 } from '@renderer/store/settings'
-import { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
-import { UpgradeChannel } from '@shared/config/constant'
+import type { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
+import type { UpgradeChannel } from '@shared/config/constant'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)
@@ -101,9 +98,6 @@ export function useSettings() {
     setAssistantIconType(assistantIconType: AssistantIconType) {
       dispatch(setAssistantIconType(assistantIconType))
     },
-    setShowTokens(showTokens: boolean) {
-      dispatch(setShowTokens(showTokens))
-    },
     setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
       dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
       window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
@@ -120,7 +114,7 @@ export function useMessageStyle() {
   }
 }
 
-export const getStoreSetting = (key: keyof SettingsState) => {
+export const getStoreSetting = <K extends keyof SettingsState>(key: K): SettingsState[K] => {
   return store.getState().settings[key]
 }
 

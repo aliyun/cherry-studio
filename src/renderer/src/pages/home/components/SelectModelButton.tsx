@@ -1,13 +1,15 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
+import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { isLocalAi } from '@renderer/config/env'
-import { isWebSearchModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { Assistant } from '@renderer/types'
-import { Button } from 'antd'
+import type { Assistant, Model } from '@renderer/types'
+import { Button, Tag } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -18,17 +20,18 @@ interface Props {
 const SelectModelButton: FC<Props> = ({ assistant }) => {
   const { model, updateAssistant } = useAssistant(assistant.id)
   const { t } = useTranslation()
+  const timerRef = useRef<NodeJS.Timeout>(undefined)
+  const provider = useProvider(model?.provider)
 
-  if (isLocalAi) {
-    return null
-  }
+  const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
 
   const onSelectModel = async (event: React.MouseEvent<HTMLElement>) => {
     event.currentTarget.blur()
-    const selectedModel = await SelectModelPopup.show({ model })
+    const selectedModel = await SelectModelPopup.show({ model, filter: modelFilter })
     if (selectedModel) {
       // 避免更新数据造成关闭弹框的卡顿
-      setTimeout(() => {
+      clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
         const enabledWebSearch = isWebSearchModel(selectedModel)
         updateAssistant({
           ...assistant,
@@ -39,7 +42,17 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
     }
   }
 
-  const providerName = getProviderName(model?.provider)
+  useEffect(() => {
+    return () => {
+      clearTimeout(timerRef.current)
+    }
+  }, [])
+
+  if (isLocalAi) {
+    return null
+  }
+
+  const providerName = getProviderName(model)
 
   return (
     <DropdownButton size="small" type="text" onClick={onSelectModel}>
@@ -50,6 +63,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
         </ModelName>
       </ButtonContent>
       <ChevronsUpDown size={14} color="var(--color-icon)" />
+      {!provider && <Tag color="error">{t('models.invalid_model')}</Tag>}
     </DropdownButton>
   )
 }
@@ -74,6 +88,7 @@ const ButtonContent = styled.div`
 const ModelName = styled.span`
   font-weight: 500;
   margin-right: -2px;
+  font-size: 12px;
 `
 
 export default SelectModelButton

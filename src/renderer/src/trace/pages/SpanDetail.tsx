@@ -2,8 +2,10 @@ import './Trace.css'
 
 import { DoubleLeftOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { TraceModal } from '@renderer/trace/pages/TraceModel'
-import { FC, useCallback, useEffect, useState } from 'react'
+// import TraceModal from '@renderer/trace/TraceModal'
+import type { TraceModal } from '@renderer/trace/pages/TraceModel'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactJson, { CollapsedFieldProps } from 'react-json-view'
 

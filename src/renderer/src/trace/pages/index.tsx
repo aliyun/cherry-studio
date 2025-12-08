@@ -1,7 +1,7 @@
 import './Trace.css'
 
-import { SpanEntity } from '@mcp-trace/trace-core'
-import { TraceModal } from '@renderer/trace/pages/TraceModel'
+import type { SpanEntity } from '@mcp-trace/trace-core'
+import type { TraceModal } from '@renderer/trace/pages/TraceModel'
 import { Divider } from 'antd/lib'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -158,7 +158,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, assistant
         <SimpleGrid columns={1} templateColumns="1fr">
           <Box padding={0} className="scroll-container">
             {showList ? (
-              <VStack grap={1} align="start" style={{ paddingBottom: '36px' }}>
+              <VStack gap={1} align="start">
                 {spans.length === 0 ? (
                   <Text>没有找到Trace信息</Text>
                 ) : (

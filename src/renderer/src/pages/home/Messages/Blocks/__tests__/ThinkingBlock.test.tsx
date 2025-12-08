@@ -1,7 +1,6 @@
 import type { ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { render, screen } from '@testing-library/react'
-import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ThinkingBlock from '../ThinkingBlock'
@@ -236,32 +235,12 @@ describe('ThinkingBlock', () => {
       renderThinkingBlock(thinkingBlock)
 
       const activeTimeText = getThinkingTimeText()
-      expect(activeTimeText).toHaveTextContent('1.0s')
       expect(activeTimeText).toHaveTextContent('Thinking...')
-    })
-
-    it('should update thinking time in real-time when active', () => {
-      const block = createThinkingBlock({
-        thinking_millsec: 1000,
-        status: MessageBlockStatus.STREAMING
-      })
-      renderThinkingBlock(block)
-
-      // Initial state
-      expect(getThinkingTimeText()).toHaveTextContent('1.0s')
-
-      // After time passes
-      act(() => {
-        vi.advanceTimersByTime(500)
-      })
-
-      expect(getThinkingTimeText()).toHaveTextContent('1.5s')
     })
 
     it('should handle extreme thinking times correctly', () => {
       const testCases = [
-        { thinking_millsec: 0, expectedTime: '0.0s' },
-        { thinking_millsec: undefined, expectedTime: '0.0s' },
+        { thinking_millsec: 0, expectedTime: '0.1s' }, // New logic: values < 1000ms display as 0.1s
         { thinking_millsec: 86400000, expectedTime: '86400.0s' }, // 1 day
         { thinking_millsec: 259200000, expectedTime: '259200.0s' } // 3 days
       ]
@@ -277,36 +256,18 @@ describe('ThinkingBlock', () => {
       })
     })
 
-    it('should stop timer when thinking status changes to completed', () => {
-      const block = createThinkingBlock({
-        thinking_millsec: 1000,
-        status: MessageBlockStatus.STREAMING
-      })
-      const { rerender } = renderThinkingBlock(block)
+    it('should clamp invalid thinking times to a safe default', () => {
+      const testCases = [undefined, Number.NaN, Number.POSITIVE_INFINITY]
 
-      // Advance timer while thinking
-      act(() => {
-        vi.advanceTimersByTime(1000)
+      testCases.forEach((thinking_millsec) => {
+        const block = createThinkingBlock({
+          thinking_millsec: thinking_millsec as any,
+          status: MessageBlockStatus.SUCCESS
+        })
+        const { unmount } = renderThinkingBlock(block)
+        expect(getThinkingTimeText()).toHaveTextContent('0.1s')
+        unmount()
       })
-      expect(getThinkingTimeText()).toHaveTextContent('2.0s')
-
-      // Complete thinking
-      const completedBlock = createThinkingBlock({
-        thinking_millsec: 1000, // Original time doesn't matter
-        status: MessageBlockStatus.SUCCESS
-      })
-      rerender(<ThinkingBlock block={completedBlock} />)
-
-      // Timer should stop - text should change from "Thinking..." to "Thought for"
-      const timeText = getThinkingTimeText()
-      expect(timeText).toHaveTextContent('Thought for')
-      expect(timeText).toHaveTextContent('2.0s')
-
-      // Further time advancement shouldn't change the display
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
-      expect(timeText).toHaveTextContent('2.0s')
     })
   })
 
@@ -411,16 +372,6 @@ describe('ThinkingBlock', () => {
 
       expect(screen.getByText('Markdown: Updated thought')).toBeInTheDocument()
       expect(screen.queryByText('Markdown: Original thought')).not.toBeInTheDocument()
-    })
-
-    it('should clean up timer on unmount', () => {
-      const block = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
-      const { unmount } = renderThinkingBlock(block)
-
-      const clearIntervalSpy = vi.spyOn(global, 'clearInterval')
-      unmount()
-
-      expect(clearIntervalSpy).toHaveBeenCalled()
     })
 
     it('should handle rapid status changes gracefully', () => {

@@ -1,11 +1,18 @@
+import ZhipuLogo from '@renderer/assets/images/providers/zhipu.png'
 import { ExternalLink } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 
 const mcpMarkets = [
+  {
+    name: 'BigModel MCP Market',
+    url: 'https://bigmodel.cn/marketplace/index/mcp',
+    logo: ZhipuLogo,
+    descriptionKey: 'settings.mcp.more.zhipu'
+  },
   {
     name: 'modelscope.cn',
     url: 'https://www.modelscope.cn/mcp',
@@ -27,7 +34,7 @@ const mcpMarkets = [
   {
     name: 'smithery.ai',
     url: 'https://smithery.ai/',
-    logo: 'https://smithery.ai/logo.svg',
+    logo: 'https://smithery.ai/icon.svg',
     descriptionKey: 'settings.mcp.more.smithery'
   },
   {
@@ -45,7 +52,7 @@ const mcpMarkets = [
   {
     name: 'mcp.composio.dev',
     url: 'https://mcp.composio.dev/',
-    logo: 'https://composio.dev/wp-content/uploads/2025/02/Fevicon-composio.png',
+    logo: 'https://avatars.githubusercontent.com/u/128464815',
     descriptionKey: 'settings.mcp.more.composio'
   },
   {
@@ -67,7 +74,7 @@ const McpMarketList: FC = () => {
 
   return (
     <>
-      <SettingTitle style={{ gap: 3 }}>{t('settings.mcp.findMore')}</SettingTitle>
+      <SettingTitle style={{ marginBottom: 10 }}>{t('settings.mcp.findMore')}</SettingTitle>
       <MarketGrid>
         {mcpMarkets.map((resource) => (
           <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
@@ -117,8 +124,8 @@ const MarketHeader = styled.div`
 `
 
 const MarketLogo = styled.img`
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 4px;
   object-fit: cover;
   margin-right: 8px;

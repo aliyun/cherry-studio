@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
-import type { MCPConfig, MCPServer } from '@renderer/types'
+import { type BuiltinMCPServer, BuiltinMCPServerNames, type MCPConfig, type MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
 
@@ -70,20 +70,22 @@ export { mcpSlice }
 // Export the reducer as default export
 export default mcpSlice.reducer
 
-export const builtinMCPServers: MCPServer[] = [
+export const builtinMCPServers: BuiltinMCPServer[] = [
   {
     id: nanoid(),
-    name: '@cherry/mcp-auto-install',
+    name: BuiltinMCPServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'inMemory',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
     isActive: false,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
-    name: '@cherry/memory',
+    name: BuiltinMCPServerNames.memory,
     reference: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
     type: 'inMemory',
     isActive: true,
@@ -91,61 +93,89 @@ export const builtinMCPServers: MCPServer[] = [
       MEMORY_FILE_PATH: 'YOUR_MEMORY_FILE_PATH'
     },
     shouldConfig: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
-    name: '@cherry/sequentialthinking',
+    name: BuiltinMCPServerNames.sequentialThinking,
     type: 'inMemory',
     isActive: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
-    name: '@cherry/brave-search',
+    name: BuiltinMCPServerNames.braveSearch,
     type: 'inMemory',
     isActive: false,
     env: {
       BRAVE_API_KEY: 'YOUR_API_KEY'
     },
     shouldConfig: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
-    name: '@cherry/fetch',
+    name: BuiltinMCPServerNames.fetch,
     type: 'inMemory',
     isActive: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
-    name: '@cherry/filesystem',
+    name: BuiltinMCPServerNames.filesystem,
     type: 'inMemory',
     args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
     shouldConfig: true,
     isActive: false,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
-    name: '@cherry/dify-knowledge',
+    name: BuiltinMCPServerNames.difyKnowledge,
     type: 'inMemory',
     isActive: false,
     env: {
       DIFY_KEY: 'YOUR_DIFY_KEY'
     },
     shouldConfig: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
-    name: '@cherry/python',
+    name: BuiltinMCPServerNames.python,
     type: 'inMemory',
     isActive: false,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
+    name: '@cherry/didi-mcp',
+    reference: 'https://mcp.didichuxing.com/',
+    type: 'inMemory',
+    isActive: false,
+    env: {
+      DIDI_API_KEY: 'YOUR_DIDI_API_KEY'
+    },
+    shouldConfig: true,
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   }
-]
+] as const
 
 /**
  * Utility function to add servers to the MCP store during app initialization
