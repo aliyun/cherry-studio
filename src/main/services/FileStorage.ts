@@ -5,6 +5,7 @@ import { FileMetadata } from '@types'
 import * as crypto from 'crypto'
 import {
   dialog,
+  net,
   OpenDialogOptions,
   OpenDialogReturnValue,
   SaveDialogOptions,
@@ -156,7 +157,8 @@ class FileStorage {
   }
 
   public uploadFile = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> => {
-    const duplicateFile = await this.findDuplicateFile(file.path)
+    const filePath = file.path
+    const duplicateFile = await this.findDuplicateFile(filePath)
 
     if (duplicateFile) {
       return duplicateFile
@@ -167,13 +169,13 @@ class FileStorage {
     const ext = path.extname(origin_name).toLowerCase()
     const destPath = path.join(this.storageDir, uuid + ext)
 
-    logger.info(`[FileStorage] Uploading file: ${file.path}`)
+    logger.info(`[FileStorage] Uploading file: ${filePath}`)
 
     // 根据文件类型选择处理方式
     if (imageExts.includes(ext)) {
-      await this.compressImage(file.path, destPath)
+      await this.compressImage(filePath, destPath)
     } else {
-      await fs.promises.copyFile(file.path, destPath)
+      await fs.promises.copyFile(filePath, destPath)
     }
 
     const stats = await fs.promises.stat(destPath)
@@ -508,7 +510,7 @@ class FileStorage {
     isUseContentType?: boolean
   ): Promise<FileMetadata> => {
     try {
-      const response = await fetch(url)
+      const response = await net.fetch(url)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -624,6 +626,10 @@ class FileStorage {
       throw error
     }
   }
+
+  public getFilePathById(file: FileMetadata): string {
+    return path.join(this.storageDir, file.id + file.ext)
+  }
 }
 
-export default FileStorage
+export const fileStorage = new FileStorage()
