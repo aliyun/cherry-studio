@@ -17,7 +17,6 @@ export interface OrchestrationRequest {
     timeout?: number
     headers?: Record<string, string>
   }
-  topicId?: string // 添加 topicId 用于 trace
 }
 
 /**
@@ -50,7 +49,6 @@ export class OrchestrationService {
         assistant: assistant,
         requestOptions: request.options,
         onChunkReceived,
-        topicId: request.topicId,
         uiMessages: uiMessages
       })
     } catch (error: any) {
@@ -82,7 +80,6 @@ export async function transformMessagesAndFetch(
       assistant: assistant,
       requestOptions: request.options,
       onChunkReceived,
-      topicId: request.topicId,
       uiMessages
     })
   } catch (error: any) {

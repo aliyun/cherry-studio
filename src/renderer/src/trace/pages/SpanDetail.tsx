@@ -7,7 +7,8 @@ import type { TraceModal } from '@renderer/trace/pages/TraceModel'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactJson, { CollapsedFieldProps } from 'react-json-view'
+import type { CollapsedFieldProps } from 'react-json-view';
+import ReactJson from 'react-json-view'
 
 import { Box, Button, Text } from './Component'
 import { convertTime } from './TraceTree'

@@ -57,8 +57,6 @@ export interface CompletionsParams {
 
   // 上下文控制
   contextCount?: number
-  topicId?: string // 主题ID，用于关联上下文
-  assistantMsgId?: string // 助手消息ID，用于追踪
 
   // abort 控制
   abortKey?: string
