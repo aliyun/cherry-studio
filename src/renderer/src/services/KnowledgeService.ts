@@ -225,7 +225,6 @@ export const searchKnowledgeBase = async (
 export const processKnowledgeSearch = async (
   extractResults: ExtractResults,
   knowledgeBaseIds: string[] | undefined,
-  parentSpanId?: string,
   traceContext?: WebTraceContext
 ): Promise<KnowledgeReference[]> => {
   if (
@@ -255,7 +254,6 @@ export const processKnowledgeSearch = async (
       knowledgeBaseIds: knowledgeBaseIds
     },
     tag: 'Knowledge',
-    parentSpanId,
     modelName: traceContext?.modelName,
     assistantMsgId: traceContext?.assistantMsgId
   })

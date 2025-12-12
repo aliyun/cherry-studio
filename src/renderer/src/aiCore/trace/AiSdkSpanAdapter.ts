@@ -202,7 +202,7 @@ export class AiSdkSpanAdapter {
       endTime: endTime ? this.convertTimestamp(endTime) : null,
       links: links,
       topicId: topicId,
-      usage: tokenUsage,
+      // usage: tokenUsage,
       modelName: modelName || this.extractModelFromAttributes(attributes),
       referenceId: spanData.assistantMsgId
     }

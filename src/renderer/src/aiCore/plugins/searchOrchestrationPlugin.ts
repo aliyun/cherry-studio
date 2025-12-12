@@ -320,7 +320,8 @@ export const searchOrchestrationPlugin = (assistant: Assistant) => {
             params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
               assistant.webSearchProviderId,
               analysisResult.websearch,
-              context.requestId
+              context.requestId,
+              assistant.traceContext,
             )
           }
         }

@@ -621,10 +621,6 @@ export type WebSearchProvider = {
   basicAuthUsername?: string
   basicAuthPassword?: string
   usingBrowser?: boolean
-  topicId?: string
-  parentSpanId?: string
-  modelName?: string
-  assistantMsgId?: string
 }
 
 export type WebSearchProviderResult = {

@@ -59,11 +59,11 @@ header {
 }
 
 .headerOption {
-  display: 'flex';
-  align-items: 'center';
+  display: "flex";
+  align-items: "center";
   gap: 8;
   width: 120;
-  justify-content: 'flex-end';
+  justify-content: "flex-end";
 }
 
 .tab-container_trace {
@@ -107,10 +107,7 @@ header {
 .tab-header,
 .scroll-container,
 .Box {
-  transition:
-    background 0.2s,
-    color 0.2s,
-    box-shadow 0.2s;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
 
 .tab-container_trace {
@@ -152,7 +149,7 @@ header {
 .scroll-container {
   overflow-y: auto;
   overflow-x: hidden;
-  height: calc(100vh - 40px);
+  height: calc(100vh - 76px);
 }
 
 .scroll-container::-webkit-scrollbar {
@@ -164,9 +161,9 @@ header {
   overflow-y: auto;
   margin-top: 2px;
   scrollbar-width: none;
-  border-top: '1px solid #eee';
-  width: '100%';
-  margin-bottom: '30px';
+  border-top: "1px solid #eee";
+  width: "100%";
+  margin-bottom: "30px";
 }
 
 .code-container::-webkit-scrollbar {
@@ -188,7 +185,7 @@ header {
   color: white;
 }
 
-.settingsModal button[aria-label='Close'] {
+.settingsModal button[aria-label="Close"] {
   -webkit-app-region: no-drag;
 }
 
