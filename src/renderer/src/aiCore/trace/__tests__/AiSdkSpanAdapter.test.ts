@@ -52,11 +52,17 @@ describe('AiSdkSpanAdapter', () => {
     }
 
     const span = createMockSpan(attributes)
+    const mockTokenUsage = vi.fn()
+    ;(global.window.api.trace.tokenUsage as any) = mockTokenUsage
+
     const result = AiSdkSpanAdapter.convertToSpanEntity({ span })
 
-    expect(result.usage).toBeDefined()
-    expect(result.usage?.prompt_tokens).toBe(321)
-    expect(result.usage?.completion_tokens).toBe(654)
-    expect(result.usage?.total_tokens).toBe(975)
+    // 验证 tokenUsage 被正确调用
+    expect(mockTokenUsage).toHaveBeenCalledTimes(1)
+    expect(mockTokenUsage).toHaveBeenCalledWith('span-id', {
+      prompt_tokens: 321,
+      completion_tokens: 654,
+      total_tokens: 975
+    })
   })
 })
