@@ -55,7 +55,7 @@ describe('AiSdkSpanAdapter', () => {
     const mockTokenUsage = vi.fn()
     ;(global.window.api.trace.tokenUsage as any) = mockTokenUsage
 
-    const result = AiSdkSpanAdapter.convertToSpanEntity({ span })
+    AiSdkSpanAdapter.convertToSpanEntity({ span })
 
     // 验证 tokenUsage 被正确调用
     expect(mockTokenUsage).toHaveBeenCalledTimes(1)
