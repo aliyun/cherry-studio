@@ -1,15 +1,16 @@
+import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
+import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo } from '@renderer/components/Icons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { Assistant, WebSearchProvider } from '@renderer/types'
+import { Assistant, WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Tooltip } from 'antd'
-import { CircleX, Globe, Settings } from 'lucide-react'
-import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
+import { Globe } from 'lucide-react'
+import { FC, memo, startTransition, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 
 export interface WebSearchButtonRef {
   openQuickPanel: () => void
@@ -23,28 +24,56 @@ interface Props {
 
 const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const quickPanel = useQuickPanel()
   const { providers } = useWebSearchProviders()
   const { updateAssistant } = useAssistant(assistant.id)
 
+  const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
+
+  const WebSearchIcon = useCallback(
+    ({ pid, size = 18 }: { pid?: WebSearchProviderId; size?: number }) => {
+      const iconColor = enableWebSearch ? 'var(--color-primary)' : 'var(--color-icon)'
+
+      switch (pid) {
+        case 'bocha':
+          return <BochaLogo width={size} height={size} color={iconColor} />
+        case 'exa':
+          // size微调，视觉上和其他图标平衡一些
+          return <ExaLogo width={size - 2} height={size} color={iconColor} />
+        case 'tavily':
+          return <TavilyLogo width={size} height={size} color={iconColor} />
+        case 'searxng':
+          return <SearXNGLogo width={size} height={size} color={iconColor} />
+        case 'local-baidu':
+          return <BaiduOutlined size={size} style={{ color: iconColor, fontSize: size }} />
+        case 'local-bing':
+          return <BingLogo width={size} height={size} color={iconColor} />
+        case 'local-google':
+          return <GoogleOutlined size={size} style={{ color: iconColor, fontSize: size }} />
+        default:
+          return <Globe size={size} style={{ color: iconColor, fontSize: size }} />
+      }
+    },
+    [enableWebSearch]
+  )
+
   const updateSelectedWebSearchProvider = useCallback(
-    (providerId?: WebSearchProvider['id']) => {
+    async (providerId?: WebSearchProvider['id']) => {
       // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
-      setTimeout(() => {
-        const currentWebSearchProviderId = assistant.webSearchProviderId
-        const newWebSearchProviderId = currentWebSearchProviderId === providerId ? undefined : providerId
+      const currentWebSearchProviderId = assistant.webSearchProviderId
+      const newWebSearchProviderId = currentWebSearchProviderId === providerId ? undefined : providerId
+      startTransition(() => {
         updateAssistant({ ...assistant, webSearchProviderId: newWebSearchProviderId, enableWebSearch: false })
-      }, 200)
+      })
     },
     [assistant, updateAssistant]
   )
 
-  const updateSelectedWebSearchBuiltin = useCallback(() => {
+  const updateSelectedWebSearchBuiltin = useCallback(async () => {
     // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
-    setTimeout(() => {
+    startTransition(() => {
       updateAssistant({ ...assistant, webSearchProviderId: undefined, enableWebSearch: !assistant.enableWebSearch })
-    }, 200)
+    })
   }, [assistant, updateAssistant])
 
   const providerItems = useMemo<QuickPanelListItem[]>(() => {
@@ -58,7 +87,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
             ? t('settings.tool.websearch.apikey')
             : t('settings.tool.websearch.free')
           : t('chat.input.web_search.enable_content'),
-        icon: <Globe />,
+        icon: <WebSearchIcon size={13} pid={p.id} />,
         isSelected: p.id === assistant?.webSearchProviderId,
         disabled: !WebSearchService.isWebSearchEnabled(p.id),
         action: () => updateSelectedWebSearchProvider(p.id)
@@ -67,7 +96,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
 
     if (isWebSearchModelEnabled) {
       items.unshift({
-        label: t('chat.input.web_search.builtin'),
+        label: t('chat.input.web_search.builtin.label'),
         description: isWebSearchModelEnabled
           ? t('chat.input.web_search.builtin.enabled_content')
           : t('chat.input.web_search.builtin.disabled_content'),
@@ -78,42 +107,44 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       })
     }
 
-    items.push({
-      label: t('chat.input.web_search.settings'),
-      icon: <Settings />,
-      action: () => navigate('/settings/tool/websearch')
-    })
-
-    items.unshift({
-      label: t('common.close'),
-      description: t('chat.input.web_search.no_web_search.description'),
-      icon: <CircleX />,
-      isSelected: !assistant.enableWebSearch && !assistant.webSearchProviderId,
-      action: () => {
-        updateSelectedWebSearchProvider(undefined)
-      }
-    })
-
     return items
   }, [
-    assistant.model,
+    WebSearchIcon,
     assistant.enableWebSearch,
-    assistant.webSearchProviderId,
+    assistant.model,
+    assistant?.webSearchProviderId,
     providers,
     t,
-    updateSelectedWebSearchProvider,
     updateSelectedWebSearchBuiltin,
-    navigate
+    updateSelectedWebSearchProvider
   ])
 
   const openQuickPanel = useCallback(() => {
+    if (assistant.webSearchProviderId) {
+      updateSelectedWebSearchProvider(undefined)
+      return
+    }
+
+    if (assistant.enableWebSearch) {
+      updateSelectedWebSearchBuiltin()
+      return
+    }
+
     quickPanel.open({
-      title: t('chat.input.web_search'),
+      title: t('chat.input.web_search.label'),
       list: providerItems,
       symbol: '?',
       pageSize: 9
     })
-  }, [quickPanel, providerItems, t])
+  }, [
+    assistant.webSearchProviderId,
+    assistant.enableWebSearch,
+    quickPanel,
+    t,
+    providerItems,
+    updateSelectedWebSearchProvider,
+    updateSelectedWebSearchBuiltin
+  ])
 
   const handleOpenQuickPanel = useCallback(() => {
     if (quickPanel.isVisible && quickPanel.symbol === '?') {
@@ -128,15 +159,13 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   }))
 
   return (
-    <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
+    <Tooltip
+      placement="top"
+      title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
+      mouseLeaveDelay={0}
+      arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <Globe
-          size={18}
-          style={{
-            color:
-              assistant?.webSearchProviderId || assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)'
-          }}
-        />
+        <WebSearchIcon pid={assistant.webSearchProviderId} />
       </ToolbarButton>
     </Tooltip>
   )

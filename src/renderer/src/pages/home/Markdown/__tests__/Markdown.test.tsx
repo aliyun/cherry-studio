@@ -17,7 +17,11 @@ vi.mock('@renderer/hooks/useSettings', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => mockUseTranslation()
+  useTranslation: () => mockUseTranslation(),
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  }
 }))
 
 // Mock services
@@ -140,7 +144,7 @@ describe('Markdown', () => {
     vi.clearAllMocks()
 
     // Default settings
-    mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX' })
+    mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
     mockUseTranslation.mockReturnValue({
       t: (key: string) => (key === 'message.chat.completion.paused' ? 'Paused' : key)
     })
@@ -266,7 +270,7 @@ describe('Markdown', () => {
 
   describe('math engine configuration', () => {
     it('should configure KaTeX when mathEngine is KaTeX', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX' })
+      mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
 
       render(<Markdown block={createMainTextBlock()} />)
 
@@ -275,7 +279,7 @@ describe('Markdown', () => {
     })
 
     it('should configure MathJax when mathEngine is MathJax', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'MathJax' })
+      mockUseSettings.mockReturnValue({ mathEngine: 'MathJax', mathEnableSingleDollar: true })
 
       render(<Markdown block={createMainTextBlock()} />)
 
@@ -284,7 +288,7 @@ describe('Markdown', () => {
     })
 
     it('should not load math plugins when mathEngine is none', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'none' })
+      mockUseSettings.mockReturnValue({ mathEngine: 'none', mathEnableSingleDollar: true })
 
       render(<Markdown block={createMainTextBlock()} />)
 
@@ -380,12 +384,12 @@ describe('Markdown', () => {
     })
 
     it('should re-render when math engine changes', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX' })
+      mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
       const { rerender } = render(<Markdown block={createMainTextBlock()} />)
 
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
 
-      mockUseSettings.mockReturnValue({ mathEngine: 'MathJax' })
+      mockUseSettings.mockReturnValue({ mathEngine: 'MathJax', mathEnableSingleDollar: true })
       rerender(<Markdown block={createMainTextBlock()} />)
 
       // Should still render correctly with new math engine

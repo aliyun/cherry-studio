@@ -6,6 +6,7 @@ import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { FileType, Model } from '@renderer/types'
+import { getFancyProviderName } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
@@ -26,6 +27,7 @@ interface Props {
   couldMentionNotVisionModel: boolean
   files: FileType[]
   ToolbarButton: any
+  setText: React.Dispatch<React.SetStateAction<string>>
 }
 
 const MentionModelsButton: FC<Props> = ({
@@ -34,12 +36,16 @@ const MentionModelsButton: FC<Props> = ({
   onMentionModel,
   couldMentionNotVisionModel,
   files,
-  ToolbarButton
+  ToolbarButton,
+  setText
 }) => {
   const { providers } = useProviders()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const quickPanel = useQuickPanel()
+
+  // 记录是否有模型被选择的动作发生
+  const hasModelActionRef = useRef<boolean>(false)
 
   const pinnedModels = useLiveQuery(
     async () => {
@@ -62,7 +68,7 @@ const MentionModelsButton: FC<Props> = ({
           .map((m) => ({
             label: (
               <>
-                <ProviderName>{p.isSystem ? t(`provider.${p.id}`) : p.name}</ProviderName>
+                <ProviderName>{getFancyProviderName(p)}</ProviderName>
                 <span style={{ opacity: 0.8 }}> | {m.name}</span>
               </>
             ),
@@ -72,8 +78,11 @@ const MentionModelsButton: FC<Props> = ({
                 {first(m.name)}
               </Avatar>
             ),
-            filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
-            action: () => onMentionModel(m),
+            filterText: getFancyProviderName(p) + m.name,
+            action: () => {
+              hasModelActionRef.current = true // 标记有模型动作发生
+              onMentionModel(m)
+            },
             isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
           }))
       )
@@ -95,7 +104,7 @@ const MentionModelsButton: FC<Props> = ({
       const providerModelItems = providerModels.map((m) => ({
         label: (
           <>
-            <ProviderName>{p.isSystem ? t(`provider.${p.id}`) : p.name}</ProviderName>
+            <ProviderName>{getFancyProviderName(p)}</ProviderName>
             <span style={{ opacity: 0.8 }}> | {m.name}</span>
           </>
         ),
@@ -105,8 +114,11 @@ const MentionModelsButton: FC<Props> = ({
             {first(m.name)}
           </Avatar>
         ),
-        filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
-        action: () => onMentionModel(m),
+        filterText: getFancyProviderName(p) + m.name,
+        action: () => {
+          hasModelActionRef.current = true // 标记有模型动作发生
+          onMentionModel(m)
+        },
         isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
       }))
 
@@ -126,6 +138,9 @@ const MentionModelsButton: FC<Props> = ({
   }, [pinnedModels, providers, t, couldMentionNotVisionModel, mentionedModels, onMentionModel, navigate])
 
   const openQuickPanel = useCallback(() => {
+    // 重置模型动作标记
+    hasModelActionRef.current = false
+
     quickPanel.open({
       title: t('agents.edit.model.select.title'),
       list: modelItems,
@@ -133,9 +148,25 @@ const MentionModelsButton: FC<Props> = ({
       multiple: true,
       afterAction({ item }) {
         item.isSelected = !item.isSelected
+      },
+      onClose({ action }) {
+        // ESC或Backspace关闭时的特殊处理
+        if (action === 'esc' || action === 'delete-symbol') {
+          // 如果有模型选择动作发生，删除@字符
+          if (hasModelActionRef.current) {
+            // 使用React的setText来更新状态，而不是直接操作DOM
+            setText((currentText) => {
+              const lastAtIndex = currentText.lastIndexOf('@')
+              if (lastAtIndex !== -1) {
+                return currentText.slice(0, lastAtIndex) + currentText.slice(lastAtIndex + 1)
+              }
+              return currentText
+            })
+          }
+        }
       }
     })
-  }, [modelItems, quickPanel, t])
+  }, [modelItems, quickPanel, t, setText])
 
   const handleOpenQuickPanel = useCallback(() => {
     if (quickPanel.isVisible && quickPanel.symbol === '@') {
@@ -162,7 +193,7 @@ const MentionModelsButton: FC<Props> = ({
   }))
 
   return (
-    <Tooltip placement="top" title={t('agents.edit.model.select.title')} arrow>
+    <Tooltip placement="top" title={t('agents.edit.model.select.title')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         <AtSign size={18} />
       </ToolbarButton>
