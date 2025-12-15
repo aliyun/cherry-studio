@@ -40,7 +40,6 @@ class AdapterTracer {
     this.traceContext = traceContext
     this.parentSpanContext = parentSpanContext
 
-
     logger.debug('AdapterTracer created with parent context info', {
       ...traceContext,
       parentTraceId: this.parentSpanContext?.traceId,
@@ -95,7 +94,7 @@ class AdapterTracer {
               spanName: name,
               spanId: span.spanContext().spanId,
               traceId: span.spanContext().traceId,
-              ... this.traceContext
+              ...this.traceContext
             })
             logger.silly('span', span)
             const spanEntity = AiSdkSpanAdapter.convertToSpanEntity({
@@ -114,14 +113,14 @@ class AdapterTracer {
               traceId: span.spanContext().traceId,
               hasUsage: !!spanEntity.usage,
               usage: spanEntity.usage,
-              ... this.traceContext
+              ...this.traceContext
             })
           } catch (error) {
             logger.error('Failed to convert AI SDK span (from startActiveSpan)', error as Error, {
               spanName: name,
               spanId: span.spanContext().spanId,
               traceId: span.spanContext().traceId,
-              ... this.traceContext
+              ...this.traceContext
             })
           }
         }
@@ -235,7 +234,7 @@ export function createTelemetryPlugin(config: TelemetryPluginConfig) {
         } catch (error) {
           logger.error('Error getting current span from SpanManagerService', error as Error, {
             ...traceContext,
-            requestId: context.requestId,
+            requestId: context.requestId
           })
         }
       } else {

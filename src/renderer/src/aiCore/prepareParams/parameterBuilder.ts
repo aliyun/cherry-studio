@@ -262,7 +262,7 @@ export async function buildGenerateTextParams(
     mcpTools?: MCPTool[]
     enableTools?: boolean
     traceContext?: WebTraceContext
-  } = {},
+  } = {}
 ): Promise<any> {
   // 复用流式参数的构建逻辑
   return await buildStreamTextParams(messages, assistant, provider, options)

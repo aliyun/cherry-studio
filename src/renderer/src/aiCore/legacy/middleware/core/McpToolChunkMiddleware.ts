@@ -386,7 +386,7 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  traceContext?: CompletionsParams['assistant']['traceContext'],
+  traceContext?: CompletionsParams['assistant']['traceContext']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
@@ -397,7 +397,7 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  traceContext?: CompletionsParams['assistant']['traceContext'],
+  traceContext?: CompletionsParams['assistant']['traceContext']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
@@ -408,7 +408,7 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  traceContext?: CompletionsParams['assistant']['traceContext'],
+  traceContext?: CompletionsParams['assistant']['traceContext']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }> {
   const toolResults: R[] = []
   let curToolResponses: MCPToolResponse[] = []

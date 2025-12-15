@@ -12,9 +12,7 @@ const logger = loggerService.withContext('PluginBuilder')
 /**
  * 根据条件构建插件数组
  */
-export function buildPlugins(
-  middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant }
-): AiPlugin[] {
+export function buildPlugins(middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant }): AiPlugin[] {
   const plugins: AiPlugin[] = []
 
   if (middlewareConfig.assistant.traceContext?.topicId && getEnableDeveloperMode()) {

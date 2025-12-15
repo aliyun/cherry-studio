@@ -69,7 +69,12 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           links: extractedKeywords.links
         }
       }
-      searchResults = await WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId, traceContext)
+      searchResults = await WebSearchService.processWebsearch(
+        webSearchProvider!,
+        extractResults,
+        requestId,
+        traceContext
+      )
 
       return searchResults
     },

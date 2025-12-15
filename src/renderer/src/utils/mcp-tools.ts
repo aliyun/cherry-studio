@@ -154,10 +154,10 @@ export async function callMCPTool(
         args: toolResponse.arguments,
         callId: toolResponse.id
       },
-      
-      traceContext?.topicId ? currentSpan(
-        traceContext.topicId, traceContext.modelName, traceContext.assistantMsgId
-      )?.spanContext() : undefined
+
+      traceContext?.topicId
+        ? currentSpan(traceContext.topicId, traceContext.modelName, traceContext.assistantMsgId)?.spanContext()
+        : undefined
     )
     if (toolResponse.tool.serverName === BuiltinMCPServerNames.mcpAutoInstall) {
       if (resp.data) {

@@ -321,7 +321,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant) => {
               assistant.webSearchProviderId,
               analysisResult.websearch,
               context.requestId,
-              assistant.traceContext,
+              assistant.traceContext
             )
           }
         }
@@ -343,7 +343,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant) => {
             params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
               assistant,
               fallbackKeywords,
-              getMessageContent(userMessage),
+              getMessageContent(userMessage)
             )
             // params.toolChoice = { type: 'tool', toolName: 'builtin_knowledge_search' }
           } else {
@@ -359,7 +359,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant) => {
               params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
                 assistant,
                 analysisResult.knowledge,
-                getMessageContent(userMessage),
+                getMessageContent(userMessage)
               )
             }
           }

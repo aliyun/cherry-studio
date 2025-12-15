@@ -269,7 +269,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     const { getText } = await AI.completions(model.id, llmMessages, {
       ...middlewareConfig,
       assistant: summaryAssistant,
-      callType: 'summary',
+      callType: 'summary'
     })
     const text = getText()
     return removeSpecialCharactersForTopicName(text) || null

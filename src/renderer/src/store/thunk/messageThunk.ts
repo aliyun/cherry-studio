@@ -730,7 +730,7 @@ const dispatchMultiModelResponses = async (
   const queue = getTopicQueue(topicId)
   for (const task of tasksToQueue) {
     const assistantConfig = {
-      ... task.assistantConfig,
+      ...task.assistantConfig,
       traceContext: {
         topicId,
         modelName: task.messageStub.model?.name,
@@ -964,7 +964,13 @@ export const sendMessage =
           }
 
           queue.add(async () => {
-            await fetchAndProcessAssistantResponseImplWithTrace(dispatch, getState, topicId, assistant, assistantMessage)
+            await fetchAndProcessAssistantResponseImplWithTrace(
+              dispatch,
+              getState,
+              topicId,
+              assistant,
+              assistantMessage
+            )
           })
         }
       }

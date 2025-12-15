@@ -10,7 +10,10 @@ import type { JSONSchema7 } from 'json-schema'
 const logger = loggerService.withContext('MCP-utils')
 
 // Setup tools configuration based on provided parameters
-export function setupToolsConfig(mcpTools?: MCPTool[], traceContext?: WebTraceContext): Record<string, Tool<any, any>> | undefined {
+export function setupToolsConfig(
+  mcpTools?: MCPTool[],
+  traceContext?: WebTraceContext
+): Record<string, Tool<any, any>> | undefined {
   let tools: ToolSet = {}
 
   if (!mcpTools?.length) {
