@@ -15,6 +15,15 @@ vi.mock('@logger', () => ({
   }
 }))
 
+// Mock window.api.trace.tokenUsage
+global.window = {
+  api: {
+    trace: {
+      tokenUsage: vi.fn()
+    }
+  }
+} as any
+
 describe('AiSdkSpanAdapter', () => {
   const createMockSpan = (attributes: Record<string, unknown>): Span => {
     const span = {
