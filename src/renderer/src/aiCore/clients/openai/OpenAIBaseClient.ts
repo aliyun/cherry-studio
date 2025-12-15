@@ -1,6 +1,6 @@
+import { loggerService } from '@logger'
 import {
   isClaudeReasoningModel,
-  isNotSupportTemperatureAndTopP,
   isOpenAIReasoningModel,
   isSupportedModel,
   isSupportedReasoningEffortOpenAIModel
@@ -27,6 +27,8 @@ import { formatApiHost } from '@renderer/utils/api'
 import OpenAI, { AzureOpenAI } from 'openai'
 
 import { BaseApiClient } from '../BaseApiClient'
+
+const logger = loggerService.withContext('OpenAIBaseClient')
 
 /**
  * 抽象的OpenAI基础客户端类，包含两个OpenAI客户端之间的共享功能
@@ -89,7 +91,7 @@ export abstract class OpenAIBaseClient<
     const data = await sdk.embeddings.create({
       model: model.id,
       input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
-      encoding_format: 'float'
+      encoding_format: this.provider.id === 'voyageai' ? undefined : 'float'
     })
     return data.data[0].embedding.length
   }
@@ -97,18 +99,23 @@ export abstract class OpenAIBaseClient<
   override async listModels(): Promise<OpenAI.Models.Model[]> {
     try {
       const sdk = await this.getSdkInstance()
-      const response = await sdk.models.list()
       if (this.provider.id === 'github') {
+        // GitHub Models 其 models 和 chat completions 两个接口的 baseUrl 不一样
+        const baseUrl = 'https://models.github.ai/catalog/'
+        const newSdk = sdk.withOptions({ baseURL: baseUrl })
+        const response = await newSdk.models.list()
+
         // @ts-ignore key is not typed
         return response?.body
           .map((model) => ({
-            id: model.name,
+            id: model.id,
             description: model.summary,
             object: 'model',
             owned_by: model.publisher
           }))
           .filter(isSupportedModel)
       }
+      const response = await sdk.models.list()
       if (this.provider.id === 'together') {
         // @ts-ignore key is not typed
         return response?.body.map((model) => ({
@@ -125,7 +132,7 @@ export abstract class OpenAIBaseClient<
 
       return models.filter(isSupportedModel)
     } catch (error) {
-      console.error('Error listing models:', error)
+      logger.error('Error listing models:', error as Error)
       return []
     }
   }
@@ -169,23 +176,17 @@ export abstract class OpenAIBaseClient<
   }
 
   override getTemperature(assistant: Assistant, model: Model): number | undefined {
-    if (
-      isNotSupportTemperatureAndTopP(model) ||
-      (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))
-    ) {
+    if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
       return undefined
     }
-    return assistant.settings?.temperature
+    return super.getTemperature(assistant, model)
   }
 
   override getTopP(assistant: Assistant, model: Model): number | undefined {
-    if (
-      isNotSupportTemperatureAndTopP(model) ||
-      (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))
-    ) {
+    if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
       return undefined
     }
-    return assistant.settings?.topP
+    return super.getTopP(assistant, model)
   }
 
   /**

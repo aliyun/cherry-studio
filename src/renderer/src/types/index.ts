@@ -2,8 +2,10 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
+import * as z from 'zod/v4'
 
 export * from './file'
+
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
 
@@ -23,11 +25,18 @@ export type Assistant = {
   /** enableWebSearch 代表使用模型内置网络搜索功能 */
   enableWebSearch?: boolean
   webSearchProviderId?: WebSearchProvider['id']
+  // enableUrlContext 是 Gemini 的特有功能
+  enableUrlContext?: boolean
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
+  enableMemory?: boolean
+}
+
+export type TranslateAssistant = Assistant & {
+  targetLanguage?: TranslateLanguage
 }
 
 export type AssistantsSortType = 'tags' | 'list'
@@ -43,28 +52,63 @@ export type AssistantSettingCustomParameters = {
   type: 'string' | 'number' | 'boolean' | 'json'
 }
 
-export type ReasoningEffortOptions = 'low' | 'medium' | 'high' | 'auto'
-export type EffortRatio = Record<ReasoningEffortOptions, number>
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
+export type ThinkingOption = ReasoningEffortOption | 'off'
+export type ThinkingModelType =
+  | 'default'
+  | 'gpt5'
+  | 'grok'
+  | 'gemini'
+  | 'gemini_pro'
+  | 'qwen'
+  | 'qwen_thinking'
+  | 'doubao'
+  | 'hunyuan'
+  | 'zhipu'
+  | 'perplexity'
+export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
+export type ReasoningEffortConfig = Record<ThinkingModelType, ReasoningEffortOption[]>
+export type EffortRatio = Record<ReasoningEffortOption, number>
+
+const ThinkModelTypes: ThinkingModelType[] = [
+  'default',
+  'grok',
+  'gemini',
+  'gemini_pro',
+  'qwen',
+  'qwen_thinking',
+  'doubao',
+  'hunyuan',
+  'zhipu',
+  'perplexity'
+] as const
+
+export function isThinkModelType(type: string): type is ThinkingModelType {
+  return ThinkModelTypes.some((t) => t === type)
+}
 
 export const EFFORT_RATIO: EffortRatio = {
-  low: 0.2,
+  minimal: 0.05,
+  low: 0.05,
   medium: 0.5,
   high: 0.8,
   auto: 2
 }
 
 export type AssistantSettings = {
-  contextCount: number
+  maxTokens?: number
+  enableMaxTokens?: boolean
   temperature: number
+  enableTemperature?: boolean
   topP: number
-  maxTokens: number | undefined
-  enableMaxTokens: boolean
+  enableTopP?: boolean
+  contextCount: number
   streamOutput: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
-  reasoning_effort?: ReasoningEffortOptions
+  reasoning_effort?: ReasoningEffortOption
   qwenThinkMode?: boolean
-  toolUseMode?: 'function' | 'prompt'
+  toolUseMode: 'function' | 'prompt'
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -120,6 +164,8 @@ export type LegacyMessage = {
 
 export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number
+  // OpenRouter specific fields
+  cost?: number
 }
 
 export type Metrics = {
@@ -148,6 +194,20 @@ export type User = {
   email: string
 }
 
+// undefined 视为支持，默认支持
+export type ProviderApiOptions = {
+  /** 是否不支持 message 的 content 为数组类型 */
+  isNotSupportArrayContent?: boolean
+  /** 是否不支持 stream_options 参数 */
+  isNotSupportStreamOptions?: boolean
+  /** 是否不支持 message 的 role 为 developer */
+  isNotSupportDeveloperRole?: boolean
+  /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
+  isNotSupportServiceTier?: boolean
+  /** 是否不支持 enable_thinking 参数 */
+  isNotSupportEnableThinking?: boolean
+}
+
 export type Provider = {
   id: string
   type: ProviderType
@@ -160,10 +220,99 @@ export type Provider = {
   isSystem?: boolean
   isAuthed?: boolean
   rateLimit?: number
+
+  // API options
+  apiOptions?: ProviderApiOptions
+  serviceTier?: ServiceTier
+
+  /** @deprecated */
   isNotSupportArrayContent?: boolean
+  /** @deprecated */
+  isNotSupportStreamOptions?: boolean
+  /** @deprecated */
+  isNotSupportDeveloperRole?: boolean
+  /** @deprecated */
+  isNotSupportServiceTier?: boolean
+
   isVertex?: boolean
   notes?: string
   extra_headers?: Record<string, string>
+}
+
+export const SystemProviderIds = {
+  silicon: 'silicon',
+  aihubmix: 'aihubmix',
+  ocoolai: 'ocoolai',
+  deepseek: 'deepseek',
+  ppio: 'ppio',
+  alayanew: 'alayanew',
+  qiniu: 'qiniu',
+  dmxapi: 'dmxapi',
+  burncloud: 'burncloud',
+  tokenflux: 'tokenflux',
+  '302ai': '302ai',
+  cephalon: 'cephalon',
+  lanyun: 'lanyun',
+  ph8: 'ph8',
+  openrouter: 'openrouter',
+  ollama: 'ollama',
+  'new-api': 'new-api',
+  lmstudio: 'lmstudio',
+  anthropic: 'anthropic',
+  openai: 'openai',
+  'azure-openai': 'azure-openai',
+  gemini: 'gemini',
+  vertexai: 'vertexai',
+  github: 'github',
+  copilot: 'copilot',
+  zhipu: 'zhipu',
+  yi: 'yi',
+  moonshot: 'moonshot',
+  baichuan: 'baichuan',
+  dashscope: 'dashscope',
+  stepfun: 'stepfun',
+  doubao: 'doubao',
+  infini: 'infini',
+  minimax: 'minimax',
+  groq: 'groq',
+  together: 'together',
+  fireworks: 'fireworks',
+  nvidia: 'nvidia',
+  grok: 'grok',
+  hyperbolic: 'hyperbolic',
+  mistral: 'mistral',
+  jina: 'jina',
+  perplexity: 'perplexity',
+  modelscope: 'modelscope',
+  xirang: 'xirang',
+  hunyuan: 'hunyuan',
+  'tencent-cloud-ti': 'tencent-cloud-ti',
+  'baidu-cloud': 'baidu-cloud',
+  gpustack: 'gpustack',
+  voyageai: 'voyageai',
+  'aws-bedrock': 'aws-bedrock',
+  poe: 'poe'
+} as const
+
+export type SystemProviderId = keyof typeof SystemProviderIds
+
+export const isSystemProviderId = (id: string): id is SystemProviderId => {
+  return Object.hasOwn(SystemProviderIds, id)
+}
+
+export type SystemProvider = Provider & {
+  id: SystemProviderId
+  isSystem: true
+  apiOptions?: never
+}
+
+/**
+ * 判断是否为系统内置的提供商。比直接使用`provider.isSystem`更好，因为该数据字段不会随着版本更新而变化。
+ * @param provider - Provider对象，包含提供商的信息
+ * @returns 是否为系统内置提供商
+ */
+export const isSystemProvider = (provider: Provider): provider is SystemProvider => {
+  return isSystemProviderId(provider.id) && !!provider.isSystem
 }
 
 export type ProviderType =
@@ -175,15 +324,25 @@ export type ProviderType =
   | 'azure-openai'
   | 'vertexai'
   | 'mistral'
+  | 'aws-bedrock'
 
-export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
+export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
 
-export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'jina-rerank'
+export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 
 export type ModelPricing = {
   input_per_million_tokens: number
   output_per_million_tokens: number
   currencySymbol?: string
+}
+
+export type ModelCapability = {
+  type: ModelType
+  /**
+   * 是否为用户手动选择，如果为true，则表示用户手动选择了该类型，否则表示用户手动禁止了该模型；如果为undefined，则表示使用默认值
+   * Is it manually selected by the user? If true, it means the user manually selected this type; otherwise, it means the user  * manually disabled the model.
+   */
+  isUserSelected?: boolean
 }
 
 export type Model = {
@@ -193,10 +352,15 @@ export type Model = {
   group: string
   owned_by?: string
   description?: string
+  capabilities?: ModelCapability[]
+  /**
+   * @deprecated
+   */
   type?: ModelType[]
   pricing?: ModelPricing
   endpoint_type?: EndpointType
   supported_endpoint_types?: EndpointType[]
+  supported_text_delta?: boolean
 }
 
 export type Suggestion = {
@@ -209,7 +373,7 @@ export type PaintingParams = {
   files: FileMetadata[]
 }
 
-export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi'
+export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
 
 export interface Painting extends PaintingParams {
   model?: string
@@ -295,6 +459,7 @@ export interface DmxapiPainting extends PaintingParams {
   style_type?: string
   autoCreate?: boolean
   generationMode?: generationModeType
+  priceModel?: string
 }
 
 export interface TokenFluxPainting extends PaintingParams {
@@ -318,6 +483,8 @@ export interface PaintingsState {
   upscale: Partial<ScalePainting> & PaintingParams[]
   DMXAPIPaintings: DmxapiPainting[]
   tokenFluxPaintings: TokenFluxPainting[]
+  openai_image_generate: Partial<GeneratePainting> & PaintingParams[]
+  openai_image_edit: Partial<EditPainting> & PaintingParams[]
 }
 
 export type MinAppType = {
@@ -338,18 +505,8 @@ export enum ThemeMode {
   system = 'system'
 }
 
+/** 有限的UI语言 */
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
-
-export type TranslateLanguageVarious =
-  | 'chinese'
-  | 'chinese-traditional'
-  | 'greek'
-  | 'english'
-  | 'spanish'
-  | 'french'
-  | 'japanese'
-  | 'portuguese'
-  | 'russian'
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -360,6 +517,7 @@ export type WebDavConfig = {
   webdavPath?: string
   fileName?: string
   skipBackupFile?: boolean
+  disableStream?: boolean
 }
 
 export type AppInfo = {
@@ -386,7 +544,7 @@ export interface Shortcut {
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
-export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory'
+export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory'
 
 export type KnowledgeItem = {
   id: string
@@ -422,46 +580,49 @@ export interface KnowledgeBase {
   rerankModel?: Model
   // topN?: number
   // preprocessing?: boolean
-  preprocessOrOcrProvider?: {
-    type: 'preprocess' | 'ocr'
-    provider: PreprocessProvider | OcrProvider
+  preprocessProvider?: {
+    type: 'preprocess'
+    provider: PreprocessProvider
   }
+}
+
+export type ApiClient = {
+  model: string
+  provider: string
+  apiKey: string
+  apiVersion?: string
+  baseURL: string
 }
 
 export type KnowledgeBaseParams = {
   id: string
-  model: string
-  provider: string
   dimensions?: number
-  apiKey: string
-  apiVersion?: string
-  baseURL: string
   chunkSize?: number
   chunkOverlap?: number
-  rerankApiKey?: string
-  rerankBaseURL?: string
-  rerankModel?: string
-  rerankModelProvider?: string
+  embedApiClient: ApiClient
+  rerankApiClient?: ApiClient
   documentCount?: number
   // preprocessing?: boolean
-  preprocessOrOcrProvider?: {
-    type: 'preprocess' | 'ocr'
-    provider: PreprocessProvider | OcrProvider
+  preprocessProvider?: {
+    type: 'preprocess'
+    provider: PreprocessProvider
   }
 }
 
-export interface PreprocessProvider {
-  id: string
-  name: string
-  apiKey?: string
-  apiHost?: string
-  model?: string
-  options?: any
-  quota?: number
+export const PreprocessProviderIds = {
+  doc2x: 'doc2x',
+  mistral: 'mistral',
+  mineru: 'mineru'
+} as const
+
+export type PreprocessProviderId = keyof typeof PreprocessProviderIds
+
+export const isPreprocessProviderId = (id: string): id is PreprocessProviderId => {
+  return Object.hasOwn(PreprocessProviderIds, id)
 }
 
-export interface OcrProvider {
-  id: string
+export interface PreprocessProvider {
+  id: PreprocessProviderId
   name: string
   apiKey?: string
   apiHost?: string
@@ -489,13 +650,31 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
+// 为了支持自定义语言，设置为string别名
+export type TranslateLanguageCode = string
+
+// langCode应当能够唯一确认一种语言
+export type TranslateLanguage = {
+  value: string
+  langCode: TranslateLanguageCode
+  label: () => string
+  emoji: string
+}
+
 export interface TranslateHistory {
   id: string
   sourceText: string
   targetText: string
-  sourceLanguage: string
-  targetLanguage: string
+  sourceLanguage: TranslateLanguageCode
+  targetLanguage: TranslateLanguageCode
   createdAt: string
+}
+
+export type CustomTranslateLanguage = {
+  id: string
+  langCode: TranslateLanguageCode
+  value: string
+  emoji: string
 }
 
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
@@ -505,10 +684,27 @@ export type ExternalToolResult = {
   toolUse?: MCPToolResponse[]
   webSearch?: WebSearchResponse
   knowledge?: KnowledgeReference[]
+  memories?: MemoryItem[]
+}
+
+export const WebSearchProviderIds = {
+  tavily: 'tavily',
+  searxng: 'searxng',
+  exa: 'exa',
+  bocha: 'bocha',
+  'local-google': 'local-google',
+  'local-bing': 'local-bing',
+  'local-baidu': 'local-baidu'
+} as const
+
+export type WebSearchProviderId = keyof typeof WebSearchProviderIds
+
+export const isWebSearchProviderId = (id: string): id is WebSearchProviderId => {
+  return Object.hasOwn(WebSearchProviderIds, id)
 }
 
 export type WebSearchProvider = {
-  id: string
+  id: WebSearchProviderId
   name: string
   apiKey?: string
   apiHost?: string
@@ -517,6 +713,10 @@ export type WebSearchProvider = {
   basicAuthUsername?: string
   basicAuthPassword?: string
   usingBrowser?: boolean
+  topicId?: string
+  parentSpanId?: string
+  modelName?: string
+  assistantMsgId?: string
 }
 
 export type WebSearchProviderResult = {
@@ -600,8 +800,10 @@ export interface MCPServer {
   registryUrl?: string
   args?: string[]
   env?: Record<string, string>
+  shouldConfig?: boolean
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
+  disabledAutoApproveTools?: string[] // Whether to auto-approve tools for this server
   configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
   searchKey?: string
@@ -609,7 +811,11 @@ export interface MCPServer {
   providerUrl?: string // URL of the MCP server in provider's website or documentation
   logoUrl?: string // URL of the MCP server's logo
   tags?: string[] // List of tags associated with this server
+  longRunning?: boolean // Whether the server is long running
   timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
+  dxtVersion?: string // Version of the DXT package
+  dxtPath?: string // Path where the DXT package was extracted
+  reference?: string // Reference link for the server, e.g., documentation or homepage
 }
 
 export interface MCPToolInputSchema {
@@ -620,6 +826,12 @@ export interface MCPToolInputSchema {
   properties: Record<string, object>
 }
 
+export const MCPToolOutputSchema = z.object({
+  type: z.literal('object'),
+  properties: z.record(z.string(), z.unknown()),
+  required: z.array(z.string())
+})
+
 export interface MCPTool {
   id: string
   serverId: string
@@ -627,6 +839,8 @@ export interface MCPTool {
   name: string
   description?: string
   inputSchema: MCPToolInputSchema
+  outputSchema?: z.infer<typeof MCPToolOutputSchema>
+  isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
 }
 
 export interface MCPPromptArguments {
@@ -663,11 +877,13 @@ export interface MCPConfig {
   isBunInstalled: boolean
 }
 
+export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done' | 'error'
+
 interface BaseToolResponse {
   id: string // unique id
   tool: MCPTool
   arguments: Record<string, unknown> | undefined
-  status: string // 'invoking' | 'done'
+  status: MCPToolResponseStatus
   response?: any
 }
 
@@ -747,6 +963,157 @@ export interface StoreSyncAction {
   }
 }
 
+export type OpenAIVerbosity = 'high' | 'medium' | 'low'
+
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
-export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
+
+export const OpenAIServiceTiers = {
+  auto: 'auto',
+  default: 'default',
+  flex: 'flex',
+  priority: 'priority'
+} as const
+
+export type OpenAIServiceTier = keyof typeof OpenAIServiceTiers
+
+export function isOpenAIServiceTier(tier: string): tier is OpenAIServiceTier {
+  return Object.hasOwn(OpenAIServiceTiers, tier)
+}
+
+export const GroqServiceTiers = {
+  auto: 'auto',
+  on_demand: 'on_demand',
+  flex: 'flex',
+  performance: 'performance'
+} as const
+
+// 从 GroqServiceTiers 对象中提取类型
+export type GroqServiceTier = keyof typeof GroqServiceTiers
+
+export function isGroqServiceTier(tier: string): tier is GroqServiceTier {
+  return Object.hasOwn(GroqServiceTiers, tier)
+}
+
+export type ServiceTier = OpenAIServiceTier | GroqServiceTier
+
+export function isServiceTier(tier: string): tier is ServiceTier {
+  return isGroqServiceTier(tier) || isOpenAIServiceTier(tier)
+}
+
+export type S3Config = {
+  endpoint: string
+  region: string
+  bucket: string
+  accessKeyId: string
+  secretAccessKey: string
+  root?: string
+  fileName?: string
+  skipBackupFile: boolean
+  autoSync: boolean
+  syncInterval: number
+  maxBackups: number
+}
+
 export type { Message } from './newMessage'
+
+export interface ApiServerConfig {
+  enabled: boolean
+  host: string
+  port: number
+  apiKey: string
+}
+
+// Memory Service Types
+// ========================================================================
+export interface MemoryConfig {
+  /**
+   * @deprecated use embedderApiClient instead
+   */
+  embedderModel?: Model
+  embedderDimensions?: number
+  /**
+   * @deprecated use llmApiClient instead
+   */
+  llmModel?: Model
+  embedderApiClient?: ApiClient
+  llmApiClient?: ApiClient
+  customFactExtractionPrompt?: string
+  customUpdateMemoryPrompt?: string
+  /** Indicates whether embedding dimensions are automatically detected */
+  isAutoDimensions?: boolean
+}
+
+export interface MemoryItem {
+  id: string
+  memory: string
+  hash?: string
+  createdAt?: string
+  updatedAt?: string
+  score?: number
+  metadata?: Record<string, any>
+}
+
+export interface MemorySearchResult {
+  results: MemoryItem[]
+  relations?: any[]
+}
+
+export interface MemoryEntity {
+  userId?: string
+  agentId?: string
+  runId?: string
+}
+
+export interface MemorySearchFilters {
+  userId?: string
+  agentId?: string
+  runId?: string
+  [key: string]: any
+}
+
+export interface AddMemoryOptions extends MemoryEntity {
+  metadata?: Record<string, any>
+  filters?: MemorySearchFilters
+  infer?: boolean
+}
+
+export interface MemorySearchOptions extends MemoryEntity {
+  limit?: number
+  filters?: MemorySearchFilters
+}
+
+export interface MemoryHistoryItem {
+  id: number
+  memoryId: string
+  previousValue?: string
+  newValue: string
+  action: 'ADD' | 'UPDATE' | 'DELETE'
+  createdAt: string
+  updatedAt: string
+  isDeleted: boolean
+}
+
+export interface MemoryListOptions extends MemoryEntity {
+  limit?: number
+  offset?: number
+}
+
+export interface MemoryDeleteAllOptions extends MemoryEntity {}
+// ========================================================================
+
+/**
+ * 表示一个对象类型，该对象至少包含类型T中指定的所有键，这些键的值类型为U
+ * 同时也允许包含其他任意string类型的键，这些键的值类型也必须是U
+ * @template T - 必需包含的键的字面量字符串联合类型
+ * @template U - 所有键对应值的类型
+ * @example
+ * type Example = AtLeast<'a' | 'b', number>;
+ * // 结果类型允许:
+ * const obj1: Example = { a: 1, b: 2 };           // 只包含必需的键
+ * const obj2: Example = { a: 1, b: 2, c: 3 };     // 包含额外的键
+ */
+export type AtLeast<T extends string, U> = {
+  [K in T]: U
+} & {
+  [key: string]: U
+}

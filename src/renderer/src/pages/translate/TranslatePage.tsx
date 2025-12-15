@@ -1,356 +1,149 @@
-import { CheckOutlined, DeleteOutlined, HistoryOutlined, RedoOutlined, SendOutlined } from '@ant-design/icons'
+import { SendOutlined, SwapOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { HStack } from '@renderer/components/Layout'
-import { isEmbeddingModel } from '@renderer/config/models'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { translateLanguageOptions } from '@renderer/config/translate'
+import { CopyIcon } from '@renderer/components/Icons'
+import LanguageSelect from '@renderer/components/LanguageSelect'
+import ModelSelectButton from '@renderer/components/ModelSelectButton'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useProviders } from '@renderer/hooks/useProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
-import { useAppDispatch } from '@renderer/store'
-import { setTranslateModelPrompt } from '@renderer/store/settings'
-import type { Model, TranslateHistory } from '@renderer/types'
-import { runAsyncFunction, uuid } from '@renderer/utils'
+import useTranslate from '@renderer/hooks/useTranslate'
+import { estimateTextTokens } from '@renderer/services/TokenService'
+import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
+import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
+import type { Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
+import { runAsyncFunction } from '@renderer/utils'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
   detectLanguage,
   determineTargetLanguage
 } from '@renderer/utils/translate'
-import { Button, Dropdown, Empty, Flex, Modal, Popconfirm, Select, Space, Switch, Tooltip } from 'antd'
+import { Button, Flex, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
-import dayjs from 'dayjs'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { find, isEmpty, sortBy } from 'lodash'
-import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { isEmpty, throttle } from 'lodash'
+import { Check, FolderClock, Settings2 } from 'lucide-react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import TranslateHistoryList from './TranslateHistory'
+import TranslateSettings from './TranslateSettings'
+
+const logger = loggerService.withContext('TranslatePage')
+
+// cache variables
 let _text = ''
-let _result = ''
-let _targetLanguage = 'english'
-
-const TranslateSettings: FC<{
-  visible: boolean
-  onClose: () => void
-  isScrollSyncEnabled: boolean
-  setIsScrollSyncEnabled: (value: boolean) => void
-  isBidirectional: boolean
-  setIsBidirectional: (value: boolean) => void
-  enableMarkdown: boolean
-  setEnableMarkdown: (value: boolean) => void
-  bidirectionalPair: [string, string]
-  setBidirectionalPair: (value: [string, string]) => void
-  translateModel: Model | undefined
-  onModelChange: (model: Model) => void
-  allModels: Model[]
-  selectOptions: any[]
-}> = ({
-  visible,
-  onClose,
-  isScrollSyncEnabled,
-  setIsScrollSyncEnabled,
-  isBidirectional,
-  setIsBidirectional,
-  enableMarkdown,
-  setEnableMarkdown,
-  bidirectionalPair,
-  setBidirectionalPair,
-  translateModel,
-  onModelChange,
-  allModels,
-  selectOptions
-}) => {
-  const { t } = useTranslation()
-  const { translateModelPrompt } = useSettings()
-  const dispatch = useAppDispatch()
-  const [localPair, setLocalPair] = useState<[string, string]>(bidirectionalPair)
-  const [showPrompt, setShowPrompt] = useState(false)
-  const [localPrompt, setLocalPrompt] = useState(translateModelPrompt)
-
-  const defaultTranslateModel = useMemo(
-    () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
-    [translateModel]
-  )
-
-  useEffect(() => {
-    setLocalPair(bidirectionalPair)
-    setLocalPrompt(translateModelPrompt)
-  }, [bidirectionalPair, translateModelPrompt, visible])
-
-  const handleSave = () => {
-    if (localPair[0] === localPair[1]) {
-      window.message.warning({
-        content: t('translate.language.same'),
-        key: 'translate-message'
-      })
-      return
-    }
-    setBidirectionalPair(localPair)
-    db.settings.put({ id: 'translate:bidirectional:pair', value: localPair })
-    db.settings.put({ id: 'translate:scroll:sync', value: isScrollSyncEnabled })
-    db.settings.put({ id: 'translate:markdown:enabled', value: enableMarkdown })
-    db.settings.put({ id: 'translate:model:prompt', value: localPrompt })
-    dispatch(setTranslateModelPrompt(localPrompt))
-    window.message.success({
-      content: t('message.save.success.title'),
-      key: 'translate-settings-save'
-    })
-    onClose()
-  }
-
-  return (
-    <Modal
-      title={<div style={{ fontSize: 16 }}>{t('translate.settings.title')}</div>}
-      open={visible}
-      onCancel={onClose}
-      centered={true}
-      footer={[
-        <Button key="cancel" onClick={onClose}>
-          {t('common.cancel')}
-        </Button>,
-        <Button key="save" type="primary" onClick={handleSave}>
-          {t('common.save')}
-        </Button>
-      ]}
-      width={420}>
-      <Flex vertical gap={16} style={{ marginTop: 16 }}>
-        <div>
-          <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
-            {t('translate.settings.model')}
-            <Tooltip title={t('translate.settings.model_desc')}>
-              <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center' }}>
-                <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
-              </span>
-            </Tooltip>
-          </div>
-          <HStack alignItems="center" gap={5}>
-            <Select
-              style={{ width: '100%' }}
-              placeholder={t('translate.settings.model_placeholder')}
-              value={defaultTranslateModel}
-              onChange={(value) => {
-                const selectedModel = find(allModels, JSON.parse(value)) as Model
-                if (selectedModel) {
-                  onModelChange(selectedModel)
-                }
-              }}
-              options={selectOptions}
-              showSearch
-            />
-          </HStack>
-          {!translateModel && (
-            <div style={{ marginTop: 8, color: 'var(--color-warning)' }}>
-              <HStack alignItems="center" gap={5}>
-                <TriangleAlert size={14} />
-                <span style={{ fontSize: 12 }}>{t('translate.settings.no_model_warning')}</span>
-              </HStack>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <Flex align="center" justify="space-between">
-            <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
-            <Switch checked={enableMarkdown} onChange={setEnableMarkdown} />
-          </Flex>
-        </div>
-
-        <div>
-          <Flex align="center" justify="space-between">
-            <div style={{ fontWeight: 500 }}>{t('translate.settings.scroll_sync')}</div>
-            <Switch checked={isScrollSyncEnabled} onChange={setIsScrollSyncEnabled} />
-          </Flex>
-        </div>
-
-        <div>
-          <Flex align="center" justify="space-between">
-            <div style={{ fontWeight: 500 }}>
-              <HStack alignItems="center" gap={5}>
-                {t('translate.settings.bidirectional')}
-                <Tooltip title={t('translate.settings.bidirectional_tip')}>
-                  <span style={{ display: 'flex', alignItems: 'center' }}>
-                    <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
-                  </span>
-                </Tooltip>
-              </HStack>
-            </div>
-            <Switch checked={isBidirectional} onChange={setIsBidirectional} />
-          </Flex>
-          {isBidirectional && (
-            <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
-              <Flex align="center" justify="space-between" gap={10}>
-                <Select
-                  style={{ flex: 1 }}
-                  value={localPair[0]}
-                  onChange={(value) => setLocalPair([value, localPair[1]])}
-                  options={translateLanguageOptions().map((lang) => ({
-                    value: lang.value,
-                    label: (
-                      <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                          {lang.emoji}
-                        </span>
-                        <Space.Compact block>{lang.label}</Space.Compact>
-                      </Space.Compact>
-                    )
-                  }))}
-                />
-                <span>⇆</span>
-                <Select
-                  style={{ flex: 1 }}
-                  value={localPair[1]}
-                  onChange={(value) => setLocalPair([localPair[0], value])}
-                  options={translateLanguageOptions().map((lang) => ({
-                    value: lang.value,
-                    label: (
-                      <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                          {lang.emoji}
-                        </span>
-                        <div style={{ textAlign: 'left', flex: 1 }}>{lang.label}</div>
-                      </Space.Compact>
-                    )
-                  }))}
-                />
-              </Flex>
-            </Space>
-          )}
-        </div>
-
-        <div>
-          <Flex align="center" justify="space-between">
-            <div
-              style={{
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                cursor: 'pointer'
-              }}
-              onClick={() => setShowPrompt(!showPrompt)}>
-              {t('settings.models.translate_model_prompt_title')}
-              <ChevronDown
-                size={16}
-                style={{
-                  transform: showPrompt ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.3s',
-                  marginLeft: 5
-                }}
-              />
-            </div>
-            {localPrompt !== TRANSLATE_PROMPT && (
-              <Tooltip title={t('common.reset')}>
-                <Button
-                  icon={<RedoOutlined />}
-                  size="small"
-                  type="text"
-                  onClick={() => setLocalPrompt(TRANSLATE_PROMPT)}
-                />
-              </Tooltip>
-            )}
-          </Flex>
-        </div>
-
-        <div style={{ display: showPrompt ? 'block' : 'none' }}>
-          <Textarea
-            rows={8}
-            value={localPrompt}
-            onChange={(e) => setLocalPrompt(e.target.value)}
-            placeholder={t('settings.models.translate_model_prompt_message')}
-            style={{ borderRadius: '8px' }}
-          />
-        </div>
-      </Flex>
-    </Modal>
-  )
-}
+let _sourceLanguage: TranslateLanguage | 'auto' = 'auto'
+let _targetLanguage = LanguagesEnum.enUS
 
 const TranslatePage: FC = () => {
+  // hooks
   const { t } = useTranslation()
-  const { shikiMarkdownIt } = useCodeStyle()
-  const [targetLanguage, setTargetLanguage] = useState(_targetLanguage)
-  const [text, setText] = useState(_text)
-  const [result, setResult] = useState(_result)
-  const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const { translateModel, setTranslateModel } = useDefaultModel()
-  const [loading, setLoading] = useState(false)
+  const { prompt, getLanguageByLangcode } = useTranslate()
+  const { shikiMarkdownIt } = useCodeStyle()
+
+  // states
+  const [text, setText] = useState(_text)
+  const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const [copied, setCopied] = useState(false)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
   const [isBidirectional, setIsBidirectional] = useState(false)
   const [enableMarkdown, setEnableMarkdown] = useState(false)
-  const [bidirectionalPair, setBidirectionalPair] = useState<[string, string]>(['english', 'chinese'])
+  const [bidirectionalPair, setBidirectionalPair] = useState<[TranslateLanguage, TranslateLanguage]>([
+    LanguagesEnum.enUS,
+    LanguagesEnum.zhCN
+  ])
   const [settingsVisible, setSettingsVisible] = useState(false)
-  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
-  const [sourceLanguage, setSourceLanguage] = useState<string>('auto')
+  const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
+  const [sourceLanguage, setSourceLanguage] = useState<TranslateLanguage | 'auto'>(_sourceLanguage)
+  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
+
+  // redux states
+  const translatedContent = useAppSelector((state) => state.translate.translatedContent)
+  const translating = useAppSelector((state) => state.runtime.translating)
+
+  // ref
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
-  const { providers } = useProviders()
-  const allModels = useMemo(() => providers.map((p) => p.models).flat(), [providers])
-
-  const translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
+  const dispatch = useAppDispatch()
 
   _text = text
-  _result = result
+  _sourceLanguage = sourceLanguage
   _targetLanguage = targetLanguage
 
-  const selectOptions = useMemo(
-    () =>
-      providers
-        .filter((p) => p.models.length > 0)
-        .map((p) => ({
-          label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-          title: p.name,
-          options: sortBy(p.models, 'name')
-            .filter((m) => !isEmbeddingModel(m))
-            .map((m) => ({
-              label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
-              value: getModelUniqId(m)
-            }))
-        })),
-    [providers, t]
-  )
-
+  // 控制翻译模型切换
   const handleModelChange = (model: Model) => {
     setTranslateModel(model)
     db.settings.put({ id: 'translate:model', value: model.id })
   }
 
-  const saveTranslateHistory = async (
-    sourceText: string,
-    targetText: string,
-    sourceLanguage: string,
-    targetLanguage: string
-  ) => {
-    const history: TranslateHistory = {
-      id: uuid(),
-      sourceText,
-      targetText,
-      sourceLanguage,
-      targetLanguage,
-      createdAt: new Date().toISOString()
+  // 控制翻译状态
+  const setTranslatedContent = useCallback(
+    (content: string) => {
+      dispatch(setTranslatedContentAction(content))
+    },
+    [dispatch]
+  )
+
+  const setTranslating = (translating: boolean) => {
+    dispatch(setTranslatingAction(translating))
+  }
+
+  /**
+   * 翻译文本并保存历史记录，包含完整的异常处理，不会抛出异常
+   * @param text - 需要翻译的文本
+   * @param actualSourceLanguage - 源语言
+   * @param actualTargetLanguage - 目标语言
+   */
+  const translate = async (
+    text: string,
+    actualSourceLanguage: TranslateLanguage,
+    actualTargetLanguage: TranslateLanguage
+  ): Promise<void> => {
+    try {
+      if (translating) {
+        return
+      }
+
+      setTranslating(true)
+
+      let translated: string
+      try {
+        translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100))
+      } catch (e) {
+        logger.error('Failed to translate text', e as Error)
+        window.message.error(t('translate.error.failed' + ': ' + (e as Error).message))
+        setTranslating(false)
+        return
+      }
+
+      window.message.success(t('translate.complete'))
+
+      try {
+        await saveTranslateHistory(text, translated, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
+      } catch (e) {
+        logger.error('Failed to save translate history', e as Error)
+        window.message.error(t('translate.history.error.save') + ': ' + (e as Error).message)
+      }
+    } catch (e) {
+      logger.error('Failed to translate', e as Error)
+      window.message.error(t('translate.error.unknown') + ': ' + (e as Error).message)
+    } finally {
+      setTranslating(false)
     }
-    await db.translate_history.add(history)
   }
 
-  const deleteHistory = async (id: string) => {
-    db.translate_history.delete(id)
-  }
-
-  const clearHistory = async () => {
-    db.translate_history.clear()
-  }
-
+  // 控制翻译按钮，翻译前进行校验
   const onTranslate = async () => {
     if (!text.trim()) return
     if (!translateModel) {
@@ -361,10 +154,9 @@ const TranslatePage: FC = () => {
       return
     }
 
-    setLoading(true)
     try {
       // 确定源语言：如果用户选择了特定语言，使用用户选择的；如果选择'auto'，则自动检测
-      let actualSourceLanguage: string
+      let actualSourceLanguage: TranslateLanguage
       if (sourceLanguage === 'auto') {
         actualSourceLanguage = await detectLanguage(text)
         setDetectedLanguage(actualSourceLanguage)
@@ -385,65 +177,92 @@ const TranslatePage: FC = () => {
           content: errorMessage,
           key: 'translate-message'
         })
-        setLoading(false)
         return
       }
 
-      const actualTargetLanguage = result.language as string
+      const actualTargetLanguage = result.language as TranslateLanguage
       if (isBidirectional) {
         setTargetLanguage(actualTargetLanguage)
       }
 
-      const assistant = getDefaultTranslateAssistant(actualTargetLanguage, text)
-      let translatedText = ''
-      await fetchTranslate({
-        content: text,
-        assistant,
-        onResponse: (text) => {
-          translatedText = text.replace(/^\s*\n+/g, '')
-          setResult(translatedText)
-        }
-      })
-
-      await saveTranslateHistory(text, translatedText, actualSourceLanguage, actualTargetLanguage)
-      setLoading(false)
+      await translate(text, actualSourceLanguage, actualTargetLanguage)
     } catch (error) {
-      console.error('Translation error:', error)
+      logger.error('Translation error:', error as Error)
       window.message.error({
         content: String(error),
         key: 'translate-message'
       })
-      setLoading(false)
       return
     }
   }
 
+  // 控制双向翻译切换
   const toggleBidirectional = (value: boolean) => {
     setIsBidirectional(value)
     db.settings.put({ id: 'translate:bidirectional:enabled', value })
   }
 
+  // 控制复制按钮
   const onCopy = () => {
-    navigator.clipboard.writeText(result)
+    navigator.clipboard.writeText(translatedContent)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const onHistoryItemClick = (history: TranslateHistory) => {
+  // 控制历史记录点击
+  const onHistoryItemClick = (
+    history: TranslateHistory & { _sourceLanguage: TranslateLanguage; _targetLanguage: TranslateLanguage }
+  ) => {
     setText(history.sourceText)
-    setResult(history.targetText)
-    setTargetLanguage(history.targetLanguage)
+    setTranslatedContent(history.targetText)
+    if (history._sourceLanguage === UNKNOWN) {
+      setSourceLanguage('auto')
+    } else {
+      setSourceLanguage(history._sourceLanguage)
+    }
+    setTargetLanguage(history._targetLanguage)
+    setHistoryDrawerVisible(false)
   }
 
+  // 控制语言切换按钮
+  /** 与自动检测相关的交换条件检查 */
+  const couldExchangeAuto = useMemo(
+    () =>
+      (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage.langCode !== UNKNOWN.langCode) ||
+      sourceLanguage !== 'auto',
+    [detectedLanguage, sourceLanguage]
+  )
+
+  const couldExchange = useMemo(() => couldExchangeAuto && !isBidirectional, [couldExchangeAuto, isBidirectional])
+
+  const handleExchange = useCallback(() => {
+    if (sourceLanguage === 'auto' && !couldExchangeAuto) {
+      return
+    }
+    const source = sourceLanguage === 'auto' ? detectedLanguage : sourceLanguage
+    if (!source) {
+      window.message.error(t('translate.error.invalid_source'))
+      return
+    }
+    if (source.langCode === UNKNOWN.langCode) {
+      window.message.error(t('translate.error.detected_unknown'))
+      return
+    }
+    const target = targetLanguage
+    setSourceLanguage(target)
+    setTargetLanguage(source)
+  }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
+
   useEffect(() => {
-    isEmpty(text) && setResult('')
-  }, [text])
+    isEmpty(text) && setTranslatedContent('')
+  }, [setTranslatedContent, text])
 
   // Render markdown content when result or enableMarkdown changes
+  // 控制Markdown渲染
   useEffect(() => {
-    if (enableMarkdown && result) {
+    if (enableMarkdown && translatedContent) {
       let isMounted = true
-      shikiMarkdownIt(result).then((rendered) => {
+      shikiMarkdownIt(translatedContent).then((rendered) => {
         if (isMounted) {
           setRenderedMarkdown(rendered)
         }
@@ -455,25 +274,38 @@ const TranslatePage: FC = () => {
       setRenderedMarkdown('')
       return undefined
     }
-  }, [result, enableMarkdown, shikiMarkdownIt])
+  }, [enableMarkdown, shikiMarkdownIt, translatedContent])
 
+  // 控制设置加载
   useEffect(() => {
     runAsyncFunction(async () => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
-      targetLang && setTargetLanguage(targetLang.value)
+      targetLang && setTargetLanguage(getLanguageByLangcode(targetLang.value))
 
       const sourceLang = await db.settings.get({ id: 'translate:source:language' })
-      sourceLang && setSourceLanguage(sourceLang.value)
+      sourceLang &&
+        setSourceLanguage(sourceLang.value === 'auto' ? sourceLang.value : getLanguageByLangcode(sourceLang.value))
 
       const bidirectionalPairSetting = await db.settings.get({ id: 'translate:bidirectional:pair' })
       if (bidirectionalPairSetting) {
         const langPair = bidirectionalPairSetting.value
+        let source: undefined | TranslateLanguage
+        let target: undefined | TranslateLanguage
+
         if (Array.isArray(langPair) && langPair.length === 2 && langPair[0] !== langPair[1]) {
-          setBidirectionalPair(langPair as [string, string])
+          source = getLanguageByLangcode(langPair[0])
+          target = getLanguageByLangcode(langPair[1])
+        }
+
+        if (source && target) {
+          setBidirectionalPair([source, target])
         } else {
-          const defaultPair: [string, string] = ['english', 'chinese']
+          const defaultPair: [TranslateLanguage, TranslateLanguage] = [LanguagesEnum.enUS, LanguagesEnum.zhCN]
           setBidirectionalPair(defaultPair)
-          db.settings.put({ id: 'translate:bidirectional:pair', value: defaultPair })
+          db.settings.put({
+            id: 'translate:bidirectional:pair',
+            value: [defaultPair[0].langCode, defaultPair[1].langCode]
+          })
         }
       }
 
@@ -486,215 +318,177 @@ const TranslatePage: FC = () => {
       const markdownSetting = await db.settings.get({ id: 'translate:markdown:enabled' })
       setEnableMarkdown(markdownSetting ? markdownSetting.value : false)
     })
-  }, [])
+  }, [getLanguageByLangcode])
 
+  // 控制Enter触发翻译
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = e.keyCode == 13
-    if (isEnterPressed && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    const isEnterPressed = e.key === 'Enter'
+    if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault()
       onTranslate()
     }
   }
 
+  // 控制双向滚动
   const handleInputScroll = createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled)
   const handleOutputScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled)
 
-  // 获取当前语言状态显示
+  // 获取目标语言显示
   const getLanguageDisplay = () => {
-    if (isBidirectional) {
-      return (
-        <Flex align="center" style={{ width: 160 }}>
-          <BidirectionalLanguageDisplay>
-            {`${t(`languages.${bidirectionalPair[0]}`)} ⇆ ${t(`languages.${bidirectionalPair[1]}`)}`}
-          </BidirectionalLanguageDisplay>
-        </Flex>
-      )
+    try {
+      if (isBidirectional) {
+        return (
+          <Flex align="center" style={{ minWidth: 160 }}>
+            <BidirectionalLanguageDisplay>
+              {`${bidirectionalPair[0].label()} ⇆ ${bidirectionalPair[1].label()}`}
+            </BidirectionalLanguageDisplay>
+          </Flex>
+        )
+      }
+    } catch (error) {
+      logger.error('Error getting language display:', error as Error)
+      setBidirectionalPair([LanguagesEnum.enUS, LanguagesEnum.zhCN])
     }
 
     return (
-      <Select
-        style={{ width: 160 }}
-        value={targetLanguage}
+      <LanguageSelect
+        style={{ width: 200 }}
+        value={targetLanguage.langCode}
         onChange={(value) => {
-          setTargetLanguage(value)
+          setTargetLanguage(getLanguageByLangcode(value))
           db.settings.put({ id: 'translate:target:language', value })
         }}
-        options={translateLanguageOptions().map((lang) => ({
-          value: lang.value,
-          label: (
-            <Space.Compact direction="horizontal" block>
-              <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                {lang.emoji}
-              </span>
-              <Space.Compact block>{lang.label}</Space.Compact>
-            </Space.Compact>
-          )
-        }))}
       />
     )
   }
 
+  // 控制模型选择器
+  const modelPredicate = useCallback(
+    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
+    []
+  )
+
+  // 控制翻译按钮是否可用
+  const couldTranslate = useMemo(() => {
+    return !(
+      !text.trim() ||
+      (sourceLanguage !== 'auto' && sourceLanguage.langCode === UNKNOWN.langCode) ||
+      targetLanguage.langCode === UNKNOWN.langCode ||
+      (isBidirectional &&
+        (bidirectionalPair[0].langCode === UNKNOWN.langCode || bidirectionalPair[1].langCode === UNKNOWN.langCode))
+    )
+  }, [bidirectionalPair, isBidirectional, sourceLanguage, targetLanguage.langCode, text])
+
+  // 控制token估计
+  const tokenCount = useMemo(() => estimateTextTokens(text + prompt), [prompt, text])
+
   return (
     <Container id="translate-page">
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>
-          {t('translate.title')}
-          <Button
-            className="nodrag"
-            color="default"
-            variant={historyDrawerVisible ? 'filled' : 'text'}
-            type="text"
-            icon={<HistoryOutlined />}
-            onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
-          />
-        </NavbarCenter>
+        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
-        <HistoryContainner $historyDrawerVisible={historyDrawerVisible}>
-          <OperationBar>
-            <span style={{ fontSize: 16 }}>{t('translate.history.title')}</span>
-            {!isEmpty(translateHistory) && (
-              <Popconfirm
-                title={t('translate.history.clear')}
-                description={t('translate.history.clear_description')}
-                onConfirm={clearHistory}>
-                <Button type="text" size="small" danger icon={<DeleteOutlined />}>
-                  {t('translate.history.clear')}
-                </Button>
-              </Popconfirm>
-            )}
-          </OperationBar>
-          {translateHistory && translateHistory.length ? (
-            <HistoryList>
-              {translateHistory.map((item) => (
-                <Dropdown
-                  key={item.id}
-                  trigger={['contextMenu']}
-                  menu={{
-                    items: [
-                      {
-                        key: 'delete',
-                        label: t('translate.history.delete'),
-                        icon: <DeleteOutlined />,
-                        danger: true,
-                        onClick: () => deleteHistory(item.id)
-                      }
-                    ]
-                  }}>
-                  <HistoryListItem onClick={() => onHistoryItemClick(item)}>
-                    <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
-                      <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
-                      <HistoryListItemTitle>{item.targetText}</HistoryListItemTitle>
-                      <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
-                    </Flex>
-                  </HistoryListItem>
-                </Dropdown>
-              ))}
-            </HistoryList>
-          ) : (
-            <Flex justify="center" align="center" style={{ flex: 1 }}>
-              <Empty description={t('translate.history.empty')} />
-            </Flex>
-          )}
-        </HistoryContainner>
-
-        <InputContainer>
-          <OperationBar>
-            <Flex align="center" gap={20}>
-              <Select
-                showSearch
-                value={sourceLanguage}
-                style={{ width: 180 }}
-                optionFilterProp="label"
-                onChange={(value) => {
-                  setSourceLanguage(value)
-                  db.settings.put({ id: 'translate:source:language', value })
-                }}
-                options={[
-                  {
-                    value: 'auto',
-                    label: detectedLanguage
-                      ? `${t('translate.detected.language')} (${t(`languages.${detectedLanguage.toLowerCase()}`)})`
-                      : t('translate.detected.language')
-                  },
-                  ...translateLanguageOptions().map((lang) => ({
-                    value: lang.value,
-                    label: (
-                      <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                          {lang.emoji}
-                        </span>
-                        <Space.Compact block>{lang.label}</Space.Compact>
-                      </Space.Compact>
-                    )
-                  }))
-                ]}
-              />
+        <TranslateHistoryList
+          onHistoryItemClick={onHistoryItemClick}
+          isOpen={historyDrawerVisible}
+          onClose={() => setHistoryDrawerVisible(false)}
+        />
+        <OperationBar>
+          <InnerOperationBar style={{ justifyContent: 'flex-start' }}>
+            <Button
+              className="nodrag"
+              color="default"
+              variant={historyDrawerVisible ? 'filled' : 'text'}
+              type="text"
+              icon={<FolderClock size={18} />}
+              onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
+            />
+            <LanguageSelect
+              showSearch
+              style={{ width: 200 }}
+              value={sourceLanguage !== 'auto' ? sourceLanguage.langCode : 'auto'}
+              optionFilterProp="label"
+              onChange={(value) => {
+                if (value !== 'auto') setSourceLanguage(getLanguageByLangcode(value))
+                else setSourceLanguage('auto')
+                db.settings.put({ id: 'translate:source:language', value })
+              }}
+              extraOptionsBefore={[
+                {
+                  value: 'auto',
+                  label: detectedLanguage
+                    ? `${t('translate.detected.language')} (${detectedLanguage.label()})`
+                    : t('translate.detected.language')
+                }
+              ]}
+            />
+            <Tooltip title={t('translate.exchange.label')} placement="bottom">
               <Button
                 type="text"
-                icon={<Settings2 size={18} />}
-                onClick={() => setSettingsVisible(true)}
-                style={{ color: 'var(--color-text-2)', display: 'flex' }}
+                icon={<SwapOutlined />}
+                style={{ margin: '0 -2px' }}
+                onClick={handleExchange}
+                disabled={!couldExchange}
               />
-            </Flex>
-
-            <Tooltip
-              mouseEnterDelay={0.5}
-              styles={{ body: { fontSize: '12px' } }}
-              title={
-                <div style={{ textAlign: 'center' }}>
-                  Enter: {t('translate.button.translate')}
-                  <br />
-                  Shift + Enter: {t('translate.tooltip.newline')}
-                </div>
-              }>
-              <TranslateButton
-                type="primary"
-                loading={loading}
-                onClick={onTranslate}
-                disabled={!text.trim()}
-                icon={<SendOutlined />}>
-                {t('translate.button.translate')}
-              </TranslateButton>
             </Tooltip>
-          </OperationBar>
-
-          <Textarea
-            ref={textAreaRef}
-            variant="borderless"
-            placeholder={t('translate.input.placeholder')}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onKeyDown}
-            onScroll={handleInputScroll}
-            disabled={loading}
-            spellCheck={false}
-            allowClear
-          />
-        </InputContainer>
-
-        <OutputContainer>
-          <OperationBar>
-            <HStack alignItems="center" gap={5}>
-              {getLanguageDisplay()}
-            </HStack>
-            <CopyButton
-              onClick={onCopy}
-              disabled={!result}
-              icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
+            {getLanguageDisplay()}
+            <TranslateButton translating={translating} onTranslate={onTranslate} couldTranslate={couldTranslate} />
+          </InnerOperationBar>
+          <InnerOperationBar style={{ justifyContent: 'flex-end' }}>
+            <ModelSelectButton
+              model={translateModel}
+              onSelectModel={handleModelChange}
+              modelFilter={modelPredicate}
+              tooltipProps={{ placement: 'bottom' }}
             />
-          </OperationBar>
+            <Button type="text" icon={<Settings2 size={18} />} onClick={() => setSettingsVisible(true)} />
+          </InnerOperationBar>
+        </OperationBar>
+        <AreaContainer>
+          <InputContainer>
+            <Textarea
+              ref={textAreaRef}
+              variant="borderless"
+              placeholder={t('translate.input.placeholder')}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={onKeyDown}
+              onScroll={handleInputScroll}
+              disabled={translating}
+              spellCheck={false}
+              allowClear
+            />
+            <Footer>
+              <Popover content={t('chat.input.estimated_tokens.tip')}>
+                <Typography.Text style={{ color: 'var(--color-text-3)', paddingRight: 8 }}>
+                  {tokenCount}
+                </Typography.Text>
+              </Popover>
+            </Footer>
+          </InputContainer>
 
-          <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
-            {!result ? (
-              t('translate.output.placeholder')
-            ) : enableMarkdown ? (
-              <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
-            ) : (
-              <div className="plain">{result}</div>
-            )}
-          </OutputText>
-        </OutputContainer>
+          <OutputContainer>
+            <CopyButton
+              type="text"
+              size="small"
+              className="copy-button"
+              onClick={onCopy}
+              disabled={!translatedContent}
+              icon={copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
+            />
+            <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
+              {!translatedContent ? (
+                <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
+                  {t('translate.output.placeholder')}
+                </div>
+              ) : enableMarkdown ? (
+                <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
+              ) : (
+                <div className="plain">{translatedContent}</div>
+              )}
+            </OutputText>
+          </OutputContainer>
+        </AreaContainer>
       </ContentContainer>
 
       <TranslateSettings
@@ -709,9 +503,6 @@ const TranslatePage: FC = () => {
         bidirectionalPair={bidirectionalPair}
         setBidirectionalPair={setBidirectionalPair}
         translateModel={translateModel}
-        onModelChange={handleModelChange}
-        allModels={allModels}
-        selectOptions={selectOptions}
       />
     </Container>
   )
@@ -723,11 +514,22 @@ const Container = styled.div`
 
 const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   height: calc(100vh - var(--navbar-height));
-  display: grid;
-  grid-template-columns: auto 1fr 1fr;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   flex: 1;
-  padding: 20px 15px;
+  padding: 12px;
   position: relative;
+  [navbar-position='left'] & {
+    padding: 12px 16px;
+  }
+`
+
+const AreaContainer = styled.div`
+  display: flex;
+  flex: 1;
+  gap: 8px;
 `
 
 const InputContainer = styled.div`
@@ -735,26 +537,16 @@ const InputContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
+  padding: 10px 5px;
   border: 1px solid var(--color-border-soft);
   border-radius: 10px;
-  padding-bottom: 5px;
-  padding-right: 2px;
-  margin-right: 15px;
-`
-
-const OperationBar = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 10px 8px 10px 10px;
+  height: calc(100vh - var(--navbar-height) - 70px);
+  overflow: hidden;
 `
 
 const Textarea = styled(TextArea)`
   display: flex;
   flex: 1;
-  font-size: 16px;
   border-radius: 0;
   .ant-input {
     resize: none;
@@ -765,15 +557,41 @@ const Textarea = styled(TextArea)`
   }
 `
 
+const Footer = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+`
+
 const OutputContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   min-height: 0;
   position: relative;
-  display: flex;
-  flex-direction: column;
   background-color: var(--color-background-soft);
   border-radius: 10px;
-  padding-bottom: 5px;
-  padding-right: 2px;
+  padding: 10px 5px;
+  height: calc(100vh - var(--navbar-height) - 70px);
+
+  &:hover .copy-button {
+    opacity: 1;
+    visibility: visible;
+  }
+`
+
+const CopyButton = styled(Button)`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.2s ease-in-out,
+    visibility 0.2s ease-in-out;
 `
 
 const OutputText = styled.div`
@@ -796,9 +614,39 @@ const OutputText = styled.div`
   }
 `
 
-const TranslateButton = styled(Button)``
-
-const CopyButton = styled(Button)``
+const TranslateButton = ({
+  translating,
+  onTranslate,
+  couldTranslate
+}: {
+  translating: boolean
+  onTranslate: () => void
+  couldTranslate: boolean
+}) => {
+  const { t } = useTranslation()
+  return (
+    <Tooltip
+      mouseEnterDelay={0.5}
+      placement="bottom"
+      styles={{ body: { fontSize: '12px' } }}
+      title={
+        <div style={{ textAlign: 'center' }}>
+          Enter: {t('translate.button.translate')}
+          <br />
+          Shift + Enter: {t('translate.tooltip.newline')}
+        </div>
+      }>
+      <Button
+        type="primary"
+        loading={translating}
+        onClick={onTranslate}
+        disabled={!couldTranslate}
+        icon={<SendOutlined />}>
+        {t('translate.button.translate')}
+      </Button>
+    </Tooltip>
+  )
+}
 
 const BidirectionalLanguageDisplay = styled.div`
   padding: 4px 11px;
@@ -810,83 +658,21 @@ const BidirectionalLanguageDisplay = styled.div`
   text-align: center;
 `
 
-const HistoryContainner = styled.div<{ $historyDrawerVisible: boolean }>`
-  width: ${({ $historyDrawerVisible }) => ($historyDrawerVisible ? '300px' : '0')};
-  height: calc(100vh - var(--navbar-height) - 40px);
-  transition:
-    width 0.2s,
-    opacity 0.2s;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 10px;
-  margin-right: 15px;
+const OperationBar = styled.div`
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding-right: 2px;
-  padding-bottom: 5px;
-
-  ${({ $historyDrawerVisible }) =>
-    !$historyDrawerVisible &&
-    `
-    border: none;
-    margin-right: 0;
-    opacity: 0;
-  `}
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding-bottom: 4px;
 `
 
-const HistoryList = styled.div`
-  flex: 1;
+const InnerOperationBar = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  overflow-y: auto;
-  padding: 0 5px;
-`
-
-const HistoryListItem = styled.div`
-  width: 100%;
-  padding: 5px 10px;
-  border-radius: var(--list-item-border-radius);
-  cursor: pointer;
-  transition: background-color 0.2s;
-  position: relative;
-
-  button {
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  &:hover {
-    background-color: var(--color-background-mute);
-    button {
-      opacity: 1;
-    }
-  }
-
-  &:not(:last-child)::after {
-    content: '';
-    display: block;
-    width: 100%;
-    height: 1px;
-    border-bottom: 1px dashed var(--color-border-soft);
-    position: absolute;
-    bottom: -8px;
-    left: 0;
-  }
-`
-
-const HistoryListItemTitle = styled.div`
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 13px;
-`
-
-const HistoryListItemDate = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
 `
 
 export default TranslatePage

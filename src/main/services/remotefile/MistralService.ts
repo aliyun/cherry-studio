@@ -1,11 +1,14 @@
 import fs from 'node:fs/promises'
 
+import { loggerService } from '@logger'
+import { fileStorage } from '@main/services/FileStorage'
 import { Mistral } from '@mistralai/mistralai'
 import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
-import Logger from 'electron-log'
 
 import { MistralClientManager } from '../MistralClientManager'
 import { BaseFileService } from './BaseFileService'
+
+const logger = loggerService.withContext('MistralService')
 
 export class MistralService extends BaseFileService {
   private readonly client: Mistral
@@ -19,7 +22,7 @@ export class MistralService extends BaseFileService {
 
   async uploadFile(file: FileMetadata): Promise<FileUploadResponse> {
     try {
-      const fileBuffer = await fs.readFile(file.path)
+      const fileBuffer = await fs.readFile(fileStorage.getFilePathById(file))
       const response = await this.client.files.upload({
         file: {
           fileName: file.origin_name,
@@ -38,7 +41,7 @@ export class MistralService extends BaseFileService {
         }
       }
     } catch (error) {
-      Logger.error('Error uploading file:', error)
+      logger.error('Error uploading file:', error as Error)
       return {
         fileId: '',
         displayName: file.origin_name,
@@ -63,7 +66,7 @@ export class MistralService extends BaseFileService {
         }))
       }
     } catch (error) {
-      Logger.error('Error listing files:', error)
+      logger.error('Error listing files:', error as Error)
       return { files: [] }
     }
   }
@@ -73,9 +76,9 @@ export class MistralService extends BaseFileService {
       await this.client.files.delete({
         fileId
       })
-      Logger.info(`File ${fileId} deleted`)
+      logger.debug(`File ${fileId} deleted`)
     } catch (error) {
-      Logger.error('Error deleting file:', error)
+      logger.error('Error deleting file:', error as Error)
       throw error
     }
   }
@@ -92,7 +95,7 @@ export class MistralService extends BaseFileService {
         status: 'success' // Retrieved files are always processed
       }
     } catch (error) {
-      Logger.error('Error retrieving file:', error)
+      logger.error('Error retrieving file:', error as Error)
       return {
         fileId: fileId,
         displayName: '',

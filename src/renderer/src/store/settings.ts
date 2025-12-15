@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
+  ApiServerConfig,
   AssistantsSortType,
   CodeStyleVarious,
   LanguageVarious,
@@ -8,13 +9,15 @@ import {
   OpenAIServiceTier,
   OpenAISummaryText,
   PaintingProvider,
+  S3Config,
   ThemeMode,
-  TranslateLanguageVarious
+  TranslateLanguageCode
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
+import { OpenAIVerbosity } from '@types'
 
-import { WebDAVSyncState } from './backup'
+import { RemoteSyncState } from './backup'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
@@ -30,7 +33,7 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'files'
 ]
 
-export interface NutstoreSyncRuntime extends WebDAVSyncState {}
+export interface NutstoreSyncRuntime extends RemoteSyncState {}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
@@ -44,9 +47,10 @@ export interface SettingsState {
   assistantsTabSortType: AssistantsSortType
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
-  targetLanguage: TranslateLanguageVarious
+  targetLanguage: TranslateLanguageCode
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
+  proxyBypassRules?: string
   userName: string
   userId: string
   showPrompt: boolean
@@ -87,14 +91,21 @@ export interface SettingsState {
     autocompletion: boolean
     keymap: boolean
   }
+  /** @deprecated use codeViewer instead */
   codePreview: {
+    themeLight: CodeStyleVarious
+    themeDark: CodeStyleVarious
+  }
+  codeViewer: {
     themeLight: CodeStyleVarious
     themeDark: CodeStyleVarious
   }
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
+  codeImageTools: boolean
   mathEngine: MathEngine
+  mathEnableSingleDollar: boolean
   messageStyle: 'plain' | 'bubble'
   foldDisplayMode: 'expanded' | 'compact'
   gridColumns: number
@@ -111,6 +122,7 @@ export interface SettingsState {
   webdavSyncInterval: number
   webdavMaxBackups: number
   webdavSkipBackupFile: boolean
+  webdavDisableStream: boolean
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
   showTranslateConfirm: boolean
@@ -138,6 +150,8 @@ export interface SettingsState {
   showModelProviderInMarkdown: boolean
   thoughtAutoCollapse: boolean
   notionExportReasoning: boolean
+  excludeCitationsInExport: boolean
+  standardizeCitationsInExport: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
@@ -180,7 +194,9 @@ export interface SettingsState {
   // OpenAI
   openAI: {
     summaryText: OpenAISummaryText
+    /** @deprecated 现在该设置迁移到Provider对象中 */
     serviceTier: OpenAIServiceTier
+    verbosity: OpenAIVerbosity
   }
   // Notification
   notification: {
@@ -188,7 +204,21 @@ export interface SettingsState {
     backup: boolean
     knowledge: boolean
   }
+  // Local backup settings
+  localBackupDir: string
+  localBackupAutoSync: boolean
+  localBackupSyncInterval: number
+  localBackupMaxBackups: number
+  localBackupSkipBackupFile: boolean
   defaultPaintingProvider: PaintingProvider
+  s3: S3Config
+  // Developer mode
+  enableDeveloperMode: boolean
+  // UI
+  navbarPosition: 'left' | 'top'
+  // API Server
+  apiServer: ApiServerConfig
+  showMessageOutline?: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -199,9 +229,10 @@ export const initialState: SettingsState = {
   assistantsTabSortType: 'list',
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
-  targetLanguage: 'english' as TranslateLanguageVarious,
+  targetLanguage: 'en-us',
   proxyMode: 'system',
   proxyUrl: undefined,
+  proxyBypassRules: undefined,
   userName: '',
   userId: uuid(),
   showPrompt: true,
@@ -243,14 +274,21 @@ export const initialState: SettingsState = {
     autocompletion: true,
     keymap: false
   },
+  /** @deprecated use codeViewer instead */
   codePreview: {
+    themeLight: 'auto',
+    themeDark: 'auto'
+  },
+  codeViewer: {
     themeLight: 'auto',
     themeDark: 'auto'
   },
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
+  codeImageTools: false,
   mathEngine: 'KaTeX',
+  mathEnableSingleDollar: true,
   messageStyle: 'plain',
   foldDisplayMode: 'expanded',
   gridColumns: 2,
@@ -265,6 +303,7 @@ export const initialState: SettingsState = {
   webdavSyncInterval: 0,
   webdavMaxBackups: 0,
   webdavSkipBackupFile: false,
+  webdavDisableStream: false,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
   showTranslateConfirm: true,
@@ -279,7 +318,7 @@ export const initialState: SettingsState = {
   enableQuickAssistant: false,
   clickTrayToShowQuickAssistant: false,
   readClipboardAtStartup: true,
-  multiModelMessageStyle: 'fold',
+  multiModelMessageStyle: 'horizontal',
   notionDatabaseID: '',
   notionApiKey: '',
   notionPageNameKey: 'Name',
@@ -290,6 +329,8 @@ export const initialState: SettingsState = {
   showModelProviderInMarkdown: false,
   thoughtAutoCollapse: true,
   notionExportReasoning: false,
+  excludeCitationsInExport: false,
+  standardizeCitationsInExport: false,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
@@ -329,14 +370,45 @@ export const initialState: SettingsState = {
   // OpenAI
   openAI: {
     summaryText: 'off',
-    serviceTier: 'auto'
+    serviceTier: 'auto',
+    verbosity: 'medium'
   },
   notification: {
     assistant: false,
     backup: false,
     knowledge: false
   },
-  defaultPaintingProvider: 'aihubmix'
+  // Local backup settings
+  localBackupDir: '',
+  localBackupAutoSync: false,
+  localBackupSyncInterval: 0,
+  localBackupMaxBackups: 0,
+  localBackupSkipBackupFile: false,
+  defaultPaintingProvider: 'aihubmix',
+  s3: {
+    endpoint: '',
+    region: '',
+    bucket: '',
+    accessKeyId: '',
+    secretAccessKey: '',
+    root: '',
+    autoSync: false,
+    syncInterval: 0,
+    maxBackups: 0,
+    skipBackupFile: false
+  },
+  // Developer mode
+  enableDeveloperMode: false,
+  // UI
+  navbarPosition: 'top',
+  // API Server
+  apiServer: {
+    enabled: false,
+    host: 'localhost',
+    port: 23333,
+    apiKey: `cs-sk-${uuid()}`
+  },
+  showMessageOutline: undefined
 }
 
 const settingsSlice = createSlice({
@@ -364,7 +436,7 @@ const settingsSlice = createSlice({
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
     },
-    setTargetLanguage: (state, action: PayloadAction<TranslateLanguageVarious>) => {
+    setTargetLanguage: (state, action: PayloadAction<TranslateLanguageCode>) => {
       state.targetLanguage = action.payload
     },
     setProxyMode: (state, action: PayloadAction<'system' | 'custom' | 'none'>) => {
@@ -372,6 +444,9 @@ const settingsSlice = createSlice({
     },
     setProxyUrl: (state, action: PayloadAction<string | undefined>) => {
       state.proxyUrl = action.payload
+    },
+    setProxyBypassRules: (state, action: PayloadAction<string | undefined>) => {
+      state.proxyBypassRules = action.payload
     },
     setUserName: (state, action: PayloadAction<string>) => {
       state.userName = action.payload
@@ -475,6 +550,9 @@ const settingsSlice = createSlice({
     setWebdavSkipBackupFile: (state, action: PayloadAction<boolean>) => {
       state.webdavSkipBackupFile = action.payload
     },
+    setWebdavDisableStream: (state, action: PayloadAction<boolean>) => {
+      state.webdavDisableStream = action.payload
+    },
     setCodeExecution: (state, action: PayloadAction<{ enabled?: boolean; timeoutMinutes?: number }>) => {
       if (action.payload.enabled !== undefined) {
         state.codeExecution.enabled = action.payload.enabled
@@ -517,12 +595,12 @@ const settingsSlice = createSlice({
         state.codeEditor.keymap = action.payload.keymap
       }
     },
-    setCodePreview: (state, action: PayloadAction<{ themeLight?: string; themeDark?: string }>) => {
+    setCodeViewer: (state, action: PayloadAction<{ themeLight?: string; themeDark?: string }>) => {
       if (action.payload.themeLight !== undefined) {
-        state.codePreview.themeLight = action.payload.themeLight
+        state.codeViewer.themeLight = action.payload.themeLight
       }
       if (action.payload.themeDark !== undefined) {
-        state.codePreview.themeDark = action.payload.themeDark
+        state.codeViewer.themeDark = action.payload.themeDark
       }
     },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
@@ -534,8 +612,14 @@ const settingsSlice = createSlice({
     setCodeWrappable: (state, action: PayloadAction<boolean>) => {
       state.codeWrappable = action.payload
     },
+    setCodeImageTools: (state, action: PayloadAction<boolean>) => {
+      state.codeImageTools = action.payload
+    },
     setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
+    },
+    setMathEnableSingleDollar: (state, action: PayloadAction<boolean>) => {
+      state.mathEnableSingleDollar = action.payload
     },
     setFoldDisplayMode: (state, action: PayloadAction<'expanded' | 'compact'>) => {
       state.foldDisplayMode = action.payload
@@ -620,6 +704,12 @@ const settingsSlice = createSlice({
     setNotionExportReasoning: (state, action: PayloadAction<boolean>) => {
       state.notionExportReasoning = action.payload
     },
+    setExcludeCitationsInExport: (state, action: PayloadAction<boolean>) => {
+      state.excludeCitationsInExport = action.payload
+    },
+    setStandardizeCitationsInExport: (state, action: PayloadAction<boolean>) => {
+      state.standardizeCitationsInExport = action.payload
+    },
     setYuqueToken: (state, action: PayloadAction<string>) => {
       state.yuqueToken = action.payload
     },
@@ -695,14 +785,64 @@ const settingsSlice = createSlice({
     setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
       state.openAI.summaryText = action.payload
     },
-    setOpenAIServiceTier: (state, action: PayloadAction<OpenAIServiceTier>) => {
-      state.openAI.serviceTier = action.payload
+    setOpenAIVerbosity: (state, action: PayloadAction<OpenAIVerbosity>) => {
+      state.openAI.verbosity = action.payload
     },
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
     },
+    // Local backup settings
+    setLocalBackupDir: (state, action: PayloadAction<string>) => {
+      state.localBackupDir = action.payload
+    },
+    setLocalBackupAutoSync: (state, action: PayloadAction<boolean>) => {
+      state.localBackupAutoSync = action.payload
+    },
+    setLocalBackupSyncInterval: (state, action: PayloadAction<number>) => {
+      state.localBackupSyncInterval = action.payload
+    },
+    setLocalBackupMaxBackups: (state, action: PayloadAction<number>) => {
+      state.localBackupMaxBackups = action.payload
+    },
+    setLocalBackupSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.localBackupSkipBackupFile = action.payload
+    },
     setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
       state.defaultPaintingProvider = action.payload
+    },
+    setS3: (state, action: PayloadAction<S3Config>) => {
+      state.s3 = action.payload
+    },
+    setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
+      state.s3 = { ...state.s3, ...action.payload }
+    },
+    setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
+      state.enableDeveloperMode = action.payload
+    },
+    setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
+      state.navbarPosition = action.payload
+    },
+    // API Server actions
+    setApiServerEnabled: (state, action: PayloadAction<boolean>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        enabled: action.payload
+      }
+    },
+    setApiServerPort: (state, action: PayloadAction<number>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        port: action.payload
+      }
+    },
+    setApiServerApiKey: (state, action: PayloadAction<string>) => {
+      state.apiServer = {
+        ...state.apiServer,
+        apiKey: action.payload
+      }
+    },
+    setShowMessageOutline: (state, action: PayloadAction<boolean>) => {
+      state.showMessageOutline = action.payload
     }
   }
 })
@@ -720,6 +860,7 @@ export const {
   setTargetLanguage,
   setProxyMode,
   setProxyUrl,
+  setProxyBypassRules,
   setUserName,
   setShowPrompt,
   setShowTokens,
@@ -753,13 +894,16 @@ export const {
   setWebdavSyncInterval,
   setWebdavMaxBackups,
   setWebdavSkipBackupFile,
+  setWebdavDisableStream,
   setCodeExecution,
   setCodeEditor,
-  setCodePreview,
+  setCodeViewer,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
+  setCodeImageTools,
   setMathEngine,
+  setMathEnableSingleDollar,
   setFoldDisplayMode,
   setGridColumns,
   setGridPopoverTrigger,
@@ -785,6 +929,8 @@ export const {
   setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
   setNotionExportReasoning,
+  setExcludeCitationsInExport,
+  setStandardizeCitationsInExport,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
@@ -810,9 +956,24 @@ export const {
   setEnableBackspaceDeleteModel,
   setDisableHardwareAcceleration,
   setOpenAISummaryText,
-  setOpenAIServiceTier,
+  setOpenAIVerbosity,
   setNotificationSettings,
-  setDefaultPaintingProvider
+  // Local backup settings
+  setLocalBackupDir,
+  setLocalBackupAutoSync,
+  setLocalBackupSyncInterval,
+  setLocalBackupMaxBackups,
+  setLocalBackupSkipBackupFile,
+  setDefaultPaintingProvider,
+  setS3,
+  setS3Partial,
+  setEnableDeveloperMode,
+  setNavbarPosition,
+  setShowMessageOutline,
+  // API Server actions
+  setApiServerEnabled,
+  setApiServerPort,
+  setApiServerApiKey
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
