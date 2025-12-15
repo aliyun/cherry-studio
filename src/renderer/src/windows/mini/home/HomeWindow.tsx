@@ -317,7 +317,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                         messageId: assistantMessage.id,
                         updates: { blockInstruction: { id: block.id } }
                       })
-                      
                     )
                     store.dispatch(upsertOneBlock(block))
                   }
