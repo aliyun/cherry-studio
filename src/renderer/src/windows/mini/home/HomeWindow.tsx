@@ -295,7 +295,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           messages: modelMessages,
           assistant: newAssistant,
           requestOptions: {},
-          topicId,
           uiMessages: uiMessages,
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {
@@ -318,6 +317,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                         messageId: assistantMessage.id,
                         updates: { blockInstruction: { id: block.id } }
                       })
+                      
                     )
                     store.dispatch(upsertOneBlock(block))
                   }
