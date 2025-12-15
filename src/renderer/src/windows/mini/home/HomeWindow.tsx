@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -5,34 +6,43 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { ConversationService } from '@renderer/services/ConversationService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store, { useAppSelector } from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
-import { ThemeMode, Topic } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
+import type { Topic } from '@renderer/types'
+import { ThemeMode } from '@renderer/types'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { replacePromptVariables } from '@renderer/utils/prompt'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
-import { isEmpty } from 'lodash'
+import { cloneDeep, isEmpty } from 'lodash'
 import { last } from 'lodash'
-import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ChatWindow from '../chat/ChatWindow'
 import TranslateWindow from '../translate/TranslateWindow'
 import ClipboardPreview from './components/ClipboardPreview'
-import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
+import type { FeatureMenusRef } from './components/FeatureMenus'
+import FeatureMenus from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
 
-const HomeWindow: FC = () => {
+const logger = loggerService.withContext('HomeWindow')
+
+const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const { language, readClipboardAtStartup, windowStyle } = useSettings()
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -105,7 +115,7 @@ const HomeWindow: FC = () => {
       }
     } catch (error) {
       // Silently handle clipboard read errors (common in some environments)
-      console.warn('Failed to read clipboard:', error)
+      logger.warn('Failed to read clipboard:', error as Error)
     }
   }, [readClipboardAtStartup])
 
@@ -243,9 +253,18 @@ const HomeWindow: FC = () => {
           .filter((m) => m && !m.status?.includes('ing'))
 
         let blockId: string | null = null
-        let blockContent: string = ''
         let thinkingBlockId: string | null = null
-        let thinkingBlockContent: string = ''
+        let thinkingStartTime: number | null = null
+
+        const resolveThinkingDuration = (duration?: number) => {
+          if (typeof duration === 'number' && Number.isFinite(duration)) {
+            return duration
+          }
+          if (thinkingStartTime !== null) {
+            return Math.max(0, performance.now() - thinkingStartTime)
+          }
+          return 0
+        }
 
         setIsLoading(true)
         setIsOutputted(false)
@@ -254,19 +273,43 @@ const HomeWindow: FC = () => {
         setIsFirstMessage(false)
         setUserInputText('')
 
+        const newAssistant = cloneDeep(currentAssistant)
+        if (!newAssistant.settings) {
+          newAssistant.settings = {}
+        }
+        newAssistant.settings.streamOutput = true
+        // 显式关闭这些功能
+        newAssistant.webSearchProviderId = undefined
+        newAssistant.mcpServers = undefined
+        newAssistant.knowledge_bases = undefined
+        // replace prompt vars
+        newAssistant.prompt = await replacePromptVariables(currentAssistant.prompt, currentAssistant?.model.name)
+        // logger.debug('newAssistant', newAssistant)
+
+        const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(
+          messagesForContext,
+          newAssistant
+        )
+
         await fetchChatCompletion({
-          messages: messagesForContext,
-          assistant: { ...currentAssistant, settings: { streamOutput: true } },
+          messages: modelMessages,
+          assistant: newAssistant,
+          requestOptions: {},
+          topicId,
+          uiMessages: uiMessages,
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {
-              case ChunkType.THINKING_DELTA:
+              case ChunkType.THINKING_START:
                 {
-                  thinkingBlockContent += chunk.text
                   setIsOutputted(true)
-                  if (!thinkingBlockId) {
-                    const block = createThinkingBlock(assistantMessage.id, chunk.text, {
-                      status: MessageBlockStatus.STREAMING,
-                      thinking_millsec: chunk.thinking_millsec
+                  thinkingStartTime = performance.now()
+                  if (thinkingBlockId) {
+                    store.dispatch(
+                      updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
+                    )
+                  } else {
+                    const block = createThinkingBlock(assistantMessage.id, '', {
+                      status: MessageBlockStatus.STREAMING
                     })
                     thinkingBlockId = block.id
                     store.dispatch(
@@ -277,34 +320,47 @@ const HomeWindow: FC = () => {
                       })
                     )
                     store.dispatch(upsertOneBlock(block))
-                  } else {
-                    store.dispatch(
-                      updateOneBlock({
-                        id: thinkingBlockId,
-                        changes: { content: thinkingBlockContent, thinking_millsec: chunk.thinking_millsec }
-                      })
-                    )
+                  }
+                }
+                break
+              case ChunkType.THINKING_DELTA:
+                {
+                  setIsOutputted(true)
+                  if (thinkingBlockId) {
+                    if (thinkingStartTime === null) {
+                      thinkingStartTime = performance.now()
+                    }
+                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
+                    throttledBlockUpdate(thinkingBlockId, {
+                      content: chunk.text,
+                      thinking_millsec: thinkingDuration
+                    })
                   }
                 }
                 break
               case ChunkType.THINKING_COMPLETE:
                 {
                   if (thinkingBlockId) {
+                    const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
+                    cancelThrottledBlockUpdate(thinkingBlockId)
                     store.dispatch(
                       updateOneBlock({
                         id: thinkingBlockId,
-                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: chunk.thinking_millsec }
+                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: thinkingDuration }
                       })
                     )
                   }
+                  thinkingStartTime = null
+                  thinkingBlockId = null
                 }
                 break
-              case ChunkType.TEXT_DELTA:
+              case ChunkType.TEXT_START:
                 {
-                  blockContent += chunk.text
                   setIsOutputted(true)
-                  if (!blockId) {
-                    const block = createMainTextBlock(assistantMessage.id, chunk.text, {
+                  if (blockId) {
+                    store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.STREAMING } }))
+                  } else {
+                    const block = createMainTextBlock(assistantMessage.id, '', {
                       status: MessageBlockStatus.STREAMING
                     })
                     blockId = block.id
@@ -316,23 +372,29 @@ const HomeWindow: FC = () => {
                       })
                     )
                     store.dispatch(upsertOneBlock(block))
-                  } else {
-                    store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
+                  }
+                }
+                break
+              case ChunkType.TEXT_DELTA:
+                {
+                  setIsOutputted(true)
+                  if (blockId) {
+                    throttledBlockUpdate(blockId, { content: chunk.text })
                   }
                 }
                 break
 
               case ChunkType.TEXT_COMPLETE:
                 {
-                  blockId &&
-                    store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.SUCCESS } }))
-                  store.dispatch(
-                    newMessagesActions.updateMessage({
-                      topicId,
-                      messageId: assistantMessage.id,
-                      updates: { status: AssistantMessageStatus.SUCCESS }
-                    })
-                  )
+                  if (blockId) {
+                    cancelThrottledBlockUpdate(blockId)
+                    store.dispatch(
+                      updateOneBlock({
+                        id: blockId,
+                        changes: { content: chunk.text, status: MessageBlockStatus.SUCCESS }
+                      })
+                    )
+                  }
                 }
                 break
               case ChunkType.ERROR: {
@@ -348,16 +410,34 @@ const HomeWindow: FC = () => {
                       }
                     })
                   )
+                  store.dispatch(
+                    newMessagesActions.updateMessage({
+                      topicId,
+                      messageId: assistantMessage.id,
+                      updates: {
+                        status: isAborted ? AssistantMessageStatus.PAUSED : AssistantMessageStatus.SUCCESS
+                      }
+                    })
+                  )
                 }
                 if (!isAborted) {
                   throw new Error(chunk.error.message)
                 }
+                thinkingStartTime = null
+                thinkingBlockId = null
               }
               //fall through
               case ChunkType.BLOCK_COMPLETE:
                 setIsLoading(false)
                 setIsOutputted(true)
                 currentAskId.current = ''
+                store.dispatch(
+                  newMessagesActions.updateMessage({
+                    topicId,
+                    messageId: assistantMessage.id,
+                    updates: { status: AssistantMessageStatus.SUCCESS }
+                  })
+                )
                 break
             }
           }
@@ -365,7 +445,7 @@ const HomeWindow: FC = () => {
       } catch (err) {
         if (isAbortError(err)) return
         handleError(err instanceof Error ? err : new Error('An error occurred'))
-        console.error('Error fetching result:', err)
+        logger.error('Error fetching result:', err as Error)
       } finally {
         setIsLoading(false)
         setIsOutputted(true)
@@ -415,7 +495,7 @@ const HomeWindow: FC = () => {
     if (lastMessage) {
       const content = getMainTextContent(lastMessage)
       navigator.clipboard.writeText(content)
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     }
   }, [currentTopic, t])
 
@@ -455,7 +535,7 @@ const HomeWindow: FC = () => {
     case 'summary':
     case 'explanation':
       return (
-        <Container style={{ backgroundColor }}>
+        <Container style={{ backgroundColor }} $draggable={draggable}>
           {route === 'chat' && (
             <>
               <InputBar
@@ -491,7 +571,7 @@ const HomeWindow: FC = () => {
 
     case 'translate':
       return (
-        <Container style={{ backgroundColor }}>
+        <Container style={{ backgroundColor }} $draggable={draggable}>
           <TranslateWindow text={referenceText} />
           <Divider style={{ margin: '10px 0' }} />
           <Footer key="footer" {...baseFooterProps} />
@@ -501,7 +581,7 @@ const HomeWindow: FC = () => {
     // Home
     default:
       return (
-        <Container style={{ backgroundColor }}>
+        <Container style={{ backgroundColor }} $draggable={draggable}>
           <InputBar
             text={userInputText}
             assistant={currentAssistant}
@@ -534,13 +614,13 @@ const HomeWindow: FC = () => {
   }
 }
 
-const Container = styled.div`
+const Container = styled.div<{ $draggable: boolean }>`
   display: flex;
   flex: 1;
   height: 100%;
   width: 100%;
   flex-direction: column;
-  -webkit-app-region: drag;
+  -webkit-app-region: ${({ $draggable }) => ($draggable ? 'drag' : 'no-drag')};
   padding: 8px 10px;
 `
 

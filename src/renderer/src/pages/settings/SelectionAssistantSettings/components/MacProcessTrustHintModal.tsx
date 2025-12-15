@@ -1,5 +1,5 @@
 import { Button, Modal, Typography } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -39,7 +39,7 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
         </div>
       }
       centered
-      destroyOnClose>
+      destroyOnHidden>
       <ContentContainer>
         <Paragraph>
           <Text>

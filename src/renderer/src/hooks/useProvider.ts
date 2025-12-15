@@ -1,4 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit'
+import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
+import { getDefaultProvider } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addModel,
@@ -9,13 +11,14 @@ import {
   updateProvider,
   updateProviders
 } from '@renderer/store/llm'
-import { Assistant, Model, Provider } from '@renderer/types'
+import type { Assistant, Model, Provider } from '@renderer/types'
+import { isSystemProvider } from '@renderer/types'
 
 import { useDefaultModel } from './useAssistant'
 
 const selectEnabledProviders = createSelector(
   (state) => state.llm.providers,
-  (providers) => providers.filter((p) => p.enabled)
+  (providers) => providers.filter((p) => p.enabled).concat(CHERRYAI_PROVIDER)
 )
 
 export function useProviders() {
@@ -23,7 +26,7 @@ export function useProviders() {
   const dispatch = useAppDispatch()
 
   return {
-    providers: providers || {},
+    providers: providers || [],
     addProvider: (provider: Provider) => dispatch(addProvider(provider)),
     removeProvider: (provider: Provider) => dispatch(removeProvider(provider)),
     updateProvider: (updates: Partial<Provider> & { id: string }) => dispatch(updateProvider(updates)),
@@ -32,11 +35,11 @@ export function useProviders() {
 }
 
 export function useSystemProviders() {
-  return useAppSelector((state) => state.llm.providers.filter((p) => p.isSystem))
+  return useAppSelector((state) => state.llm.providers.filter((p) => isSystemProvider(p)))
 }
 
 export function useUserProviders() {
-  return useAppSelector((state) => state.llm.providers.filter((p) => !p.isSystem))
+  return useAppSelector((state) => state.llm.providers.filter((p) => !isSystemProvider(p)))
 }
 
 export function useAllProviders() {
@@ -44,12 +47,14 @@ export function useAllProviders() {
 }
 
 export function useProvider(id: string) {
-  const provider = useAppSelector((state) => state.llm.providers.find((p) => p.id === id) as Provider)
+  const provider =
+    useAppSelector((state) => state.llm.providers.concat([CHERRYAI_PROVIDER]).find((p) => p.id === id)) ||
+    getDefaultProvider()
   const dispatch = useAppDispatch()
 
   return {
     provider,
-    models: provider?.models || [],
+    models: provider?.models ?? [],
     updateProvider: (updates: Partial<Provider>) => dispatch(updateProvider({ id, ...updates })),
     addModel: (model: Model) => dispatch(addModel({ providerId: id, model })),
     removeModel: (model: Model) => dispatch(removeModel({ providerId: id, model })),

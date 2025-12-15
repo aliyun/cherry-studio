@@ -1,4 +1,4 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
@@ -10,10 +10,12 @@ import {
   updateBaseItemUniqueId,
   updateItemProcessingStatus
 } from '@renderer/store/knowledge'
-import { KnowledgeItem } from '@renderer/types'
+import type { KnowledgeItem } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import type { LoaderReturn } from '@shared/config/types'
 import { t } from 'i18next'
+
+const logger = loggerService.withContext('KnowledgeQueue')
 
 class KnowledgeQueue {
   private processing: Map<string, boolean> = new Map()
@@ -43,7 +45,7 @@ class KnowledgeQueue {
 
   async processQueue(baseId: string): Promise<void> {
     if (this.processing.get(baseId)) {
-      Logger.log(`[KnowledgeQueue] Queue for base ${baseId} is already being processed`)
+      logger.info(`Queue for base ${baseId} is already being processed`)
       return
     }
 
@@ -73,11 +75,11 @@ class KnowledgeQueue {
 
       let processableItem = findProcessableItem()
       while (processableItem) {
-        this.processItem(baseId, processableItem).then()
+        await this.processItem(baseId, processableItem)
         processableItem = findProcessableItem()
       }
     } finally {
-      Logger.log(`[KnowledgeQueue] Finished processing queue for base ${baseId}`)
+      logger.info(`Finished processing queue for base ${baseId}`)
       this.processing.set(baseId, false)
     }
   }
@@ -97,11 +99,31 @@ class KnowledgeQueue {
     const userId = getStoreSetting('userId')
     try {
       if (item.retryCount && item.retryCount >= this.MAX_RETRIES) {
-        Logger.log(`[KnowledgeQueue] Item ${item.id} has reached max retries, skipping`)
+        const errorMessage = item.processingError
+          ? `Max retries exceeded: ${item.processingError}`
+          : 'Max retries exceeded'
+        logger.warn(`Item ${item.id} has reached max retries, marking as failed`)
+        notificationService.send({
+          id: uuid(),
+          type: 'error',
+          title: t('common.knowledge_base'),
+          message: t('notification.knowledge.error', { error: errorMessage }),
+          silent: false,
+          timestamp: Date.now(),
+          source: 'knowledge'
+        })
+        store.dispatch(
+          updateItemProcessingStatus({
+            baseId,
+            itemId: item.id,
+            status: 'failed',
+            error: errorMessage
+          })
+        )
         return
       }
 
-      Logger.log(`[KnowledgeQueue] Starting to process item ${item.id} (${item.type})`)
+      logger.info(`Starting to process item ${item.id} (${item.type})`)
 
       store.dispatch(
         updateItemProcessingStatus({
@@ -128,19 +150,25 @@ class KnowledgeQueue {
       let result: LoaderReturn | null = null
       let note, content
 
-      Logger.log(`[KnowledgeQueue] Processing item: ${sourceItem.content}`)
+      logger.info(`Processing item: ${sourceItem.content}`)
 
       switch (item.type) {
         case 'note':
           note = await db.knowledge_notes.get(item.id)
           if (note) {
-            content = note.content as string
+            content = note.content
+            logger.info('{ ...sourceItem, content }', { ...sourceItem, content })
             result = await window.api.knowledgeBase.add({ base: baseParams, item: { ...sourceItem, content } })
           }
           break
-        default:
-          result = await window.api.knowledgeBase.add({ base: baseParams, item: sourceItem, userId: userId as string })
+        default: {
+          result = await window.api.knowledgeBase.add({
+            base: baseParams,
+            item: sourceItem,
+            userId: userId
+          })
           break
+        }
       }
 
       if (!result) {
@@ -148,7 +176,7 @@ class KnowledgeQueue {
       }
 
       if (result.status === 'failed') {
-        Logger.error(`[KnowledgeQueue] Backend processing error for item ${item.id}: ${result.message}`)
+        logger.error(`Backend processing error for item ${item.id}: ${result.message}`)
 
         const errorPrefix =
           result.messageSource === 'embedding'
@@ -160,7 +188,7 @@ class KnowledgeQueue {
         )
       }
 
-      Logger.log(`[KnowledgeQueue] Successfully completed processing item ${item.id}`)
+      logger.info(`Successfully completed processing item ${item.id}`)
 
       notificationService.send({
         id: uuid(),
@@ -193,21 +221,21 @@ class KnowledgeQueue {
           updateBaseItemIsPreprocessed({
             baseId,
             itemId: item.id,
-            isPreprocessed: base.preprocessOrOcrProvider ? true : false
+            isPreprocessed: !!base.preprocessProvider
           })
         )
       }
-      Logger.log(`[KnowledgeQueue] Updated uniqueId for item ${item.id} in base ${baseId} `)
+      logger.info(`Updated uniqueId for item ${item.id} in base ${baseId} `)
 
       store.dispatch(clearCompletedProcessing({ baseId }))
     } catch (error) {
-      Logger.error(`[KnowledgeQueue] Error processing item ${item.id}: `, error)
+      logger.error(`Error processing item ${item.id}: `, error as Error)
       notificationService.send({
         id: uuid(),
         type: 'error',
         title: t('common.knowledge_base'),
         message: t('notification.knowledge.error', {
-          error: error instanceof Error ? error.message : 'Unkown error'
+          error: error instanceof Error ? error.message : 'Unknown error'
         }),
         silent: false,
         timestamp: Date.now(),

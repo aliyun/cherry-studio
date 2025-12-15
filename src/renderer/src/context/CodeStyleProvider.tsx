@@ -1,7 +1,8 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { HighlightChunkResult, ShikiPreProperties, shikiStreamService } from '@renderer/services/ShikiStreamService'
+import type { HighlightChunkResult, ShikiPreProperties } from '@renderer/services/ShikiStreamService'
+import { shikiStreamService } from '@renderer/services/ShikiStreamService'
 import { ThemeMode } from '@renderer/types'
 import { getHighlighter, getMarkdownIt, getShiki, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
 import * as cmThemes from '@uiw/codemirror-themes-all'
@@ -20,7 +21,6 @@ interface CodeStyleContextType {
   activeShikiTheme: string
   isShikiThemeDark: boolean
   activeCmTheme: any
-  languageMap: Record<string, string>
 }
 
 const defaultCodeStyleContext: CodeStyleContextType = {
@@ -33,14 +33,13 @@ const defaultCodeStyleContext: CodeStyleContextType = {
   themeNames: ['auto'],
   activeShikiTheme: 'auto',
   isShikiThemeDark: false,
-  activeCmTheme: null,
-  languageMap: {}
+  activeCmTheme: null
 }
 
 const CodeStyleContext = createContext<CodeStyleContextType>(defaultCodeStyleContext)
 
 export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => {
-  const { codeEditor, codePreview } = useSettings()
+  const { codeEditor, codeViewer } = useSettings()
   const { theme } = useTheme()
   const [shikiThemesInfo, setShikiThemesInfo] = useState<BundledThemeInfo[]>([])
   useMermaid()
@@ -71,12 +70,12 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 获取当前使用的 Shiki 主题名称（只用于代码预览）
   const activeShikiTheme = useMemo(() => {
     const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
-    const codeStyle = codePreview[field]
+    const codeStyle = codeViewer[field]
     if (!codeStyle || codeStyle === 'auto' || !themeNames.includes(codeStyle)) {
       return theme === ThemeMode.light ? 'one-light' : 'material-theme-darker'
     }
     return codeStyle
-  }, [theme, codePreview, themeNames])
+  }, [theme, codeViewer, themeNames])
 
   const isShikiThemeDark = useMemo(() => {
     const themeInfo = shikiThemesInfo.find((info) => info.id === activeShikiTheme)
@@ -93,13 +92,14 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     return cmThemes[themeName as keyof typeof cmThemes] || themeName
   }, [theme, codeEditor, themeNames])
 
-  // 一些语言的别名
-  const languageMap = useMemo(() => {
+  // 自定义 shiki 语言别名
+  const languageAliases = useMemo(() => {
     return {
       bash: 'shell',
       'objective-c++': 'objective-cpp',
       svg: 'xml',
-      vab: 'vb'
+      vab: 'vb',
+      graphviz: 'dot'
     } as Record<string, string>
   }, [])
 
@@ -113,10 +113,10 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 流式代码高亮，返回已高亮的 token lines
   const highlightCodeChunk = useCallback(
     async (trunk: string, language: string, callerId: string) => {
-      const normalizedLang = languageMap[language as keyof typeof languageMap] || language.toLowerCase()
+      const normalizedLang = languageAliases[language as keyof typeof languageAliases] || language.toLowerCase()
       return shikiStreamService.highlightCodeChunk(trunk, normalizedLang, activeShikiTheme, callerId)
     },
-    [activeShikiTheme, languageMap]
+    [activeShikiTheme, languageAliases]
   )
 
   // 清理代码高亮资源
@@ -127,19 +127,19 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 高亮流式输出的代码
   const highlightStreamingCode = useCallback(
     async (fullContent: string, language: string, callerId: string) => {
-      const normalizedLang = languageMap[language as keyof typeof languageMap] || language.toLowerCase()
+      const normalizedLang = languageAliases[language as keyof typeof languageAliases] || language.toLowerCase()
       return shikiStreamService.highlightStreamingCode(fullContent, normalizedLang, activeShikiTheme, callerId)
     },
-    [activeShikiTheme, languageMap]
+    [activeShikiTheme, languageAliases]
   )
 
   // 获取 Shiki pre 标签属性
   const getShikiPreProperties = useCallback(
     async (language: string) => {
-      const normalizedLang = languageMap[language as keyof typeof languageMap] || language.toLowerCase()
+      const normalizedLang = languageAliases[language as keyof typeof languageAliases] || language.toLowerCase()
       return shikiStreamService.getShikiPreProperties(normalizedLang, activeShikiTheme)
     },
-    [activeShikiTheme, languageMap]
+    [activeShikiTheme, languageAliases]
   )
 
   const highlightCode = useCallback(
@@ -175,8 +175,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       themeNames,
       activeShikiTheme,
       isShikiThemeDark,
-      activeCmTheme,
-      languageMap
+      activeCmTheme
     }),
     [
       highlightCodeChunk,
@@ -188,8 +187,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       themeNames,
       activeShikiTheme,
       isShikiThemeDark,
-      activeCmTheme,
-      languageMap
+      activeCmTheme
     ]
   )
 

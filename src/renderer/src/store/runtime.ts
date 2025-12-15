@@ -1,4 +1,5 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import type { MinAppType, Topic, WebSearchStatus } from '@renderer/types'
 import type { UpdateInfo } from 'builder-util-runtime'
@@ -7,10 +8,19 @@ export interface ChatState {
   isMultiSelectMode: boolean
   selectedMessageIds: string[]
   activeTopic: Topic | null
+  /** UI state. null represents no active agent */
+  activeAgentId: string | null
+  /** UI state. Map agent id to active session id.
+   *  null represents no active session  */
+  activeSessionIdMap: Record<string, string | null>
+  /** meanwhile active Assistants or Agents */
+  activeTopicOrSession: 'topic' | 'session'
   /** topic ids that are currently being renamed */
   renamingTopics: string[]
   /** topic ids that are newly renamed */
   newlyRenamedTopics: string[]
+  /** is a session waiting for updating/deleting. undefined and false share same semantics.  */
+  sessionWaiting: Record<string, boolean>
 }
 
 export interface WebSearchState {
@@ -24,11 +34,14 @@ export interface UpdateState {
   downloaded: boolean
   downloadProgress: number
   available: boolean
+  ignore: boolean
 }
 
 export interface RuntimeState {
   avatar: string
   generating: boolean
+  translating: boolean
+  translateAbortKey?: string
   /** whether the minapp popup is shown */
   minappShow: boolean
   /** the minapps that are opened and should be keep alive */
@@ -53,6 +66,7 @@ export interface ExportState {
 const initialState: RuntimeState = {
   avatar: UserAvatar,
   generating: false,
+  translating: false,
   minappShow: false,
   openedKeepAliveMinapps: [],
   openedOneOffMinapp: null,
@@ -66,7 +80,8 @@ const initialState: RuntimeState = {
     downloading: false,
     downloaded: false,
     downloadProgress: 0,
-    available: false
+    available: false,
+    ignore: false
   },
   export: {
     isExporting: false
@@ -75,8 +90,12 @@ const initialState: RuntimeState = {
     isMultiSelectMode: false,
     selectedMessageIds: [],
     activeTopic: null,
+    activeAgentId: null,
+    activeTopicOrSession: 'topic',
+    activeSessionIdMap: {},
     renamingTopics: [],
-    newlyRenamedTopics: []
+    newlyRenamedTopics: [],
+    sessionWaiting: {}
   },
   websearch: {
     activeSearches: {}
@@ -92,6 +111,12 @@ const runtimeSlice = createSlice({
     },
     setGenerating: (state, action: PayloadAction<boolean>) => {
       state.generating = action.payload
+    },
+    setTranslating: (state, action: PayloadAction<boolean>) => {
+      state.translating = action.payload
+    },
+    setTranslateAbortKey: (state, action: PayloadAction<string>) => {
+      state.translateAbortKey = action.payload
     },
     setMinappShow: (state, action: PayloadAction<boolean>) => {
       state.minappShow = action.payload
@@ -131,7 +156,18 @@ const runtimeSlice = createSlice({
       state.chat.selectedMessageIds = action.payload
     },
     setActiveTopic: (state, action: PayloadAction<Topic>) => {
+      // @ts-ignore ts2589 false positive
       state.chat.activeTopic = action.payload
+    },
+    setActiveAgentId: (state, action: PayloadAction<string | null>) => {
+      state.chat.activeAgentId = action.payload
+    },
+    setActiveSessionIdAction: (state, action: PayloadAction<{ agentId: string; sessionId: string | null }>) => {
+      const { agentId, sessionId } = action.payload
+      state.chat.activeSessionIdMap[agentId] = sessionId
+    },
+    setActiveTopicOrSessionAction: (state, action: PayloadAction<'topic' | 'session'>) => {
+      state.chat.activeTopicOrSession = action.payload
     },
     setRenamingTopics: (state, action: PayloadAction<string[]>) => {
       state.chat.renamingTopics = action.payload
@@ -149,6 +185,10 @@ const runtimeSlice = createSlice({
         delete state.websearch.activeSearches[requestId]
       }
       state.websearch.activeSearches[requestId] = status
+    },
+    setSessionWaitingAction: (state, action: PayloadAction<{ id: string; value: boolean }>) => {
+      const { id, value } = action.payload
+      state.chat.sessionWaiting[id] = value
     }
   }
 })
@@ -156,6 +196,8 @@ const runtimeSlice = createSlice({
 export const {
   setAvatar,
   setGenerating,
+  setTranslating,
+  setTranslateAbortKey,
   setMinappShow,
   setOpenedKeepAliveMinapps,
   setOpenedOneOffMinapp,
@@ -169,8 +211,12 @@ export const {
   toggleMultiSelectMode,
   setSelectedMessageIds,
   setActiveTopic,
+  setActiveAgentId,
+  setActiveSessionIdAction,
+  setActiveTopicOrSessionAction,
   setRenamingTopics,
   setNewlyRenamedTopics,
+  setSessionWaitingAction,
   // WebSearch related actions
   setActiveSearches,
   setWebSearchStatus

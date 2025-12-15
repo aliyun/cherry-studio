@@ -1,15 +1,17 @@
-import { DeleteOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
+import { DeleteIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import Scrollbar from '@renderer/components/Scrollbar'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button, message, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { Plus } from 'lucide-react'
-import { FC } from 'react'
+import { PlusIcon } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,12 +23,15 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
+
+const logger = loggerService.withContext('KnowledgeSitemaps')
 
 const getDisplayTime = (item: KnowledgeItem) => {
   const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
@@ -40,8 +45,11 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     selectedBase.id || ''
   )
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
+
+  const reversedItems = useMemo(() => [...sitemapItems].reverse(), [sitemapItems])
+  const estimateSize = useCallback(() => 75, [])
 
   if (!base) {
     return null
@@ -71,7 +79,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         }
         addSitemap(url)
       } catch (e) {
-        console.error('Invalid Sitemap URL:', url)
+        logger.error(`Invalid Sitemap URL: ${url}`)
       }
     }
   }
@@ -79,62 +87,72 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
+        <ResponsiveButton
           type="primary"
-          icon={<Plus size={16} />}
+          icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddSitemap()
           }}
           disabled={disabled}>
           {t('knowledge.add_sitemap')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
       <ItemFlexColumn>
         {sitemapItems.length === 0 && <KnowledgeEmptyView />}
-        {sitemapItems.reverse().map((item) => (
-          <FileItem
-            key={item.id}
-            fileInfo={{
-              name: (
-                <ClickableSpan>
-                  <Tooltip title={item.content as string}>
-                    <Ellipsis>
-                      <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                        {item.content as string}
-                      </a>
-                    </Ellipsis>
-                  </Tooltip>
-                </ClickableSpan>
-              ),
-              ext: '.sitemap',
-              extra: getDisplayTime(item),
-              actions: (
-                <FlexAlignCenter>
-                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
-                  <StatusIconWrapper>
-                    <StatusIcon
-                      sourceId={item.id}
-                      base={base}
-                      getProcessingStatus={getProcessingStatus}
-                      type="sitemap"
+        <DynamicVirtualList
+          list={reversedItems}
+          estimateSize={estimateSize}
+          overscan={2}
+          scrollerStyle={{ paddingRight: 2 }}
+          itemContainerStyle={{ paddingBottom: 10 }}
+          autoHideScrollbar>
+          {(item) => (
+            <FileItem
+              key={item.id}
+              fileInfo={{
+                name: (
+                  <ClickableSpan>
+                    <Tooltip title={item.content as string}>
+                      <Ellipsis>
+                        <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                          {item.content as string}
+                        </a>
+                      </Ellipsis>
+                    </Tooltip>
+                  </ClickableSpan>
+                ),
+                ext: '.sitemap',
+                extra: getDisplayTime(item),
+                actions: (
+                  <FlexAlignCenter>
+                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                    <StatusIconWrapper>
+                      <StatusIcon
+                        sourceId={item.id}
+                        base={base}
+                        getProcessingStatus={getProcessingStatus}
+                        type="sitemap"
+                      />
+                    </StatusIconWrapper>
+                    <Button
+                      type="text"
+                      danger
+                      onClick={() => removeItem(item)}
+                      icon={<DeleteIcon size={14} className="lucide-custom" />}
                     />
-                  </StatusIconWrapper>
-                  <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                </FlexAlignCenter>
-              )
-            }}
-          />
-        ))}
+                  </FlexAlignCenter>
+                )
+              }}
+            />
+          )}
+        </DynamicVirtualList>
       </ItemFlexColumn>
     </ItemContainer>
   )
 }
 
-const ItemFlexColumn = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+const ItemFlexColumn = styled.div`
   padding: 20px 16px;
   height: calc(100vh - 135px);
 `

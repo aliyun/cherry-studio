@@ -1,27 +1,35 @@
+import { loggerService } from '@logger'
 import type { ExternalToolResult, GenerateImageResponse, MCPToolResponse, WebSearchResponse } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Response } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 
+const logger = loggerService.withContext('StreamProcessingService')
+
 // Define the structure for the callbacks that the StreamProcessor will invoke
 export interface StreamProcessorCallbacks {
   // LLM response created
   onLLMResponseCreated?: () => void
+  // Text content start
+  onTextStart?: () => void
   // Text content chunk received
   onTextChunk?: (text: string) => void
   // Full text content received
   onTextComplete?: (text: string) => void
+  // thinking content start
+  onThinkingStart?: () => void
   // Thinking/reasoning content chunk received (e.g., from Claude)
   onThinkingChunk?: (text: string, thinking_millsec?: number) => void
   onThinkingComplete?: (text: string, thinking_millsec?: number) => void
   // A tool call response chunk (from MCP)
+  onToolCallPending?: (toolResponse: MCPToolResponse) => void
   onToolCallInProgress?: (toolResponse: MCPToolResponse) => void
   onToolCallComplete?: (toolResponse: MCPToolResponse) => void
   // External tool call in progress
   onExternalToolInProgress?: () => void
   // Citation data received (e.g., from Internet and  Knowledge Base)
-  onExternalToolComplete?: (externalToolResult: ExternalToolResult) => void
+  onExternalToolComplete?: (externalToolResult: ExternalToolResult) => void | Promise<void>
   // LLM Web search in progress
   onLLMWebSearchInProgress?: () => void
   // LLM Web search complete
@@ -35,6 +43,11 @@ export interface StreamProcessorCallbacks {
   onError?: (error: any) => void
   // Called when the entire stream processing is signaled as complete (success or failure)
   onComplete?: (status: AssistantMessageStatus, response?: Response) => void
+  onVideoSearched?: (video?: { type: 'url' | 'path'; content: string }, metadata?: Record<string, any>) => void
+  // Called when a block is created
+  onBlockCreated?: () => void
+  // Called when raw data is received (e.g., session_id updates from Agent SDK)
+  onRawData?: (content: unknown, metadata?: Record<string, any>) => void
 }
 
 // Function to create a stream processor instance
@@ -43,7 +56,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
   return (chunk: Chunk) => {
     try {
       const data = chunk
-      // console.log('data: ', chunk)
+      // logger.debug('data: ', data)
       switch (data.type) {
         case ChunkType.BLOCK_COMPLETE: {
           if (callbacks.onComplete) callbacks.onComplete(AssistantMessageStatus.SUCCESS, data?.response)
@@ -51,6 +64,10 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         }
         case ChunkType.LLM_RESPONSE_CREATED: {
           if (callbacks.onLLMResponseCreated) callbacks.onLLMResponseCreated()
+          break
+        }
+        case ChunkType.TEXT_START: {
+          if (callbacks.onTextStart) callbacks.onTextStart()
           break
         }
         case ChunkType.TEXT_DELTA: {
@@ -61,12 +78,20 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
           if (callbacks.onTextComplete) callbacks.onTextComplete(data.text)
           break
         }
+        case ChunkType.THINKING_START: {
+          if (callbacks.onThinkingStart) callbacks.onThinkingStart()
+          break
+        }
         case ChunkType.THINKING_DELTA: {
           if (callbacks.onThinkingChunk) callbacks.onThinkingChunk(data.text, data.thinking_millsec)
           break
         }
         case ChunkType.THINKING_COMPLETE: {
           if (callbacks.onThinkingComplete) callbacks.onThinkingComplete(data.text, data.thinking_millsec)
+          break
+        }
+        case ChunkType.MCP_TOOL_PENDING: {
+          if (callbacks.onToolCallPending) data.responses.forEach((toolResp) => callbacks.onToolCallPending!(toolResp))
           break
         }
         case ChunkType.MCP_TOOL_IN_PROGRESS: {
@@ -116,13 +141,25 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
           if (callbacks.onError) callbacks.onError(data.error)
           break
         }
+        case ChunkType.VIDEO_SEARCHED: {
+          if (callbacks.onVideoSearched) callbacks.onVideoSearched(data.video, data.metadata)
+          break
+        }
+        case ChunkType.BLOCK_CREATED: {
+          if (callbacks.onBlockCreated) callbacks.onBlockCreated()
+          break
+        }
+        case ChunkType.RAW: {
+          if (callbacks.onRawData) callbacks.onRawData(data.content, data.metadata)
+          break
+        }
         default: {
           // Handle unknown chunk types or log an error
-          console.warn(`Unknown chunk type: ${data.type}`)
+          logger.warn(`Unknown chunk type: ${data.type}`)
         }
       }
     } catch (error) {
-      console.error('Error processing stream chunk:', error)
+      logger.error('Error processing stream chunk:', error as Error)
       callbacks.onError?.(error)
     }
   }

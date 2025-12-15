@@ -1,8 +1,9 @@
-import { ArrowUpOutlined, MenuOutlined } from '@ant-design/icons'
 import { HStack, VStack } from '@renderer/components/Layout'
+import MaxContextCount from '@renderer/components/MaxContextCount'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Divider, Popover } from 'antd'
-import { FC } from 'react'
+import { ArrowUp, MenuIcon } from 'lucide-react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -10,7 +11,6 @@ type Props = {
   estimateTokenCount: number
   inputTokenCount: number
   contextCount: { current: number; max: number }
-  ToolbarButton: any
 } & React.HTMLAttributes<HTMLDivElement>
 
 const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCount }) => {
@@ -21,17 +21,17 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
     return null
   }
 
-  const formatMaxCount = (max: number) => {
-    return max.toString()
-  }
-
   const PopoverContent = () => {
     return (
       <VStack w="185px" background="100%">
         <HStack justifyContent="space-between" w="100%">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
-            {contextCount.current} / {contextCount.max}
+            <HStack style={{ alignItems: 'center' }}>
+              {contextCount.current}
+              <SlashSeparatorSpan>/</SlashSeparatorSpan>
+              <MaxContextCount maxContext={contextCount.max} />
+            </HStack>
           </Text>
         </HStack>
         <Divider style={{ margin: '5px 0' }} />
@@ -46,10 +46,21 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
   return (
     <Container>
       <Popover content={PopoverContent} arrow={false}>
-        <MenuOutlined /> {contextCount.current} / {formatMaxCount(contextCount.max)}
-        <Divider type="vertical" style={{ marginTop: 0, marginLeft: 5, marginRight: 5 }} />
-        <ArrowUpOutlined />
-        {inputTokenCount} / {estimateTokenCount}
+        <HStack>
+          <HStack style={{ alignItems: 'center' }}>
+            <MenuIcon size={12} className="icon" />
+            {contextCount.current}
+            <SlashSeparatorSpan>/</SlashSeparatorSpan>
+            <MaxContextCount maxContext={contextCount.max} />
+          </HStack>
+          <Divider type="vertical" style={{ marginTop: 3, marginLeft: 5, marginRight: 3 }} />
+          <HStack style={{ alignItems: 'center' }}>
+            <ArrowUp size={12} className="icon" />
+            {inputTokenCount}
+            <SlashSeparatorSpan>/</SlashSeparatorSpan>
+            {estimateTokenCount}
+          </HStack>
+        </HStack>
       </Popover>
     </Container>
   )
@@ -66,8 +77,7 @@ const Container = styled.div`
   display: flex;
   align-items: center;
   cursor: pointer;
-  .anticon {
-    font-size: 10px;
+  .icon {
     margin-right: 3px;
   }
   @media (max-width: 800px) {
@@ -78,6 +88,11 @@ const Container = styled.div`
 const Text = styled.div`
   font-size: 12px;
   color: var(--color-text-1);
+`
+
+const SlashSeparatorSpan = styled.span`
+  margin-left: 2px;
+  margin-right: 2px;
 `
 
 export default TokenCount

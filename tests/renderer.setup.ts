@@ -5,32 +5,36 @@ import { expect, vi } from 'vitest'
 
 expect.addSnapshotSerializer(styleSheetSerializer)
 
-vi.mock('electron-log/renderer', () => {
+// Mock LoggerService globally for renderer tests
+vi.mock('@logger', async () => {
+  const { MockRendererLoggerService, mockRendererLoggerService } = await import('./__mocks__/RendererLoggerService')
   return {
-    default: {
-      info: console.log,
-      error: console.error,
-      warn: console.warn,
-      debug: console.debug,
-      verbose: console.log,
-      silly: console.log,
-      log: console.log,
-      transports: {
-        console: {
-          level: 'info'
-        }
-      }
-    }
+    LoggerService: MockRendererLoggerService,
+    loggerService: mockRendererLoggerService
   }
 })
 
-vi.mock('axios', () => ({
-  default: {
+// Mock uuid globally for renderer tests
+let uuidCounter = 0
+vi.mock('uuid', () => ({
+  v4: () => 'test-uuid-' + ++uuidCounter
+}))
+
+vi.mock('axios', () => {
+  const defaultAxiosMock = {
     get: vi.fn().mockResolvedValue({ data: {} }), // Mocking axios GET request
     post: vi.fn().mockResolvedValue({ data: {} }) // Mocking axios POST request
     // You can add other axios methods like put, delete etc. as needed
   }
-}))
+
+  const isAxiosError = (error: unknown): error is { isAxiosError?: boolean } =>
+    Boolean((error as { isAxiosError?: boolean } | undefined)?.isAxiosError)
+
+  return {
+    default: defaultAxiosMock,
+    isAxiosError
+  }
+})
 
 vi.stubGlobal('electron', {
   ipcRenderer: {

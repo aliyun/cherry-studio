@@ -1,15 +1,16 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
 import dayjs from 'dayjs'
 
+const logger = loggerService.withContext('FileManager')
+
 class FileManager {
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileMetadata[] | null> {
-    const files = await window.api.file.select(options)
-    return files
+    return await window.api.file.select(options)
   }
 
   static async addFile(file: FileMetadata): Promise<FileMetadata> {
@@ -40,7 +41,7 @@ class FileManager {
   }
 
   static async addBase64File(file: FileMetadata): Promise<FileMetadata> {
-    Logger.log(`[FileManager] Adding base64 file: ${JSON.stringify(file)}`)
+    logger.info(`Adding base64 file: ${JSON.stringify(file)}`)
 
     const base64File = await window.api.file.base64File(file.id + file.ext)
     const fileRecord = await db.files.get(base64File.id)
@@ -56,10 +57,10 @@ class FileManager {
   }
 
   static async uploadFile(file: FileMetadata): Promise<FileMetadata> {
-    Logger.log(`[FileManager] Uploading file: ${JSON.stringify(file)}`)
+    logger.info(`Uploading file: ${JSON.stringify(file)}`)
 
     const uploadFile = await window.api.file.upload(file)
-    console.log('[FileManager] Uploaded file:', uploadFile)
+    logger.info('Uploaded file:', uploadFile)
     const fileRecord = await db.files.get(uploadFile.id)
 
     if (fileRecord) {
@@ -95,7 +96,7 @@ class FileManager {
   static async deleteFile(id: string, force: boolean = false): Promise<void> {
     const file = await this.getFile(id)
 
-    Logger.log('[FileManager] Deleting file:', file)
+    logger.info('Deleting file:', file)
 
     if (!file) {
       return
@@ -113,7 +114,7 @@ class FileManager {
     try {
       await window.api.file.delete(id + file.ext)
     } catch (error) {
-      Logger.error('[FileManager] Failed to delete file:', error)
+      logger.error('Failed to delete file:', error as Error)
     }
   }
 
@@ -130,6 +131,8 @@ class FileManager {
   }
 
   static getSafePath(file: FileMetadata) {
+    // use the path from the file metadata instead
+    // this function is used to get path for files which are not in the filestorage
     return this.isDangerFile(file) ? getFileDirectory(file.path) : file.path
   }
 

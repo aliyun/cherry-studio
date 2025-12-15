@@ -1,4 +1,6 @@
-import Logger from '@renderer/config/logger'
+import { loggerService } from '@logger'
+
+const logger = loggerService.withContext('AbortController')
 
 export const abortMap = new Map<string, (() => void)[]>()
 
@@ -28,15 +30,15 @@ export const abortCompletion = (id: string) => {
   }
 }
 
-export function createAbortPromise(signal: AbortSignal, finallyPromise: Promise<string>) {
-  return new Promise<string>((_resolve, reject) => {
+export function createAbortPromise<T>(signal: AbortSignal, finallyPromise: Promise<T>) {
+  return new Promise<T>((_resolve, reject) => {
     if (signal.aborted) {
       reject(new DOMException('Operation aborted', 'AbortError'))
       return
     }
 
     const abortHandler = (e: Event) => {
-      Logger.log('[createAbortPromise] abortHandler', e)
+      logger.debug('abortHandler', e)
       reject(new DOMException('Operation aborted', 'AbortError'))
     }
 
@@ -46,4 +48,26 @@ export function createAbortPromise(signal: AbortSignal, finallyPromise: Promise<
       signal.removeEventListener('abort', abortHandler)
     })
   })
+}
+
+/**
+ * 创建一个新的 AbortController 并将其注册到全局的 abort 映射中
+ * @param key - 用于标识此 AbortController 的唯一键值
+ * @returns AbortSignal - 返回 AbortController 的信号
+ * @example
+ * ```typescript
+ * const signal = readyToAbort('uniqueKey');
+ * fetch('https://api.example.com/data', { signal })
+ *   .then(response => response.json())
+ *   .catch(error => {
+ *     if (error.name === 'AbortError') {
+ *       console.log('Fetch aborted');
+ *     }
+ *   });
+ * ```
+ */
+export function readyToAbort(key: string) {
+  const controller = new AbortController()
+  addAbortController(key, () => controller.abort())
+  return controller.signal
 }

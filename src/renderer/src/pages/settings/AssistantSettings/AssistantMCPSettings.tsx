@@ -1,7 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { Box } from '@renderer/components/Layout'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { Assistant, AssistantSettings } from '@renderer/types'
+import type { Assistant, AssistantSettings } from '@renderer/types'
 import { Empty, Switch, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -97,7 +97,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
       ) : (
         <EmptyContainer>
           <Empty
-            description={t('assistants.settings.mcp.noAvaliable', 'No MCP servers available')}
+            description={t('assistants.settings.mcp.noServersAvailable', 'No MCP servers available')}
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         </EmptyContainer>

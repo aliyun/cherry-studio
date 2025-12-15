@@ -3,8 +3,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { Center, HStack } from '@renderer/components/Layout'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { builtinMCPServers } from '@renderer/store/mcp'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
 import { Button, Card, Flex, Input, Space, Spin, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
@@ -23,7 +22,7 @@ interface SearchResult {
   configSample?: MCPServer['configSample']
 }
 
-const npmScopes = ['@cherry', '@modelcontextprotocol', '@gongrzhe', '@mcpmarket']
+const npmScopes = ['@modelcontextprotocol', '@gongrzhe', '@mcpmarket']
 
 let _searchResults: SearchResult[] = []
 
@@ -32,7 +31,7 @@ const NpxSearch: FC = () => {
   const { Text, Link } = Typography
 
   // Add new state variables for npm scope search
-  const [npmScope, setNpmScope] = useState('@cherry')
+  const [npmScope, setNpmScope] = useState('@modelcontextprotocol')
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResult[]>(_searchResults)
   const { addMCPServer, mcpServers } = useMCPServers()
@@ -44,27 +43,11 @@ const NpxSearch: FC = () => {
     const searchScope = scopeOverride || npmScope
 
     if (!searchScope.trim()) {
-      window.message.warning({ content: t('settings.mcp.npx_list.scope_required'), key: 'mcp-npx-scope-required' })
+      window.toast.warning(t('settings.mcp.npx_list.scope_required'))
       return
     }
 
     if (searchLoading) {
-      return
-    }
-
-    if (searchScope === '@cherry') {
-      setSearchResults(
-        builtinMCPServers.map((server) => ({
-          key: server.id,
-          name: server.name,
-          description: server.description || '',
-          version: '1.0.0',
-          usage: '参考下方链接中的使用说明',
-          npmLink: 'https://docs.cherry-ai.com/advanced-basic/mcp/in-memory',
-          fullName: server.name,
-          type: server.type || 'inMemory'
-        }))
-      )
       return
     }
 
@@ -96,18 +79,15 @@ const NpxSearch: FC = () => {
       setSearchResults(formattedResults)
 
       if (formattedResults.length === 0) {
-        window.message.info({ content: t('settings.mcp.npx_list.no_packages'), key: 'mcp-npx-no-packages' })
+        window.toast.info(t('settings.mcp.npx_list.no_packages'))
       }
     } catch (error: unknown) {
       setSearchResults([])
       _searchResults = []
       if (error instanceof Error) {
-        window.message.error({
-          content: `${t('settings.mcp.npx_list.search_error')}: ${error.message}`,
-          key: 'mcp-npx-search-error'
-        })
+        window.toast.error(`${t('settings.mcp.npx_list.search_error')}: ${error.message}`)
       } else {
-        window.message.error({ content: t('settings.mcp.npx_list.search_error'), key: 'mcp-npx-search-error' })
+        window.toast.error(t('settings.mcp.npx_list.search_error'))
       }
     } finally {
       setSearchLoading(false)
@@ -190,14 +170,6 @@ const NpxSearch: FC = () => {
                           return
                         }
 
-                        const buildInServer = builtinMCPServers.find((server) => server.name === record.name)
-
-                        if (buildInServer) {
-                          addMCPServer(buildInServer)
-                          window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-add-server' })
-                          return
-                        }
-
                         const newServer = {
                           id: nanoid(),
                           name: record.name,
@@ -211,7 +183,7 @@ const NpxSearch: FC = () => {
                         }
 
                         addMCPServer(newServer)
-                        window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-add-server' })
+                        window.toast.success(t('settings.mcp.addSuccess'))
                       }}
                     />
                   </Flex>

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import type { Topic } from '@renderer/types'
@@ -11,6 +12,8 @@ import {
 } from '@renderer/utils/export'
 import { Alert, Empty, Form, Input, Modal, Select, Spin, Switch, TreeSelect } from 'antd'
 import React, { useEffect, useState } from 'react'
+
+const logger = loggerService.withContext('ObsidianExportDialog')
 
 const { Option } = Select
 
@@ -35,6 +38,7 @@ interface PopupContainerProps {
   message?: Message
   messages?: Message[]
   topic?: Topic
+  rawContent?: string
 }
 
 // 转换文件信息数组为树形结构
@@ -137,7 +141,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   resolve,
   message,
   messages,
-  topic
+  topic,
+  rawContent
 }) => {
   const defaultObsidianVault = store.getState().settings.defaultObsidianVault
   const [state, setState] = useState({
@@ -178,7 +183,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       try {
         setLoading(true)
         setError(null)
-        const vaultsData = await window.obsidian.getVaults()
+        const vaultsData = await window.api.obsidian.getVaults()
         if (vaultsData.length === 0) {
           setError(i18n.t('chat.topics.export.obsidian_no_vaults'))
           setLoading(false)
@@ -188,11 +193,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         const vaultToUse = defaultObsidianVault || vaultsData[0]?.name
         if (vaultToUse) {
           setSelectedVault(vaultToUse)
-          const filesData = await window.obsidian.getFiles(vaultToUse)
+          const filesData = await window.api.obsidian.getFiles(vaultToUse)
           setFiles(filesData)
         }
       } catch (error) {
-        console.error('获取Obsidian Vault失败:', error)
+        logger.error('获取Obsidian Vault失败:', error as Error)
         setError(i18n.t('chat.topics.export.obsidian_fetch_error'))
       } finally {
         setLoading(false)
@@ -207,10 +212,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         try {
           setLoading(true)
           setError(null)
-          const filesData = await window.obsidian.getFiles(selectedVault)
+          const filesData = await window.api.obsidian.getFiles(selectedVault)
           setFiles(filesData)
         } catch (error) {
-          console.error('获取Obsidian文件失败:', error)
+          logger.error('获取Obsidian文件失败:', error as Error)
           setError(i18n.t('chat.topics.export.obsidian_fetch_folders_error'))
         } finally {
           setLoading(false)
@@ -226,7 +231,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       return
     }
     let markdown = ''
-    if (topic) {
+    if (rawContent) {
+      markdown = rawContent
+    } else if (topic) {
       markdown = await topicToMarkdown(topic, exportReasoning)
     } else if (messages && messages.length > 0) {
       markdown = messagesToMarkdown(messages, exportReasoning)
@@ -242,7 +249,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       content = `---\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
     }
     if (content === '') {
-      window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+      window.toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
       return
     }
     await navigator.clipboard.writeText(content)
@@ -296,7 +303,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       }
     }
   }
-
   return (
     <Modal
       title={i18n.t('chat.topics.export.obsidian_atributes')}
@@ -407,9 +413,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
             </Option>
           </Select>
         </Form.Item>
-        <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
-          <Switch checked={exportReasoning} onChange={setExportReasoning} />
-        </Form.Item>
+        {!rawContent && (
+          <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
+            <Switch checked={exportReasoning} onChange={setExportReasoning} />
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   )

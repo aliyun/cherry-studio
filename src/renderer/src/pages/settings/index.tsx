@@ -1,16 +1,14 @@
-import { ThemeMode } from '@renderer/types'
+import type { ThemeMode } from '@renderer/types'
 import { Divider } from 'antd'
 import Link from 'antd/es/typography/Link'
-import styled, { CSSProp } from 'styled-components'
+import type { CSSProp } from 'styled-components'
+import styled from 'styled-components'
 
 export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
   display: flex;
   flex-direction: column;
   flex: 1;
-  height: calc(100vh - var(--navbar-height));
-  padding: 20px;
-  padding-top: 15px;
-  padding-bottom: 75px;
+  padding: 15px 18px;
   overflow-y: scroll;
   background: ${(props) => (props.theme === 'dark' ? 'transparent' : 'var(--color-background-soft)')};
 

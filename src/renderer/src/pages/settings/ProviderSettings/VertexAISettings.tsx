@@ -1,13 +1,13 @@
 import { HStack } from '@renderer/components/Layout'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
 import { Alert, Input } from 'antd'
-import { FC, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 
-const VertexAISettings: FC = () => {
+const VertexAISettings = () => {
   const { t } = useTranslation()
   const {
     projectId,
@@ -19,11 +19,11 @@ const VertexAISettings: FC = () => {
     setServiceAccountClientEmail
   } = useVertexAISettings()
 
-  const providerConfig = PROVIDER_CONFIG['vertexai']
-  const apiKeyWebsite = providerConfig?.websites?.apiKey
-
   const [localProjectId, setLocalProjectId] = useState(projectId)
   const [localLocation, setLocalLocation] = useState(location)
+
+  const providerConfig = PROVIDER_URLS['vertexai']
+  const apiKeyWebsite = providerConfig?.websites?.apiKey
 
   const handleProjectIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLocalProjectId(e.target.value)

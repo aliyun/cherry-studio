@@ -5,9 +5,10 @@ export enum IpcChannel {
   App_SetLanguage = 'app:set-language',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
-  App_ShowUpdateDialog = 'app:show-update-dialog',
   App_CheckForUpdate = 'app:check-for-update',
+  App_QuitAndInstall = 'app:quit-and-install',
   App_Reload = 'app:reload',
+  App_Quit = 'app:quit',
   App_Info = 'app:info',
   App_Proxy = 'app:proxy',
   App_SetLaunchToTray = 'app:set-launch-to-tray',
@@ -20,6 +21,8 @@ export enum IpcChannel {
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
+  App_ResolvePath = 'app:resolve-path',
+  App_IsPathInside = 'app:is-path-inside',
   App_Copy = 'app:copy',
   App_SetStopQuitApp = 'app:set-stop-quit-app',
   App_SetAppDataPath = 'app:set-app-data-path',
@@ -31,6 +34,14 @@ export enum IpcChannel {
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
+  App_InstallOvmsBinary = 'app:install-ovms-binary',
+  App_LogToMain = 'app:log-to-main',
+  App_SaveData = 'app:save-data',
+  App_GetDiskInfo = 'app:get-disk-info',
+  App_SetFullScreen = 'app:set-full-screen',
+  App_IsFullScreen = 'app:is-full-screen',
+  App_GetSystemFonts = 'app:get-system-fonts',
+  APP_CrashRenderProcess = 'app:crash-render-process',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
@@ -43,6 +54,9 @@ export enum IpcChannel {
 
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
   Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
+  Webview_SearchHotkey = 'webview:search-hotkey',
+  Webview_PrintToPDF = 'webview:print-to-pdf',
+  Webview_SaveAsHTML = 'webview:save-as-html',
 
   // Open
   Open_Path = 'open:path',
@@ -74,9 +88,22 @@ export enum IpcChannel {
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
-
+  Mcp_UploadDxt = 'mcp:upload-dxt',
+  Mcp_AbortTool = 'mcp:abort-tool',
+  Mcp_GetServerVersion = 'mcp:get-server-version',
+  Mcp_Progress = 'mcp:progress',
+  Mcp_GetServerLogs = 'mcp:get-server-logs',
+  Mcp_ServerLog = 'mcp:server-log',
   // Python
   Python_Execute = 'python:execute',
+
+  // agent messages
+  AgentMessage_PersistExchange = 'agent-message:persist-exchange',
+  AgentMessage_GetHistory = 'agent-message:get-history',
+
+  AgentToolPermission_Request = 'agent-tool-permission:request',
+  AgentToolPermission_Response = 'agent-tool-permission:response',
+  AgentToolPermission_Result = 'agent-tool-permission:result',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
@@ -107,10 +134,20 @@ export enum IpcChannel {
 
   // VertexAI
   VertexAI_GetAuthHeaders = 'vertexai:get-auth-headers',
+  VertexAI_GetAccessToken = 'vertexai:get-access-token',
   VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
   Windows_ResetMinimumSize = 'window:reset-minimum-size',
   Windows_SetMinimumSize = 'window:set-minimum-size',
+  Windows_Resize = 'window:resize',
+  Windows_GetSize = 'window:get-size',
+  Windows_Minimize = 'window:minimize',
+  Windows_Maximize = 'window:maximize',
+  Windows_Unmaximize = 'window:unmaximize',
+  Windows_Close = 'window:close',
+  Windows_IsMaximized = 'window:is-maximized',
+  Windows_MaximizedChanged = 'window:maximized-changed',
+  Windows_NavigateToAbout = 'window:navigate-to-about',
 
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',
@@ -129,22 +166,44 @@ export enum IpcChannel {
   File_Upload = 'file:upload',
   File_Clear = 'file:clear',
   File_Read = 'file:read',
+  File_ReadExternal = 'file:readExternal',
   File_Delete = 'file:delete',
   File_DeleteDir = 'file:deleteDir',
+  File_DeleteExternalFile = 'file:deleteExternalFile',
+  File_DeleteExternalDir = 'file:deleteExternalDir',
+  File_Move = 'file:move',
+  File_MoveDir = 'file:moveDir',
+  File_Rename = 'file:rename',
+  File_RenameDir = 'file:renameDir',
   File_Get = 'file:get',
   File_SelectFolder = 'file:selectFolder',
   File_CreateTempFile = 'file:createTempFile',
+  File_Mkdir = 'file:mkdir',
   File_Write = 'file:write',
   File_WriteWithId = 'file:writeWithId',
   File_SaveImage = 'file:saveImage',
   File_Base64Image = 'file:base64Image',
   File_SaveBase64Image = 'file:saveBase64Image',
+  File_SavePastedImage = 'file:savePastedImage',
   File_Download = 'file:download',
   File_Copy = 'file:copy',
   File_BinaryImage = 'file:binaryImage',
   File_Base64File = 'file:base64File',
   File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
+  Fs_ReadText = 'fs:readText',
+  File_OpenWithRelativePath = 'file:openWithRelativePath',
+  File_IsTextFile = 'file:isTextFile',
+  File_ListDirectory = 'file:listDirectory',
+  File_GetDirectoryStructure = 'file:getDirectoryStructure',
+  File_CheckFileName = 'file:checkFileName',
+  File_ValidateNotesDirectory = 'file:validateNotesDirectory',
+  File_StartWatcher = 'file:startWatcher',
+  File_StopWatcher = 'file:stopWatcher',
+  File_PauseWatcher = 'file:pauseWatcher',
+  File_ResumeWatcher = 'file:resumeWatcher',
+  File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
+  File_ShowInFolder = 'file:showInFolder',
 
   // file service
   FileService_Upload = 'file-service:upload',
@@ -165,6 +224,15 @@ export enum IpcChannel {
   Backup_CheckConnection = 'backup:checkConnection',
   Backup_CreateDirectory = 'backup:createDirectory',
   Backup_DeleteWebdavFile = 'backup:deleteWebdavFile',
+  Backup_BackupToLocalDir = 'backup:backupToLocalDir',
+  Backup_RestoreFromLocalBackup = 'backup:restoreFromLocalBackup',
+  Backup_ListLocalBackupFiles = 'backup:listLocalBackupFiles',
+  Backup_DeleteLocalBackupFile = 'backup:deleteLocalBackupFile',
+  Backup_BackupToS3 = 'backup:backupToS3',
+  Backup_RestoreFromS3 = 'backup:restoreFromS3',
+  Backup_ListS3Files = 'backup:listS3Files',
+  Backup_DeleteS3File = 'backup:deleteS3File',
+  Backup_CheckS3Connection = 'backup:checkS3Connection',
 
   // zip
   Zip_Compress = 'zip:compress',
@@ -173,6 +241,10 @@ export enum IpcChannel {
   // system
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
+  System_GetCpuName = 'system:getCpuName',
+  System_CheckGitBash = 'system:checkGitBash',
+  System_GetGitBashPath = 'system:getGitBashPath',
+  System_SetGitBashPath = 'system:setGitBashPath',
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',
@@ -180,7 +252,6 @@ export enum IpcChannel {
   // events
   BackupProgress = 'backup-progress',
   ThemeUpdated = 'theme:updated',
-  UpdateDownloadedCancelled = 'update-downloaded-cancelled',
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
   UpdateAvailable = 'update-available',
@@ -228,6 +299,91 @@ export enum IpcChannel {
   Selection_ActionWindowClose = 'selection:action-window-close',
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
+  // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
+  Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
-  Selection_UpdateActionData = 'selection:update-action-data'
+  Selection_UpdateActionData = 'selection:update-action-data',
+
+  // Memory
+  Memory_Add = 'memory:add',
+  Memory_Search = 'memory:search',
+  Memory_List = 'memory:list',
+  Memory_Delete = 'memory:delete',
+  Memory_Update = 'memory:update',
+  Memory_Get = 'memory:get',
+  Memory_SetConfig = 'memory:set-config',
+  Memory_DeleteUser = 'memory:delete-user',
+  Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
+  Memory_GetUsersList = 'memory:get-users-list',
+
+  // TRACE
+  TRACE_SAVE_DATA = 'trace:saveData',
+  TRACE_GET_DATA = 'trace:getData',
+  TRACE_SAVE_ENTITY = 'trace:saveEntity',
+  TRACE_GET_ENTITY = 'trace:getEntity',
+  TRACE_BIND_TOPIC = 'trace:bindTopic',
+  TRACE_CLEAN_TOPIC = 'trace:cleanTopic',
+  TRACE_TOKEN_USAGE = 'trace:tokenUsage',
+  TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
+  TRACE_OPEN_WINDOW = 'trace:openWindow',
+  TRACE_SET_TITLE = 'trace:setTitle',
+  TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
+  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
+
+  // API Server
+  ApiServer_Start = 'api-server:start',
+  ApiServer_Stop = 'api-server:stop',
+  ApiServer_Restart = 'api-server:restart',
+  ApiServer_GetStatus = 'api-server:get-status',
+  ApiServer_Ready = 'api-server:ready',
+  // NOTE: This api is not be used.
+  ApiServer_GetConfig = 'api-server:get-config',
+
+  // Anthropic OAuth
+  Anthropic_StartOAuthFlow = 'anthropic:start-oauth-flow',
+  Anthropic_CompleteOAuthWithCode = 'anthropic:complete-oauth-with-code',
+  Anthropic_CancelOAuthFlow = 'anthropic:cancel-oauth-flow',
+  Anthropic_GetAccessToken = 'anthropic:get-access-token',
+  Anthropic_HasCredentials = 'anthropic:has-credentials',
+  Anthropic_ClearCredentials = 'anthropic:clear-credentials',
+
+  // CodeTools
+  CodeTools_Run = 'code-tools:run',
+  CodeTools_GetAvailableTerminals = 'code-tools:get-available-terminals',
+  CodeTools_SetCustomTerminalPath = 'code-tools:set-custom-terminal-path',
+  CodeTools_GetCustomTerminalPath = 'code-tools:get-custom-terminal-path',
+  CodeTools_RemoveCustomTerminalPath = 'code-tools:remove-custom-terminal-path',
+
+  // OCR
+  OCR_ocr = 'ocr:ocr',
+  OCR_ListProviders = 'ocr:list-providers',
+
+  // OVMS
+  Ovms_AddModel = 'ovms:add-model',
+  Ovms_StopAddModel = 'ovms:stop-addmodel',
+  Ovms_GetModels = 'ovms:get-models',
+  Ovms_IsRunning = 'ovms:is-running',
+  Ovms_GetStatus = 'ovms:get-status',
+  Ovms_RunOVMS = 'ovms:run-ovms',
+  Ovms_StopOVMS = 'ovms:stop-ovms',
+
+  // CherryAI
+  Cherryai_GetSignature = 'cherryai:get-signature',
+
+  // Claude Code Plugins
+  ClaudeCodePlugin_ListAvailable = 'claudeCodePlugin:list-available',
+  ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
+  ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
+  ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
+  ClaudeCodePlugin_InvalidateCache = 'claudeCodePlugin:invalidate-cache',
+  ClaudeCodePlugin_ReadContent = 'claudeCodePlugin:read-content',
+  ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content',
+
+  // WebSocket
+  WebSocket_Start = 'webSocket:start',
+  WebSocket_Stop = 'webSocket:stop',
+  WebSocket_Status = 'webSocket:status',
+  WebSocket_SendFile = 'webSocket:send-file',
+  WebSocket_GetAllCandidates = 'webSocket:get-all-candidates'
 }

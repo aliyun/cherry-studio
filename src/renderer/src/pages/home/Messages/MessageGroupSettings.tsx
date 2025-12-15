@@ -7,7 +7,8 @@ import { useAppDispatch } from '@renderer/store'
 import { setGridColumns, setGridPopoverTrigger } from '@renderer/store/settings'
 import { Col, Row, Slider } from 'antd'
 import { Popover } from 'antd'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const MessageGroupSettings: FC = () => {
@@ -24,7 +25,7 @@ const MessageGroupSettings: FC = () => {
       content={
         <div style={{ padding: 8 }}>
           <SettingRow>
-            <div style={{ marginRight: 10 }}>{t('settings.messages.grid_popover_trigger')}</div>
+            <div style={{ marginRight: 10 }}>{t('settings.messages.grid_popover_trigger.label')}</div>
             <Selector
               size={14}
               value={gridPopoverTrigger || 'hover'}

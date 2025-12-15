@@ -1,8 +1,9 @@
 import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
-import { Painting } from '@renderer/types'
+import type { Painting } from '@renderer/types'
 import { Button, Spin } from 'antd'
-import React, { FC } from 'react'
+import type { FC } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -50,8 +51,8 @@ const Artboard: FC<ArtboardProps> = ({
               src={getCurrentImageUrl()}
               preview={{ mask: false }}
               style={{
-                maxWidth: '70vh',
-                maxHeight: '70vh',
+                maxWidth: 'var(--artboard-max)',
+                maxHeight: 'var(--artboard-max)',
                 objectFit: 'contain',
                 backgroundColor: 'var(--color-background-soft)',
                 cursor: 'pointer'
@@ -109,12 +110,14 @@ const Container = styled.div`
   flex-direction: row;
   justify-content: center;
   align-items: center;
+
+  --artboard-max: calc(100vh - 256px);
 `
 
 const ImagePlaceholder = styled.div`
   display: flex;
-  width: 70vh;
-  height: 70vh;
+  width: var(--artboard-max);
+  height: var(--artboard-max);
   background-color: var(--color-background-soft);
   align-items: center;
   justify-content: center;

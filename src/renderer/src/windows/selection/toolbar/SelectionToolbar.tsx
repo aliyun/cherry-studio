@@ -1,8 +1,10 @@
-import '@renderer/assets/styles/selection-toolbar.scss'
+import '@renderer/assets/styles/selection-toolbar.css'
 
+import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
@@ -10,16 +12,19 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar } from 'antd'
 import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
-import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TextSelectionData } from 'selection-hook'
+import type { TextSelectionData } from 'selection-hook'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('SelectionToolbar')
 
 //tell main the actual size of the content
 const updateWindowSize = () => {
   const rootElement = document.getElementById('root')
   if (!rootElement) {
-    console.error('SelectionToolbar: Root element not found')
+    logger.error('Root element not found')
     return
   }
   window.api?.selection.determineToolbarSize(rootElement.scrollWidth, rootElement.scrollHeight)
@@ -67,8 +72,22 @@ const ActionIcons: FC<{
     (action: ActionItem) => {
       const displayName = action.isBuiltIn ? t(action.name) : action.name
 
+      const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleAction(action)
+        }
+      }
+
       return (
-        <ActionButton key={action.id} onClick={() => handleAction(action)} title={isCompact ? displayName : undefined}>
+        <ActionButton
+          key={action.id}
+          onClick={() => handleAction(action)}
+          onKeyDown={handleKeyDown}
+          title={isCompact ? displayName : undefined}
+          role="button"
+          aria-label={displayName}
+          tabIndex={0}>
           <ActionIcon>
             {action.id === 'copy' ? (
               renderCopyIcon()
@@ -100,25 +119,41 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
   const [copyIconAnimation, setCopyIconAnimation] = useState<'none' | 'enter' | 'exit'>('none')
-  const copyIconTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
   const realActionItems = useMemo(() => {
     return actionItems?.filter((item) => item.enabled)
   }, [actionItems])
 
   const selectedText = useRef('')
+  // [macOS] only macOS has the fullscreen mode
+  const isFullScreen = useRef(false)
+
+  const onHideCleanUp = useCallback(() => {
+    setCopyIconStatus('normal')
+    setCopyIconAnimation('none')
+    clearTimeoutTimer('textSelection')
+    clearTimeoutTimer('copyIcon')
+  }, [clearTimeoutTimer])
 
   // listen to selectionService events
   useEffect(() => {
+    const cleanups: (() => void)[] = []
     // TextSelection
     const textSelectionListenRemover = window.electron?.ipcRenderer.on(
       IpcChannel.Selection_TextSelected,
       (_, selectionData: TextSelectionData) => {
         selectedText.current = selectionData.text
-        setTimeout(() => {
-          //make sure the animation is active
-          setAnimateKey((prev) => prev + 1)
-        }, 400)
+        isFullScreen.current = selectionData.isFullscreen ?? false
+        const cleanup = setTimeoutTimer(
+          'textSelection',
+          () => {
+            //make sure the animation is active
+            setAnimateKey((prev) => prev + 1)
+          },
+          400
+        )
+        cleanups.push(cleanup)
       }
     )
 
@@ -133,13 +168,12 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       }
     )
 
-    if (!demo) updateWindowSize()
-
     return () => {
       textSelectionListenRemover()
       toolbarVisibilityChangeListenRemover()
+      cleanups.forEach((cleanup) => cleanup())
     }
-  }, [demo])
+  }, [demo, onHideCleanUp, setTimeoutTimer])
 
   //make sure the toolbar size is updated when the compact mode/actionItems is changed
   useEffect(() => {
@@ -168,10 +202,82 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     }
   }, [customCss, demo])
 
-  const onHideCleanUp = () => {
-    setCopyIconStatus('normal')
-    setCopyIconAnimation('none')
-    clearTimeout(copyIconTimeoutRef.current)
+  /**
+   * Check if text is a valid URI or file path
+   */
+  const isUriOrFilePath = (text: string): boolean => {
+    const trimmed = text.trim()
+    // Must not contain newlines or whitespace
+    if (/\s/.test(trimmed)) {
+      return false
+    }
+    // URI patterns: http://, https://, ftp://, file://, etc.
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
+      return true
+    }
+    // Windows absolute path: C:\, D:\, etc.
+    if (/^[a-zA-Z]:[/\\]/.test(trimmed)) {
+      return true
+    }
+    // Unix absolute path: /path/to/file
+    if (/^\/[^/]/.test(trimmed)) {
+      return true
+    }
+    return false
+  }
+
+  // copy selected text to clipboard
+  const handleCopy = useCallback(async () => {
+    if (selectedText.current) {
+      const result = await window.api?.selection.writeToClipboard(selectedText.current)
+
+      setCopyIconStatus(result ? 'success' : 'fail')
+      setCopyIconAnimation('enter')
+      setTimeoutTimer(
+        'copyIcon',
+        () => {
+          setCopyIconAnimation('exit')
+        },
+        2000
+      )
+    }
+  }, [setTimeoutTimer])
+
+  const handleSearch = useCallback((action: ActionItem) => {
+    if (!action.selectedText) return
+
+    const selectedText = action.selectedText.trim()
+
+    let actionString = ''
+    if (isUriOrFilePath(selectedText)) {
+      actionString = selectedText
+    } else {
+      if (!action.searchEngine) return
+
+      const customUrl = action.searchEngine.split('|')[1]
+      if (!customUrl) return
+
+      actionString = customUrl.replace('{{queryString}}', encodeURIComponent(selectedText))
+    }
+
+    window.api?.openWebsite(actionString)
+    window.api?.selection.hideToolbar()
+  }, [])
+
+  /**
+   * Quote the selected text to the inputbar of the main window
+   */
+  const handleQuote = (action: ActionItem) => {
+    if (action.selectedText) {
+      window.api?.quoteToMainWindow(action.selectedText)
+      window.api?.selection.hideToolbar()
+    }
+  }
+
+  const handleDefaultAction = (action: ActionItem) => {
+    // [macOS] only macOS has the available isFullscreen mode
+    window.api?.selection.processAction(action, isFullScreen.current)
+    window.api?.selection.hideToolbar()
   }
 
   const handleAction = useCallback(
@@ -196,47 +302,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
           break
       }
     },
-    [demo]
+    [demo, handleCopy, handleSearch]
   )
-
-  // copy selected text to clipboard
-  const handleCopy = async () => {
-    if (selectedText.current) {
-      const result = await window.api?.selection.writeToClipboard(selectedText.current)
-
-      setCopyIconStatus(result ? 'success' : 'fail')
-      setCopyIconAnimation('enter')
-      copyIconTimeoutRef.current = setTimeout(() => {
-        setCopyIconAnimation('exit')
-      }, 2000)
-    }
-  }
-
-  const handleSearch = (action: ActionItem) => {
-    if (!action.searchEngine) return
-
-    const customUrl = action.searchEngine.split('|')[1]
-    if (!customUrl) return
-
-    const searchUrl = customUrl.replace('{{queryString}}', encodeURIComponent(action.selectedText || ''))
-    window.api?.openWebsite(searchUrl)
-    window.api?.selection.hideToolbar()
-  }
-
-  /**
-   * Quote the selected text to the inputbar of the main window
-   */
-  const handleQuote = (action: ActionItem) => {
-    if (action.selectedText) {
-      window.api?.quoteToMainWindow(action.selectedText)
-      window.api?.selection.hideToolbar()
-    }
-  }
-
-  const handleDefaultAction = (action: ActionItem) => {
-    window.api?.selection.processAction(action)
-    window.api?.selection.hideToolbar()
-  }
 
   return (
     <Container>
@@ -356,10 +423,10 @@ const ActionButton = styled.div`
   }
   &:hover {
     .btn-icon {
-      color: var(--selection-toolbar-button-icon-color-hover);
+      color: var(--color-primary);
     }
     .btn-title {
-      color: var(--selection-toolbar-button-text-color-hover);
+      color: var(--color-primary);
     }
     background-color: var(--selection-toolbar-button-bgcolor-hover);
   }

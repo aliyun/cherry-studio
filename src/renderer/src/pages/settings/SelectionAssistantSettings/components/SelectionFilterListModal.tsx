@@ -1,6 +1,7 @@
 import { isWin } from '@renderer/config/constant'
 import { Button, Form, Input, Modal } from 'antd'
-import { FC, useEffect } from 'react'
+import type { FC } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -46,7 +47,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
       onCancel={onClose}
       maskClosable={false}
       keyboard={true}
-      destroyOnClose={true}
+      destroyOnHidden
       footer={[
         <Button key="modal-cancel" onClick={onClose}>
           {t('common.cancel')}

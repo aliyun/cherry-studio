@@ -1,4 +1,4 @@
-import { GroundingMetadata } from '@google/genai'
+import type { GroundingMetadata } from '@google/genai'
 import Spinner from '@renderer/components/Spinner'
 import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
@@ -23,9 +23,10 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
     return (
       (formattedCitations && formattedCitations.length > 0) ||
       hasGeminiBlock ||
-      (block.knowledge && block.knowledge.length > 0)
+      (block.knowledge && block.knowledge.length > 0) ||
+      (block.memories && block.memories.length > 0)
     )
-  }, [formattedCitations, block.knowledge, hasGeminiBlock])
+  }, [formattedCitations, block.knowledge, block.memories, hasGeminiBlock])
 
   const getWebSearchStatusText = (requestId: string) => {
     const status = websearch.activeSearches[requestId] ?? { phase: 'default' }

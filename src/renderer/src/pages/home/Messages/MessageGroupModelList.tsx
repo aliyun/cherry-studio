@@ -10,7 +10,8 @@ import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage
 import { lightbulbSoftVariants } from '@renderer/utils/motionVariants'
 import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
 import { motion } from 'motion/react'
-import { FC, memo, useCallback } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -72,7 +73,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
       <Tooltip
         title={
           isCompact
-            ? t(`message.message.multi_model_style.fold.expand`)
+            ? t('message.message.multi_model_style.fold.expand')
             : t('message.message.multi_model_style.fold.compress')
         }
         placement="top"

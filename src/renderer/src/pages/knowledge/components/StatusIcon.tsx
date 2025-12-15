@@ -1,10 +1,13 @@
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
-import { KnowledgeBase, ProcessingStatus } from '@renderer/types'
+import { loggerService } from '@logger'
+import type { KnowledgeBase, ProcessingStatus } from '@renderer/types'
 import { Progress, Tooltip } from 'antd'
-import React, { FC, useMemo } from 'react'
+import type { FC } from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+const logger = loggerService.withContext('StatusIcon')
 interface StatusIconProps {
   sourceId: string
   base: KnowledgeBase
@@ -26,7 +29,7 @@ const StatusIcon: FC<StatusIconProps> = ({
   const status = getProcessingStatus(sourceId)
   const item = base.items.find((item) => item.id === sourceId)
   const errorText = item?.processingError
-  console.log('[StatusIcon] Rendering for item:', item?.id, 'Status:', status, 'Progress:', progress)
+  logger.debug(`[StatusIcon] Rendering for item: ${item?.id} Status: ${status} Progress: ${progress}`)
 
   return useMemo(() => {
     if (!status) {
