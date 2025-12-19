@@ -409,7 +409,7 @@ export const injectUserMessageWithKnowledgeSearchPrompt = async ({
 
 export const getKnowledgeReferences = async ({
   assistant,
-  lastUserMessage,
+  lastUserMessage
 }: {
   assistant: Assistant
   lastUserMessage: UserModelMessage
