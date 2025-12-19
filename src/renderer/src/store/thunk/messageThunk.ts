@@ -851,7 +851,6 @@ const fetchAndProcessAssistantResponseImpl = async (
       {
         messages: messagesForContext,
         assistant,
-        topicId,
         blockManager,
         assistantMsgId,
         callbacks,

@@ -102,7 +102,6 @@ export async function transformMessagesAndFetch(
     blockManager: BlockManager
     assistantMsgId: string
     callbacks: StreamProcessorCallbacks
-    topicId?: string // 添加 topicId 用于 trace
     options: {
       signal?: AbortSignal
       timeout?: number
@@ -124,7 +123,6 @@ export async function transformMessagesAndFetch(
       modelMessages,
       assistant,
       assistantMsgId: request.assistantMsgId,
-      topicId: request.topicId,
       blockManager: request.blockManager,
       setCitationBlockId: request.callbacks.setCitationBlockId!
     })
@@ -132,7 +130,6 @@ export async function transformMessagesAndFetch(
     await fetchChatCompletion({
       messages: modelMessages,
       assistant: assistant,
-      topicId: request.topicId,
       requestOptions: request.options,
       uiMessages,
       onChunkReceived
