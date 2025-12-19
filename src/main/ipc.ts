@@ -6,7 +6,14 @@ import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
-import { findGitBash, getBinaryPath, isBinaryExists, runInstallScript, validateGitBashPath } from '@main/utils/process'
+import {
+  autoDiscoverGitBash,
+  getBinaryPath,
+  getGitBashPathInfo,
+  isBinaryExists,
+  runInstallScript,
+  validateGitBashPath
+} from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { UpgradeChannel } from '@shared/config/constant'
@@ -499,9 +506,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
 
     try {
-      const customPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
-      const bashPath = findGitBash(customPath)
-
+      // Use autoDiscoverGitBash to handle auto-discovery and persistence
+      const bashPath = autoDiscoverGitBash()
       if (bashPath) {
         logger.info('Git Bash is available', { path: bashPath })
         return true
@@ -524,13 +530,22 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return customPath ?? null
   })
 
+  // Returns { path, source } where source is 'manual' | 'auto' | null
+  ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
+    return getGitBashPathInfo()
+  })
+
   ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
     if (!isWin) {
       return false
     }
 
     if (!newPath) {
+      // Clear manual setting and re-run auto-discovery
       configManager.set(ConfigKeys.GitBashPath, null)
+      configManager.set(ConfigKeys.GitBashPathSource, null)
+      // Re-run auto-discovery to restore auto-discovered path if available
+      autoDiscoverGitBash()
       return true
     }
 
@@ -539,7 +554,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return false
     }
 
+    // Set path with 'manual' source
     configManager.set(ConfigKeys.GitBashPath, validated)
+    configManager.set(ConfigKeys.GitBashPathSource, 'manual')
     return true
   })
 
@@ -897,8 +914,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setDisableHardwareAcceleration(isDisable)
   })
   ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
-  ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
-    getSpans(topicId, traceId, modelName)
+  ipcMain.handle(
+    IpcChannel.TRACE_GET_DATA,
+    (_, topicId: string, traceId: string, modelName?: string, assistantMsgId?: string) =>
+      getSpans(topicId, traceId, modelName, assistantMsgId)
   )
   ipcMain.handle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => saveEntity(entity))
   ipcMain.handle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => getEntity(spanId))
@@ -910,8 +929,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   )
   ipcMain.handle(
     IpcChannel.TRACE_OPEN_WINDOW,
-    (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
-      openTraceWindow(topicId, traceId, autoOpen, modelName)
+    (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string, assistantMsgId?: string) =>
+      openTraceWindow(topicId, traceId, autoOpen, modelName, assistantMsgId)
   )
   ipcMain.handle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => setTraceWindowTitle(title))
   ipcMain.handle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>

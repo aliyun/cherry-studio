@@ -7,6 +7,7 @@ import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
 import { type FetchChatCompletionParams, isSystemProvider } from '@renderer/types'
@@ -34,6 +35,10 @@ import {
   getProviderByModel,
   getQuickModel
 } from './AssistantService'
+import { ConversationService } from './ConversationService'
+import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeService'
+import type { BlockManager } from './messageStreaming'
+import type { StreamProcessorCallbacks } from './StreamProcessingService'
 // import { processKnowledgeSearch } from './KnowledgeService'
 // import {
 //   filterContextMessages,
@@ -60,7 +65,12 @@ export async function fetchMcpTools(assistant: Assistant) {
     try {
       const toolPromises = enabledMCPs.map(async (mcpServer: MCPServer) => {
         try {
-          const tools = await window.api.mcp.listTools(mcpServer)
+          const span = currentSpan(
+            assistant.traceContext?.topicId || '',
+            assistant.traceContext?.modelName,
+            assistant.traceContext?.assistantMsgId
+          )
+          const tools = await window.api.mcp.listTools(mcpServer, span?.spanContext())
           return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
         } catch (error) {
           logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
@@ -79,21 +89,69 @@ export async function fetchMcpTools(assistant: Assistant) {
   return mcpTools
 }
 
+/**
+ * 将用户消息转换为LLM可以理解的格式并发送请求
+ * @param request - 包含消息内容和助手信息的请求对象
+ * @param onChunkReceived - 接收流式响应数据的回调函数
+ */
+// 目前先按照函数来写,后续如果有需要到class的地方就改回来
+export async function transformMessagesAndFetch(
+  request: {
+    messages: Message[]
+    assistant: Assistant
+    blockManager: BlockManager
+    assistantMsgId: string
+    callbacks: StreamProcessorCallbacks
+    options: {
+      signal?: AbortSignal
+      timeout?: number
+      headers?: Record<string, string>
+    }
+  },
+  onChunkReceived: (chunk: Chunk) => void
+) {
+  const { messages, assistant } = request
+
+  try {
+    const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(messages, assistant)
+
+    // replace prompt variables
+    assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
+
+    // inject knowledge search prompt into model messages
+    await injectUserMessageWithKnowledgeSearchPrompt({
+      modelMessages,
+      assistant,
+      assistantMsgId: request.assistantMsgId,
+      blockManager: request.blockManager,
+      setCitationBlockId: request.callbacks.setCitationBlockId!
+    })
+
+    await fetchChatCompletion({
+      messages: modelMessages,
+      assistant: assistant,
+      requestOptions: request.options,
+      uiMessages,
+      onChunkReceived
+    })
+  } catch (error: any) {
+    onChunkReceived({ type: ChunkType.ERROR, error })
+  }
+}
+
 export async function fetchChatCompletion({
   messages,
   prompt,
   assistant,
   requestOptions,
   onChunkReceived,
-  topicId,
   uiMessages
 }: FetchChatCompletionParams) {
   logger.info('fetchChatCompletion called with detailed context', {
     messageCount: messages?.length || 0,
     prompt: prompt,
     assistantId: assistant.id,
-    topicId,
-    hasTopicId: !!topicId,
+    traceContext: assistant.traceContext,
     modelId: assistant.model?.id,
     modelName: assistant.model?.name
   })
@@ -162,7 +220,6 @@ export async function fetchChatCompletion({
   await AI.completions(modelId, aiSdkParams, {
     ...middlewareConfig,
     assistant,
-    topicId,
     callType: 'chat',
     uiMessages
   })
@@ -266,7 +323,6 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     const { getText } = await AI.completions(model.id, llmMessages, {
       ...middlewareConfig,
       assistant: summaryAssistant,
-      topicId,
       callType: 'summary'
     })
     const text = getText()

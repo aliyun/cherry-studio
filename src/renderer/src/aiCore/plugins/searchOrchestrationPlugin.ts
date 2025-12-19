@@ -31,7 +31,7 @@ import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
 
-const getMessageContent = (message: ModelMessage) => {
+export const getMessageContent = (message: ModelMessage) => {
   if (typeof message.content === 'string') return message.content
   return message.content.reduce((acc, part) => {
     if (part.type === 'text') {
@@ -79,7 +79,6 @@ async function analyzeSearchIntent(
     shouldMemorySearch?: boolean
     lastAnswer?: ModelMessage
     context: AiRequestContext
-    topicId: string
   }
 ): Promise<ExtractResults | undefined> {
   const { shouldWebSearch = false, shouldKnowledgeSearch = false, lastAnswer, context } = options
@@ -125,7 +124,7 @@ async function analyzeSearchIntent(
   try {
     logger.info('Starting intent analysis generateText call', {
       modelId: model.id,
-      topicId: options.topicId,
+      traceContext: assistant.traceContext,
       requestId: context.requestId,
       hasWebSearch: needWebExtract,
       hasKnowledgeSearch: needKnowledgeExtract
@@ -137,7 +136,7 @@ async function analyzeSearchIntent(
     }).finally(() => {
       logger.info('Intent analysis generateText call completed', {
         modelId: model.id,
-        topicId: options.topicId,
+        traceContext: assistant.traceContext,
         requestId: context.requestId
       })
     })
@@ -236,7 +235,7 @@ async function storeConversationMemory(
 /**
  * 🎯 搜索编排插件
  */
-export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string) => {
+export const searchOrchestrationPlugin = (assistant: Assistant) => {
   // 存储意图分析结果
   const intentAnalysisResults: { [requestId: string]: ExtractResults } = {}
   const userMessages: { [requestId: string]: ModelMessage } = {}
@@ -266,21 +265,20 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 判断是否需要各种搜索
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         const shouldWebSearch = !!assistant.webSearchProviderId
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
         const shouldMemorySearch = globalMemoryEnabled && assistant.enableMemory
 
         // 执行意图分析
-        if (shouldWebSearch || hasKnowledgeBase) {
+        if (shouldWebSearch || shouldKnowledgeSearch) {
           const analysisResult = await analyzeSearchIntent(lastUserMessage, assistant, {
             shouldWebSearch,
             shouldKnowledgeSearch,
             shouldMemorySearch,
             lastAnswer: lastAssistantMessage,
-            context,
-            topicId
+            context
           })
 
           if (analysisResult) {
@@ -322,7 +320,8 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
             params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
               assistant.webSearchProviderId,
               analysisResult.websearch,
-              context.requestId
+              context.requestId,
+              assistant.traceContext
             )
           }
         }
@@ -330,41 +329,24 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 📚 知识库搜索工具配置
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
+        const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
 
-        if (hasKnowledgeBase) {
-          if (knowledgeRecognition === 'off') {
-            // off 模式：直接添加知识库搜索工具，使用用户消息作为搜索关键词
+        if (shouldKnowledgeSearch) {
+          // on 模式：根据意图识别结果决定是否添加工具
+          const needsKnowledgeSearch =
+            analysisResult?.knowledge &&
+            analysisResult.knowledge.question &&
+            analysisResult.knowledge.question[0] !== 'not_needed'
+
+          if (needsKnowledgeSearch && analysisResult.knowledge) {
+            // logger.info('📚 Adding knowledge search tool (intent-based)')
             const userMessage = userMessages[context.requestId]
-            const fallbackKeywords = {
-              question: [getMessageContent(userMessage) || 'search'],
-              rewrite: getMessageContent(userMessage) || 'search'
-            }
-            // logger.info('📚 Adding knowledge search tool (force mode)')
             params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
               assistant,
-              fallbackKeywords,
-              getMessageContent(userMessage),
-              topicId
+              analysisResult.knowledge,
+              getMessageContent(userMessage)
             )
-            // params.toolChoice = { type: 'tool', toolName: 'builtin_knowledge_search' }
-          } else {
-            // on 模式：根据意图识别结果决定是否添加工具
-            const needsKnowledgeSearch =
-              analysisResult?.knowledge &&
-              analysisResult.knowledge.question &&
-              analysisResult.knowledge.question[0] !== 'not_needed'
-
-            if (needsKnowledgeSearch && analysisResult.knowledge) {
-              // logger.info('📚 Adding knowledge search tool (intent-based)')
-              const userMessage = userMessages[context.requestId]
-              params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
-                assistant,
-                analysisResult.knowledge,
-                getMessageContent(userMessage),
-                topicId
-              )
-            }
           }
         }
 
