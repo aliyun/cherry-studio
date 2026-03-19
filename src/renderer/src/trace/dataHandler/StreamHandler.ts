@@ -36,7 +36,7 @@ export class StreamHandler {
   > {
     try {
       for await (const chunk of this.stream) {
-        let context: string | undefined
+        let context: string
         if ('object' in chunk && chunk.object === 'chat.completion.chunk') {
           const completionChunk = chunk as OpenAI.Chat.Completions.ChatCompletionChunk
           if (completionChunk.usage) {

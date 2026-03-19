@@ -126,7 +126,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [focusInput])
 
   const onWindowShow = useCallback(async () => {
-    featureMenusRef.current?.resetSelectedIndex()
     await readClipboard()
     focusInput()
   }, [readClipboard, focusInput])
@@ -478,6 +477,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         // Reset the topic
         currentTopic.current = getDefaultTopic(currentAssistant.id)
 
+        // Reset selection only after using a feature and returning to home.
+        featureMenusRef.current?.resetSelectedIndex()
         setError(null)
         setRoute('home')
         setUserInputText('')

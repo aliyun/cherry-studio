@@ -54,6 +54,7 @@ import {
 } from '..'
 import ApiOptionsSettingsPopup from './ApiOptionsSettings/ApiOptionsSettingsPopup'
 import AwsBedrockSettings from './AwsBedrockSettings'
+import CherryINOAuth from './CherryINOAuth'
 import CherryINSettings from './CherryINSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
@@ -85,7 +86,8 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.dmxapi,
   SystemProviderIds.mimo,
   SystemProviderIds.openrouter,
-  SystemProviderIds.tokenflux
+  SystemProviderIds.tokenflux,
+  SystemProviderIds.ollama
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 
@@ -441,6 +443,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
+      {isCherryIN && <CherryINOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {provider.id === 'ovms' && <OVMSSettings />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}

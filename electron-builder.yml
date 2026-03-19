@@ -73,11 +73,6 @@ asarUnpack:
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-libvips-*/**"
 
-# copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
-extraResources:
-  - from: "./node_modules/claude-code-plugins/plugins/"
-    to: "claude-code-plugins"
-
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -145,60 +140,34 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.14 - New Features & Improvements
-
-    ✨ New Features
-    - [Notes] Add export to Word document functionality
-    - [Code Tools] Add Kimi CLI support with auto-configuration
-    - [Code Tools] Support custom providers
-    - [Settings] Support viewing detailed error messages when model detection fails
-    - [Topics] Display year in topic timestamps (YYYY/MM/DD format)
-    - [Linux] Add system title bar setting option
-    - [Models] Add Baichuan m3/m3-plus models
-    - [Models] Add Qwen text-embedding models
-
-    🎨 Improvements
-    - [Translate] Simplify translation with single target language selector
-    - [Topics] Unpinned topics now move to top with auto-scroll
-    - [Minapps] Add locale-based filtering support
-    - [i18n] Update Romanian localization
+    Cherry Studio 1.8.1 - Quick Fixes
 
     🐛 Bug Fixes
-    - [Linux] Fix icon display and deb/rpm installation issues
-    - [Linux] Fix window not coming to front when clicking tray
-    - [Linux] Add Alpine Linux (musl) support
-    - [Code Tools] Fix Windows Terminal issues
-    - [Azure] Fix API preview link for completion mode
-    - [Images] Fix trailing slashes in API URLs for image generation
-    - [OpenRouter] Fix MCP tools support
-    - [Chat] Fix image enhancement model conversation history
+    - [Agents] Fix thinking mode 400 error on non-Anthropic providers
+    - [Windows] Fix Windows Terminal launch failing on non-English systems
+    - [Windows] Fix CLI tools (qwen-code, Copilot CLI) failing to start on Windows
+    - [Azure] Fix dated API versions routing to wrong transport
+    - [Editor] Fix Zed editor unable to open directories from agent workspace
+
+    ✨ New Features
+    - [Agents] Clickable file paths in tool outputs — click to open files, with dropdown to reveal in Finder or open in external editors
+
+    💄 Improvements
+    - [Backup] Enhanced backup system with new format (v6), improved security, and config.json now included in backups
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.14 - 新功能与改进
-
-    ✨ 新功能
-    - [笔记] 支持导出为 Word 文档
-    - [代码工具] 新增 Kimi CLI 支持，自动配置环境
-    - [代码工具] 支持自定义服务商
-    - [设置] 模型检测失败时可查看详细错误信息
-    - [话题] 时间戳显示年份（YYYY/MM/DD 格式）
-    - [Linux] 新增系统标题栏设置选项
-    - [模型] 新增百川 m3/m3-plus 模型
-    - [模型] 新增通义 Embedding 模型
-
-    🎨 改进
-    - [翻译] 简化翻译操作，使用单一目标语言选择
-    - [话题] 取消置顶的话题移动到顶部并自动滚动
-    - [小程序] 支持按语言筛选小程序
-    - [国际化] 更新罗马尼亚语翻译
+    Cherry Studio 1.8.1 - 快速修复
 
     🐛 问题修复
-    - [Linux] 修复图标显示和 deb/rpm 安装问题
-    - [Linux] 修复点击托盘后窗口无法置顶的问题
-    - [Linux] 新增 Alpine Linux (musl) 支持
-    - [代码工具] 修复 Windows 终端问题
-    - [Azure] 修复完成模式下 API 预览链接
-    - [图片生成] 修复 API 地址结尾斜杠问题
-    - [OpenRouter] 修复 MCP 工具支持
-    - [对话] 修复图片增强模型对话历史丢失问题
+    - [智能体] 修复非 Anthropic 服务商思考模式 400 错误
+    - [Windows] 修复 Windows Terminal 在非英语系统上启动失败的问题
+    - [Windows] 修复 CLI 工具（qwen-code、Copilot CLI）在 Windows 上启动失败的问题
+    - [Azure] 修复特定版本的 API 路由到错误传输方式的问题
+    - [编辑器] 修复 Zed 编辑器无法从智能体工作区打开目录的问题
+
+    ✨ 新功能
+    - [智能体] 工具输出中的文件路径可点击 — 点击打开文件，下拉菜单可显示在访达中或在外部编辑器中打开
+
+    💄 改进
+    - [备份] 增强备份系统，新增格式（v6）、改进安全性，config.json 现已包含在备份中
     <!--LANG:END-->

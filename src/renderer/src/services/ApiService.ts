@@ -2,23 +2,25 @@
  * 职责：提供原子化的、无状态的API调用函数
  */
 import { loggerService } from '@logger'
-import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
+import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
+import { buildProviderOptions } from '@renderer/aiCore/utils/options'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { hubMCPServer } from '@renderer/store/mcp'
-import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
+import type { Assistant, MCPServer, MCPTool, Model, Provider, WebTraceContext } from '@renderer/types'
 import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message, ResponseError } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
+import { trackTokenUsage } from '@renderer/utils/analytics'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { isAbortError } from '@renderer/utils/error'
+import { getErrorMessage, isAbortError } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -104,7 +106,7 @@ export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
   }
 }
 
-export async function fetchMcpTools(assistant: Assistant) {
+export async function fetchMcpTools(assistant: Assistant, traceContext?: WebTraceContext) {
   let mcpTools: MCPTool[] = []
   const enabledMCPs = getMcpServersForAssistant(assistant)
 
@@ -112,11 +114,7 @@ export async function fetchMcpTools(assistant: Assistant) {
     try {
       const toolPromises = enabledMCPs.map(async (mcpServer: MCPServer) => {
         try {
-          const span = currentSpan(
-            assistant.traceContext?.topicId || '',
-            assistant.traceContext?.modelName,
-            assistant.traceContext?.assistantMsgId
-          )
+          const span = currentSpan(traceContext?.topicId || '', traceContext?.modelName, traceContext?.assistantMsgId)
           const tools = await window.api.mcp.listTools(mcpServer, span?.spanContext())
           return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
         } catch (error) {
@@ -149,15 +147,17 @@ export async function transformMessagesAndFetch(
     blockManager: BlockManager
     assistantMsgId: string
     callbacks: StreamProcessorCallbacks
+    allowedTools?: string[]
     options: {
       signal?: AbortSignal
       timeout?: number
       headers?: Record<string, string>
     }
+    traceContext?: WebTraceContext
   },
   onChunkReceived: (chunk: Chunk) => void
 ) {
-  const { messages, assistant } = request
+  const { messages, assistant, traceContext } = request
 
   try {
     const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(messages, assistant)
@@ -171,34 +171,43 @@ export async function transformMessagesAndFetch(
       assistant,
       assistantMsgId: request.assistantMsgId,
       blockManager: request.blockManager,
-      setCitationBlockId: request.callbacks.setCitationBlockId!
+      setCitationBlockId: request.callbacks.setCitationBlockId!,
+      traceContext
     })
 
     await fetchChatCompletion({
       messages: modelMessages,
       assistant: assistant,
+      allowedTools: request.allowedTools,
       requestOptions: request.options,
       uiMessages,
-      onChunkReceived
+      onChunkReceived,
+      traceContext
     })
   } catch (error: any) {
     onChunkReceived({ type: ChunkType.ERROR, error })
   }
 }
 
+/**
+ * Note: This path always uses AI SDK streaming under the hood via `streamText`.
+ * There is no `generateText` (non-stream) branch inside this function.
+ */
 export async function fetchChatCompletion({
   messages,
   prompt,
   assistant,
   requestOptions,
   onChunkReceived,
-  uiMessages
+  uiMessages,
+  allowedTools,
+  traceContext
 }: FetchChatCompletionParams) {
   logger.info('fetchChatCompletion called with detailed context', {
     messageCount: messages?.length || 0,
     prompt: prompt,
     assistantId: assistant.id,
-    traceContext: assistant.traceContext,
+    traceContext: traceContext,
     modelId: assistant.model?.id,
     modelName: assistant.model?.name
   })
@@ -219,7 +228,7 @@ export async function fetchChatCompletion({
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
 
   if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
-    mcpTools.push(...(await fetchMcpTools(assistant)))
+    mcpTools.push(...(await fetchMcpTools(assistant, traceContext)))
   }
   if (prompt) {
     messages = [
@@ -235,11 +244,14 @@ export async function fetchChatCompletion({
     params: aiSdkParams,
     modelId,
     capabilities,
-    webSearchPluginConfig
+    webSearchPluginConfig,
+    idleTimeout
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
+    allowedTools,
     webSearchProviderId: assistant.webSearchProviderId,
-    requestOptions
+    requestOptions,
+    traceContext
   })
 
   // Safely fallback to prompt tool use when function calling is not supported by model.
@@ -250,7 +262,6 @@ export async function fetchChatCompletion({
   const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
-    model: assistant.model,
     enableReasoning: capabilities.enableReasoning,
     isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),
@@ -270,13 +281,19 @@ export async function fetchChatCompletion({
     ...middlewareConfig,
     assistant,
     callType: 'chat',
-    uiMessages
+    uiMessages,
+    idleTimeout,
+    traceContext
   })
 }
 
-export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+export async function fetchMessagesSummary({
+  messages
+}: {
+  messages: Message[]
+}): Promise<{ text: string | null; error?: string }> {
   let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
-  const model = getQuickModel() || assistant?.model || getDefaultModel()
+  const model = getQuickModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)
@@ -287,7 +304,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
-    return null
+    return { text: null, error: i18n.t('error.no_api_key') }
   }
 
   // Apply API key rotation
@@ -299,6 +316,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   }
 
   const AI = new AiProviderNew(model, providerWithRotatedKey)
+  const actualProvider = AI.getActualProvider()
 
   const topicId = messages?.find((message) => message.topicId)?.topicId || ''
 
@@ -323,29 +341,29 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   })
   const conversation = JSON.stringify(structredMessages)
 
-  // // 复制 assistant 对象，并强制关闭思考预算
-  // const summaryAssistant = {
-  //   ...assistant,
-  //   settings: {
-  //     ...assistant.settings,
-  //     reasoning_effort: undefined,
-  //     qwenThinkMode: false
-  //   }
-  // }
+  const defaultAssistant = getDefaultAssistant()
   const summaryAssistant = {
-    ...assistant,
+    ...defaultAssistant,
     settings: {
-      ...assistant.settings,
-      reasoning_effort: undefined,
+      ...defaultAssistant.settings,
+      reasoning_effort: 'none',
       qwenThinkMode: false
     },
     prompt,
     model
-  }
+  } satisfies Assistant
+
+  const { providerOptions, standardParams } = buildProviderOptions(summaryAssistant, model, actualProvider, {
+    enableReasoning: false,
+    enableWebSearch: false,
+    enableGenerateImage: false
+  })
 
   const llmMessages = {
     system: prompt,
-    prompt: conversation
+    prompt: conversation,
+    providerOptions,
+    ...standardParams
   }
 
   const middlewareConfig: AiSdkMiddlewareConfig = {
@@ -369,15 +387,24 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
       await appendTrace({ topicId, traceId: messageWithTrace.traceId, model })
     }
 
-    const { getText } = await AI.completions(model.id, llmMessages, {
+    const { getText, usage } = await AI.completions(model.id, llmMessages, {
       ...middlewareConfig,
       assistant: summaryAssistant,
-      callType: 'summary'
+      callType: 'summary',
+      traceContext: {
+        topicId,
+        modelName: summaryAssistant.model.name,
+        assistantMsgId: defaultAssistant.id
+      }
     })
+
+    trackTokenUsage({ usage, model })
+
     const text = getText()
-    return removeSpecialCharactersForTopicName(text) || null
-  } catch (error: any) {
-    return null
+    const result = removeSpecialCharactersForTopicName(text)
+    return result ? { text: result } : { text: null, error: i18n.t('error.no_response') }
+  } catch (error: unknown) {
+    return { text: null, error: getErrorMessage(error) }
   }
 }
 
@@ -439,11 +466,14 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
   }
 
   try {
-    const { getText } = await AI.completions(model.id, llmMessages, {
+    const { getText, usage } = await AI.completions(model.id, llmMessages, {
       ...middlewareConfig,
       assistant: summaryAssistant,
       callType: 'summary'
     })
+
+    trackTokenUsage({ usage, model })
+
     const text = getText()
     return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
@@ -537,6 +567,9 @@ export async function fetchGenerate({
         callType: 'generate'
       }
     )
+
+    trackTokenUsage({ usage: result.usage, model })
+
     return result.getText() || ''
   } catch (error: any) {
     return ''

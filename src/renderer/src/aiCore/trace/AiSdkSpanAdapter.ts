@@ -156,6 +156,7 @@ export class AiSdkSpanAdapter {
         usage: tokenUsage,
         spanId: spanContext.spanId
       })
+      // update current span usage and parent span usage
       window.api.trace.tokenUsage(spanContext.spanId, tokenUsage)
     }
 

@@ -365,13 +365,15 @@ export const injectUserMessageWithKnowledgeSearchPrompt = async ({
   assistant,
   assistantMsgId,
   blockManager,
-  setCitationBlockId
+  setCitationBlockId,
+  traceContext
 }: {
   modelMessages: ModelMessage[]
   assistant: Assistant
   assistantMsgId: string
   blockManager: BlockManager
   setCitationBlockId: (blockId: string) => void
+  traceContext?: WebTraceContext
 }) => {
   if (assistant.knowledge_bases?.length && modelMessages.length > 0) {
     const lastUserMessage = modelMessages[modelMessages.length - 1]
@@ -383,7 +385,8 @@ export const injectUserMessageWithKnowledgeSearchPrompt = async ({
 
     const knowledgeReferences = await getKnowledgeReferences({
       assistant,
-      lastUserMessage
+      lastUserMessage,
+      traceContext
     })
 
     if (knowledgeReferences.length === 0) {
@@ -420,10 +423,12 @@ export const injectUserMessageWithKnowledgeSearchPrompt = async ({
 
 export const getKnowledgeReferences = async ({
   assistant,
-  lastUserMessage
+  lastUserMessage,
+  traceContext
 }: {
   assistant: Assistant
   lastUserMessage: UserModelMessage
+  traceContext?: WebTraceContext
 }) => {
   // 如果助手没有知识库，返回空字符串
   if (!assistant || isEmpty(assistant.knowledge_bases)) {
@@ -445,7 +450,7 @@ export const getKnowledgeReferences = async ({
       }
     },
     knowledgeBaseIds,
-    assistant.traceContext
+    traceContext
   )
 
   // 返回提示词

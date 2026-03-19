@@ -147,23 +147,21 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
       </Box>
       <Box className="code-container">
         {isJson ? (
-          <>
-            <ReactJson
-              src={jsonData || {}}
-              displayDataTypes={false}
-              displayObjectSize={false}
-              indentWidth={2}
-              collapsed={collapsed}
-              collapseStringsAfterLength={100}
-              iconStyle={'triangle'}
-              name={false}
-              theme={'monokai'}
-              groupArraysAfterLength={20}
-              quotesOnKeys={false}
-              shouldCollapse={shouldCollapse}
-              style={{ fontSize: '12px', marginBottom: '30px' }}
-            />
-          </>
+          <ReactJson
+            src={jsonData || {}}
+            displayDataTypes={false}
+            displayObjectSize={false}
+            indentWidth={2}
+            collapsed={collapsed}
+            collapseStringsAfterLength={100}
+            iconStyle={'triangle'}
+            name={false}
+            theme={'monokai'}
+            groupArraysAfterLength={20}
+            quotesOnKeys={false}
+            shouldCollapse={shouldCollapse}
+            style={{ fontSize: '12px', marginBottom: '30px' }}
+          />
         ) : (
           <pre
             style={{

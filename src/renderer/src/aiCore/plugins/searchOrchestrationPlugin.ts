@@ -6,7 +6,13 @@
  * 2. transformParams: 根据意图分析结果动态添加对应的工具
  * 3. onRequestEnd: 自动记忆存储
  */
-import { type AiRequestContext, definePlugin } from '@cherrystudio/ai-core'
+import {
+  type AiPlugin,
+  type AiRequestContext,
+  definePlugin,
+  type StreamTextParams,
+  type StreamTextResult
+} from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 // import { generateObject } from '@cherrystudio/ai-core'
 import {
@@ -18,6 +24,7 @@ import { getDefaultModel, getProviderByModel } from '@renderer/services/Assistan
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant } from '@renderer/types'
+import type { WebTraceContext } from '@renderer/types/trace'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { extractInfoFromXML } from '@renderer/utils/extract'
 import type { LanguageModel, ModelMessage } from 'ai'
@@ -79,9 +86,10 @@ async function analyzeSearchIntent(
     shouldMemorySearch?: boolean
     lastAnswer?: ModelMessage
     context: AiRequestContext
+    traceContext?: WebTraceContext
   }
 ): Promise<ExtractResults | undefined> {
-  const { shouldWebSearch = false, shouldKnowledgeSearch = false, lastAnswer, context } = options
+  const { shouldWebSearch = false, shouldKnowledgeSearch = false, lastAnswer, context, traceContext } = options
 
   if (!lastUserMessage) return undefined
 
@@ -124,7 +132,7 @@ async function analyzeSearchIntent(
   try {
     logger.info('Starting intent analysis generateText call', {
       modelId: model.id,
-      traceContext: assistant.traceContext,
+      traceContext: traceContext,
       requestId: context.requestId,
       hasWebSearch: needWebExtract,
       hasKnowledgeSearch: needKnowledgeExtract
@@ -135,8 +143,7 @@ async function analyzeSearchIntent(
       prompt: formattedPrompt
     }).finally(() => {
       logger.info('Intent analysis generateText call completed', {
-        modelId: model.id,
-        traceContext: assistant.traceContext,
+        traceContext: traceContext,
         requestId: context.requestId
       })
     })
@@ -235,18 +242,21 @@ async function storeConversationMemory(
 /**
  * 🎯 搜索编排插件
  */
-export const searchOrchestrationPlugin = (assistant: Assistant) => {
+export const searchOrchestrationPlugin = (
+  assistant: Assistant,
+  traceContext?: WebTraceContext
+): AiPlugin<StreamTextParams, StreamTextResult> => {
   // 存储意图分析结果
   const intentAnalysisResults: { [requestId: string]: ExtractResults } = {}
   const userMessages: { [requestId: string]: ModelMessage } = {}
 
-  return definePlugin({
+  return definePlugin<StreamTextParams, StreamTextResult>({
     name: 'search-orchestration',
     enforce: 'pre', // 确保在其他插件之前执行
     /**
      * 🔍 Step 1: 意图识别阶段
      */
-    onRequestStart: async (context: AiRequestContext) => {
+    onRequestStart: async (context) => {
       // 没开启任何搜索则不进行意图分析
       if (!(assistant.webSearchProviderId || assistant.knowledge_bases?.length || assistant.enableMemory)) return
 
@@ -278,7 +288,8 @@ export const searchOrchestrationPlugin = (assistant: Assistant) => {
             shouldKnowledgeSearch,
             shouldMemorySearch,
             lastAnswer: lastAssistantMessage,
-            context
+            context,
+            traceContext
           })
 
           if (analysisResult) {
@@ -295,7 +306,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant) => {
     /**
      * 🔧 Step 2: 工具配置阶段
      */
-    transformParams: async (params: any, context: AiRequestContext) => {
+    transformParams: async (params, context) => {
       // logger.info('🔧 Configuring tools based on intent...', context.requestId)
 
       try {
@@ -321,7 +332,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant) => {
               assistant.webSearchProviderId,
               analysisResult.websearch,
               context.requestId,
-              assistant.traceContext
+              traceContext
             )
           }
         }
@@ -345,7 +356,8 @@ export const searchOrchestrationPlugin = (assistant: Assistant) => {
             params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
               assistant,
               analysisResult.knowledge,
-              getMessageContent(userMessage)
+              getMessageContent(userMessage),
+              traceContext
             )
           }
         }
@@ -369,11 +381,12 @@ export const searchOrchestrationPlugin = (assistant: Assistant) => {
      * 💾 Step 3: 记忆存储阶段
      */
 
-    onRequestEnd: async (context: AiRequestContext) => {
+    onRequestEnd: async (context) => {
       // context.isAnalyzing = false
       // logger.info('context.isAnalyzing', context, result)
       // logger.info('💾 Starting memory storage...', context.requestId)
       try {
+        // ✅ 类型安全访问：context.originalParams 已通过泛型正确类型化
         const messages = context.originalParams.messages
 
         if (messages && assistant) {

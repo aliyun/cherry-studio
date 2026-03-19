@@ -27,6 +27,7 @@ import { sliceByTokens } from 'tokenx'
 
 import { getKnowledgeBaseParams } from './KnowledgeService'
 import { getKnowledgeSourceUrl, searchKnowledgeBase } from './KnowledgeService'
+
 const logger = loggerService.withContext('WebSearchService')
 
 interface RequestState {

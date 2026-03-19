@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { MCPCallToolResponse, MCPTool, MCPToolResponse, Model } from '@renderer/types'
+import type { MCPCallToolResponse, MCPTool, MCPToolResponse, Model, WebTraceContext } from '@renderer/types'
 import type { MCPToolCreatedChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
@@ -129,7 +129,7 @@ function createToolHandlingTransform(
                     allToolResponses,
                     currentParams.onChunk,
                     currentParams.assistant.model!,
-                    currentParams.assistant.traceContext
+                    currentParams.traceContext
                   )
 
                   // 缓存执行结果
@@ -158,7 +158,7 @@ function createToolHandlingTransform(
                     allToolResponses,
                     currentParams.onChunk,
                     currentParams.assistant.model!,
-                    currentParams.assistant.traceContext
+                    currentParams.traceContext
                   )
 
                   // 缓存执行结果
@@ -229,7 +229,7 @@ async function executeToolCalls(
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   model: Model,
-  traceContext?: CompletionsParams['assistant']['traceContext']
+  traceContext?: WebTraceContext
 ): Promise<{ toolResults: SdkMessageParam[]; confirmedToolCalls: SdkToolCall[] }> {
   const mcpToolResponses: MCPToolResponse[] = toolCalls
     .map((toolCall) => {
@@ -289,7 +289,7 @@ async function executeToolUseResponses(
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   model: Model,
-  traceContext?: CompletionsParams['assistant']['traceContext']
+  traceContext?: WebTraceContext
 ): Promise<{ toolResults: SdkMessageParam[] }> {
   // 直接使用parseAndCallTools函数处理已经解析好的ToolUseResponse
   const { toolResults } = await parseAndCallTools(
@@ -386,7 +386,7 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  traceContext?: CompletionsParams['assistant']['traceContext']
+  traceContext?: WebTraceContext
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
@@ -397,7 +397,7 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  traceContext?: CompletionsParams['assistant']['traceContext']
+  traceContext?: WebTraceContext
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
@@ -408,7 +408,7 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  traceContext?: CompletionsParams['assistant']['traceContext']
+  traceContext?: WebTraceContext
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }> {
   const toolResults: R[] = []
   let curToolResponses: MCPToolResponse[] = []

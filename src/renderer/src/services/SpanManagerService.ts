@@ -244,7 +244,7 @@ class SpanManagerService {
       return
     }
 
-    // If it's not in the current entity, delete it from the root entity.
+    // fix: If it's not in the current entity, delete from the root entity.
     if (!entity.removeSpan(span)) {
       this.getModelSpanEntity(params.topicId).removeSpan(span)
     }

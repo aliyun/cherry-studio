@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
+import { ClickableFilePath } from './ClickableFilePath'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
 import type { ReadToolInput as ReadToolInputType, ReadToolOutput as ReadToolOutputType, TextOutput } from './types'
 import { AgentToolsType } from './types'
@@ -54,10 +55,15 @@ export function ReadTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.Read}
-        params={<SkeletonValue value={filename} width="120px" />}
+        params={
+          <SkeletonValue
+            value={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}
+            width="120px"
+          />
+        }
         stats={
           stats
-            ? `${stats.lineCount} ${t(stats.lineCount === 1 ? 'message.tools.units.line' : 'message.tools.units.lines')}, ${formatFileSize(stats.fileSize)}`
+            ? `${t('message.tools.units.line', { count: stats.lineCount })}, ${formatFileSize(stats.fileSize)}`
             : undefined
         }
         variant="collapse-label"

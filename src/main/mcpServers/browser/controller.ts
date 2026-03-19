@@ -558,12 +558,7 @@ export class CdpBrowserController {
     // If newTab is requested, create a fresh tab
     if (newTab) {
       const { tabId: freshTabId } = await this.createTab(privateMode, showWindow)
-      // Re-fetch windowInfo after createTab, as it may have changed due to sweepIdle()
-      const currentWindowInfo = this.windows.get(this.getWindowKey(privateMode))
-      if (!currentWindowInfo) {
-        throw new Error(`Window for mode ${privateMode} was closed after creating tab`)
-      }
-      const tab = currentWindowInfo.tabs.get(freshTabId)
+      const tab = windowInfo.tabs.get(freshTabId)
       if (!tab) {
         throw new Error(`Tab ${freshTabId} was created but not found - it may have been closed`)
       }
@@ -589,12 +584,7 @@ export class CdpBrowserController {
 
     // Create new tab
     const { tabId: newTabId } = await this.createTab(privateMode, showWindow)
-    // Re-fetch windowInfo after createTab, as it may have changed due to sweepIdle()
-    const currentWindowInfo = this.windows.get(this.getWindowKey(privateMode))
-    if (!currentWindowInfo) {
-      throw new Error(`Window for mode ${privateMode} was closed after creating tab`)
-    }
-    const tab = currentWindowInfo.tabs.get(newTabId)
+    const tab = windowInfo.tabs.get(newTabId)
     if (!tab) {
       throw new Error(`Tab ${newTabId} was created but not found - it may have been closed`)
     }

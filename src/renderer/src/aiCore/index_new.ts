@@ -7,6 +7,7 @@
  * 2. 暂时保持接口兼容性
  */
 
+import type { AiSdkModel } from '@cherrystudio/ai-core'
 import { createExecutor } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
@@ -14,16 +15,16 @@ import { normalizeGatewayModels, normalizeSdkModels } from '@renderer/services/m
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { type Assistant, type GenerateImageParams, type Model, type Provider, SystemProviderIds } from '@renderer/types'
-import type { AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
+import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
+import type { WebTraceContext } from '@renderer/types/trace'
 import { SUPPORTED_IMAGE_ENDPOINT_LIST } from '@renderer/utils'
+import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
-import { gateway, type ImageModel, type LanguageModel, type Provider as AiSdkProvider, wrapLanguageModel } from 'ai'
+import { gateway, type LanguageModel, type Provider as AiSdkProvider } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import LegacyAiProvider from './legacy/index'
 import type { CompletionsParams, CompletionsResult } from './legacy/middleware/schemas'
-import type { AiSdkMiddlewareConfig } from './middleware/AiSdkMiddlewareBuilder'
-import { buildAiSdkMiddlewares } from './middleware/AiSdkMiddlewareBuilder'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { createAiSdkProvider } from './provider/factory'
 import {
@@ -34,12 +35,15 @@ import {
   providerToAiSdkConfig
 } from './provider/providerConfig'
 import type { AiSdkConfig } from './types'
+import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
 
 const logger = loggerService.withContext('ModernAiProvider')
 
 export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
   assistant: Assistant
   callType: string
+  idleTimeout?: IdleTimeoutHandle
+  traceContext?: WebTraceContext
 }
 
 export default class ModernAiProvider {
@@ -114,6 +118,10 @@ export default class ModernAiProvider {
     return this.actualProvider
   }
 
+  /**
+   * Note: This method routes text completions through `modernCompletions`,
+   * which only calls `streamText` (no `generateText` path).
+   */
   public async completions(modelId: string, params: StreamTextParams, providerConfig: ModernAiProviderConfig) {
     // 检查model是否存在
     if (!this.model) {
@@ -142,16 +150,6 @@ export default class ModernAiProvider {
       this.localProvider = await createAiSdkProvider(this.config)
     }
 
-    // 提前构建中间件
-    const middlewares = buildAiSdkMiddlewares({
-      ...providerConfig,
-      provider: this.actualProvider,
-      assistant: providerConfig.assistant
-    })
-    logger.debug('Built middlewares in completions', {
-      middlewareCount: middlewares.length,
-      isImageGeneration: providerConfig.isImageGenerationEndpoint
-    })
     if (!this.localProvider) {
       throw new Error('Local provider not created')
     }
@@ -162,19 +160,25 @@ export default class ModernAiProvider {
       model = this.localProvider.imageModel(modelId)
     } else {
       model = this.localProvider.languageModel(modelId)
-      // 如果有中间件，应用到语言模型上
-      if (middlewares.length > 0 && typeof model === 'object') {
-        model = wrapLanguageModel({ model, middleware: middlewares })
-      }
     }
 
     if (this.actualProvider.id === 'anthropic' && this.actualProvider.authType === 'oauth') {
-      const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(params.system)
+      // 类型守卫：确保 system 是 string、Array 或 undefined
+      const system = params.system
+      let systemParam: string | Array<any> | undefined
+      if (typeof system === 'string' || Array.isArray(system) || system === undefined) {
+        systemParam = system
+      } else {
+        // SystemModelMessage 类型，转换为 string
+        systemParam = undefined
+      }
+
+      const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(systemParam)
       params.system = undefined // 清除原有system，避免重复
       params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
     }
 
-    if (providerConfig.assistant.traceContext?.topicId && getEnableDeveloperMode()) {
+    if (providerConfig.traceContext?.topicId && getEnableDeveloperMode()) {
       return await this._completionsForTrace(model, params, providerConfig)
     } else {
       return await this._completionsOrImageGeneration(model, params, providerConfig)
@@ -224,15 +228,15 @@ export default class ModernAiProvider {
     const traceParams: StartSpanParams = {
       name: traceName,
       tag: 'LLM',
-      topicId: config.assistant.traceContext?.topicId || '',
-      assistantMsgId: config.assistant.traceContext?.assistantMsgId,
+      topicId: config.traceContext?.topicId || '',
+      assistantMsgId: config.traceContext?.assistantMsgId,
       modelName: config.assistant.model?.name, // 使用modelId而不是provider名称
       inputs: params
     }
 
     logger.info('Starting AI SDK trace span', {
       traceName,
-      topicId: config.assistant.traceContext?.topicId,
+      topicId: config.traceContext?.topicId,
       modelId,
       hasTools: !!params.tools && Object.keys(params.tools).length > 0,
       toolNames: params.tools ? Object.keys(params.tools) : [],
@@ -242,7 +246,7 @@ export default class ModernAiProvider {
     const span = addSpan(traceParams)
     if (!span) {
       logger.warn('Failed to create span, falling back to regular completions', {
-        topicId: config.assistant.traceContext?.topicId,
+        topicId: config.traceContext?.topicId,
         modelId,
         traceName
       })
@@ -253,7 +257,7 @@ export default class ModernAiProvider {
       logger.info('Created parent span, now calling completions', {
         spanId: span.spanContext().spanId,
         traceId: span.spanContext().traceId,
-        topicId: config.assistant.traceContext?.topicId,
+        topicId: config.traceContext?.topicId,
         modelId,
         parentSpanCreated: true
       })
@@ -263,15 +267,15 @@ export default class ModernAiProvider {
       logger.info('Completions finished, ending parent span', {
         spanId: span.spanContext().spanId,
         traceId: span.spanContext().traceId,
-        topicId: config.assistant.traceContext?.topicId,
+        topicId: config.traceContext?.topicId,
         modelId,
         resultLength: result.getText().length
       })
 
       // 标记span完成
       endSpan({
-        topicId: config.assistant.traceContext?.topicId || '',
-        assistantMsgId: config.assistant.traceContext?.assistantMsgId,
+        topicId: config.traceContext?.topicId || '',
+        assistantMsgId: config.traceContext?.assistantMsgId,
         outputs: result.getText(),
         span,
         modelName: modelId // 使用modelId保持一致性
@@ -282,14 +286,14 @@ export default class ModernAiProvider {
       logger.error('Error in completionsForTrace, ending parent span with error', error as Error, {
         spanId: span.spanContext().spanId,
         traceId: span.spanContext().traceId,
-        topicId: config.assistant.traceContext?.topicId,
+        topicId: config.traceContext?.topicId,
         modelId
       })
 
       // 标记span出错
       endSpan({
-        topicId: config.assistant.traceContext?.topicId || '',
-        assistantMsgId: config.assistant.traceContext?.assistantMsgId,
+        topicId: config.traceContext?.topicId || '',
+        assistantMsgId: config.traceContext?.assistantMsgId,
         error: error as Error,
         span,
         modelName: modelId // 使用modelId保持一致性
@@ -301,23 +305,24 @@ export default class ModernAiProvider {
   /**
    * 使用现代化AI SDK的completions实现
    */
+  /**
+   * Note: This implementation always uses `executor.streamText` and never
+   * calls `generateText`, even when `onChunk` is not provided.
+   */
   private async modernCompletions(
     model: LanguageModel,
     params: StreamTextParams,
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
-    // const modelId = this.model!.id
-    // logger.info('Starting modernCompletions', {
-    //   modelId,
-    //   providerId: this.config!.providerId,
-    //   topicId: config.topicId,
-    //   hasOnChunk: !!config.onChunk,
-    //   hasTools: !!params.tools && Object.keys(params.tools).length > 0,
-    //   toolCount: params.tools ? Object.keys(params.tools).length : 0
-    // })
-
     // 根据条件构建插件数组
-    const plugins = buildPlugins(config)
+    const plugins = buildPlugins(
+      {
+        provider: this.actualProvider,
+        model: this.model!,
+        config
+      },
+      config.traceContext
+    )
 
     // 用构建好的插件数组创建executor
     const executor = createExecutor(this.config!.providerId, this.config!.options, plugins)
@@ -325,7 +330,16 @@ export default class ModernAiProvider {
     // 创建带有中间件的执行器
     if (config.onChunk) {
       const accumulate = this.model!.supported_text_delta !== false // true and undefined
-      const adapter = new AiSdkToChunkAdapter(config.onChunk, config.mcpTools, accumulate, config.enableWebSearch)
+      const adapter = new AiSdkToChunkAdapter(
+        config.onChunk,
+        config.mcpTools,
+        accumulate,
+        config.enableWebSearch,
+        undefined,
+        undefined,
+        this.config!.providerId,
+        config.idleTimeout
+      )
 
       const streamResult = await executor.streamText({
         ...params,
@@ -339,18 +353,45 @@ export default class ModernAiProvider {
         getText: () => finalText
       }
     } else {
+      // Since no onChunk is provided, the external consumer would not handle error chunk.
+      // So we need to capture the actual stream error so we can throw it instead of the
+      // generic NoTextGeneratedError ("No output generated. Check the stream
+      // for errors.") that AI SDK raises when streamResult.text is accessed
+      // after a failed stream.
+      let streamError: unknown = undefined
+
       const streamResult = await executor.streamText({
         ...params,
-        model
+        model,
+        onError({ error }) {
+          streamError = error
+        }
       })
 
       // 强制消费流,不然await streamResult.text会阻塞
-      await streamResult?.consumeStream()
+      await streamResult?.consumeStream({
+        onError(error) {
+          if (!streamError) {
+            streamError = error
+          }
+        }
+      })
 
-      const finalText = await streamResult.text
+      try {
+        const finalText = await streamResult.text
+        const usage = await streamResult.totalUsage
 
-      return {
-        getText: () => finalText
+        return {
+          getText: () => finalText,
+          usage
+        }
+      } catch (error) {
+        // If we captured the real stream error, throw that instead of the
+        // generic NoTextGeneratedError so callers get actionable diagnostics.
+        if (streamError) {
+          throw streamError
+        }
+        throw error
       }
     }
   }
@@ -538,7 +579,7 @@ export default class ModernAiProvider {
 
     const executor = createExecutor(this.config!.providerId, this.config!.options, [])
     const result = await executor.generateImage({
-      model: this.localProvider?.imageModel(model) as ImageModel,
+      model: model, // 直接使用 model ID 字符串，由 executor 内部解析
       ...aiSdkParams
     })
 
